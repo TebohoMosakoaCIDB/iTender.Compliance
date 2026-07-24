@@ -1,0 +1,438 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Application.Models.Dashboard;
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Client.Components.Shared.Charts
+@using Microsoft.AspNetCore.Authorization
+
+@inject IDashboardService DashboardService
+
+@attribute [Authorize]
+
+<PageTitle>Home</PageTitle>
+
+<div class="mb-4">
+
+    <h2 class="mb-4">
+        <i class="bi bi-clipboard2-check me-2 text-secondary"></i>
+        Dashboard
+    </h2>
+
+    <small class="text-muted">
+        Monitor tender synchronization, compliance cases and agent activities.
+    </small>
+
+</div>
+
+<div class="row g-3 mb-4">
+
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+
+                <i class="bi bi-folder2-open fs-2 text-secondary me-3"></i>
+
+                <div>
+                    <small class="text-muted">
+                        Total Cases
+                    </small>
+
+                    <h3 class="mb-0">
+                        @Dashboard.Cards.TotalCases
+                    </h3>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+
+                <i class="bi bi-plus-circle fs-2 text-secondary me-3"></i>
+
+                <div>
+                    <small class="text-muted">
+                        New Cases
+                    </small>
+
+                    <h3 class="mb-0">
+                        @Dashboard.Cards.NewCases
+                    </h3>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+
+                <i class="bi bi-hourglass-split fs-2 text-secondary me-3"></i>
+
+                <div>
+                    <small class="text-muted">
+                        Waiting Response
+                    </small>
+
+                    <h3 class="mb-0">
+                        @Dashboard.Cards.WaitingForResponse
+                    </h3>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+
+                <i class="bi bi-person-check fs-2 text-secondary me-3"></i>
+
+                <div>
+                    <small class="text-muted">
+                        Assigned
+                    </small>
+
+                    <h3 class="mb-0">
+                        @Dashboard.Cards.AssignedCases
+                    </h3>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+
+                <i class="bi bi-check-circle fs-2 text-secondary me-3"></i>
+
+                <div>
+                    <small class="text-muted">
+                        Compliant
+                    </small>
+
+                    <h3 class="mb-0">
+                        @Dashboard.Cards.Compliant
+                    </h3>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+
+                <i class="bi bi-x-circle fs-2 text-secondary me-3"></i>
+
+                <div>
+                    <small class="text-muted">
+                        Non-Compliant
+                    </small>
+
+                    <h3 class="mb-0">
+                        @Dashboard.Cards.NonCompliant
+                    </h3>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row g-4 mb-4">
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Case Status</h5>
+            </div>
+            <div class="card-body">
+                <PieChart Labels="@StatusLabels"
+                          Values="@StatusValues"
+                          Height="220px" />
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Compliance Trend</h5>
+            </div>
+            <div class="card-body">
+                <LineChart Labels="@TrendLabels"
+                           Compliant="@TrendCompliant"
+                           NonCompliant="@TrendNonCompliant"
+                           Height="220px" />
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Cases by Priority</h5>
+            </div>
+            <div class="card-body">
+                <PieChart Labels="@PriorityLabels"
+                          Values="@PriorityValues"
+                          Height="220px" />
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row g-4 mb-4">
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Case Outcomes</h5>
+            </div>
+            <div class="card-body">
+                <DoughnutChart Labels="@OutcomeLabels"
+                               Values="@OutcomeValues"
+                               Height="220px" />
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Agent Workload</h5>
+            </div>
+            <div class="card-body">
+                <BarChart Labels="@AgentLabels"
+                          Values="@AgentValues"
+                          Height="220px" />
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Synchronization History</h5>
+            </div>
+            <div class="card-body">
+                <GroupedBarChart Labels="@SyncLabels"
+                                 Retrieved="@SyncRetrieved"
+                                 Created="@SyncCreated"
+                                 Errors="@SyncErrors"
+                                 Height="220px" />
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="card shadow-sm mb-4">
+
+    <div class="card-header bg-white">
+        <h5 class="mb-0">
+            <i class="bi bi-arrow-repeat me-2 text-secondary"></i>
+            Synchronization Status
+        </h5>
+    </div>
+
+    <div class="card-body">
+
+        <div class="row">
+
+            <div class="col-md-3">
+                <small class="text-muted">
+                    Last Sync
+                </small>
+
+                <div class="fw-semibold">
+                    @(Dashboard.Sync.LastSync?
+                        .ToString("dd MMM yyyy HH:mm")
+                        ?? "No sync completed")
+                </div>
+            </div>
+
+
+            <div class="col-md-3">
+                <small class="text-muted">
+                    Status
+                </small>
+
+                <div>
+
+                    @if (Dashboard.Sync.Status == SyncStatus.Completed)
+                    {
+                        <span class="badge bg-success">
+                            Completed
+                        </span>
+                    }
+                    else if (Dashboard.Sync.Status == SyncStatus.Failed)
+                    {
+                        <span class="badge bg-danger">
+                            Failed
+                        </span>
+                    }
+                    else if (Dashboard.Sync.Status == SyncStatus.Running)
+                    {
+                        <span class="badge bg-warning text-dark">
+                            Running
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">
+                            Unknown
+                        </span>
+                    }
+
+                </div>
+            </div>
+
+
+            <div class="col-md-3">
+                <small class="text-muted">
+                    Tenders Retrieved
+                </small>
+
+                <div class="fw-semibold">
+                    @Dashboard.Sync.TotalRetrieved
+                </div>
+            </div>
+
+
+            <div class="col-md-3">
+                <small class="text-muted">
+                    Cases Created
+                </small>
+
+                <div class="fw-semibold">
+                    @Dashboard.Sync.CasesCreated
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+    private List<string> AgentLabels =>
+    Dashboard.AgentWorkloads
+        .Select(x => x.AgentName)
+        .ToList();
+
+    private List<int> AgentValues =>
+        Dashboard.AgentWorkloads
+            .Select(x => x.AssignedCases)
+            .ToList();
+
+    private List<string> TrendLabels =>
+    Dashboard.ComplianceTrend
+        .Select(x => x.Month)
+        .ToList();
+
+    private List<int> TrendCompliant =>
+        Dashboard.ComplianceTrend
+            .Select(x => x.Compliant)
+            .ToList();
+
+    private List<int> TrendNonCompliant =>
+        Dashboard.ComplianceTrend
+            .Select(x => x.NonCompliant)
+            .ToList();
+
+    private List<string> SyncLabels =>
+        Dashboard.SyncHistory
+            .Select(x => x.Date)
+            .ToList();
+
+    private List<int> SyncRetrieved =>
+        Dashboard.SyncHistory
+            .Select(x => x.Retrieved)
+            .ToList();
+
+    private List<int> SyncCreated =>
+        Dashboard.SyncHistory
+            .Select(x => x.CasesCreated)
+            .ToList();
+
+    private List<int> SyncErrors =>
+        Dashboard.SyncHistory
+            .Select(x => x.Errors)
+            .ToList();
+
+    private List<string> StatusLabels =>
+        [
+            "New",
+            "Assigned",
+            "Waiting",
+            "Compliant",
+            "Non-Compliant",
+            "Closed"
+        ];
+
+    private List<int> StatusValues =>
+    [
+        Dashboard.StatusChart.New,
+        Dashboard.StatusChart.Assigned,
+        Dashboard.StatusChart.Waiting,
+        Dashboard.StatusChart.Compliant,
+        Dashboard.StatusChart.NonCompliant,
+        Dashboard.StatusChart.Closed
+    ];
+
+    private List<string> PriorityLabels =>
+    [
+        "Low",
+        "Normal",
+        "High",
+        "Critical"
+    ];
+
+    private List<int> PriorityValues =>
+    [
+        Dashboard.PriorityChart.Low,
+    Dashboard.PriorityChart.Normal,
+    Dashboard.PriorityChart.High,
+    Dashboard.PriorityChart.Critical
+    ];
+
+    private List<string> OutcomeLabels =>
+        [
+            "Compliant",
+            "Non-Compliant",
+            "Pending"
+        ];
+
+    private List<int> OutcomeValues =>
+    [
+        Dashboard.OutcomeChart.Compliant,
+    Dashboard.OutcomeChart.NonCompliant,
+    Dashboard.OutcomeChart.Pending
+    ];
+
+    private DashboardModel Dashboard = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Dashboard = await DashboardService.GetDashboardAsync();
+    }
+
+}

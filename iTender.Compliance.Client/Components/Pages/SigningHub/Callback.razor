@@ -1,0 +1,25 @@
+﻿@page "/signinghub/callback"
+
+@inject NavigationManager Navigation
+
+<h3>SigningHub Authentication</h3>
+
+<p>Completing authentication...</p>
+
+@code
+{
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+
+        var code = query["code"];
+        var state = query["state"];
+
+        if (!string.IsNullOrWhiteSpace(code))
+        {
+            // Exchange code for access token
+        }
+    }
+}

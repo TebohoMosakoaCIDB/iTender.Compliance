@@ -1,0 +1,256 @@
+﻿@page "/notifications"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Domain.Enums
+
+@attribute [Authorize]
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Services
+
+@inject INotificationService NotificationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Notifications</PageTitle>
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+            <h2 class="mb-0">Notifications</h2>
+
+            <small class="text-muted">
+                View and manage your notifications
+            </small>
+        </div>
+
+        <button class="btn btn-cidb-submit-outline"
+                @onclick="MarkAllAsRead"
+                disabled="@(!NotificationList.Any(x => !x.IsRead))">
+
+            <i class="bi bi-check2-all me-2"></i>
+
+            Mark All As Read
+
+        </button>
+
+    </div>
+
+    <div class="card shadow-sm">
+
+        <div class="card-header">
+
+            <div class="btn-group">
+
+                <button class="btn @(Filter == null ? "btn-cidb-submit" : "btn-outline-secondary")"
+                        @onclick="() => ChangeFilter(null)">
+                    All
+                </button>
+
+                <button class="btn @(Filter == true ? "btn-cidb-submit" : "btn-outline-secondary")"
+                        @onclick="() => ChangeFilter(true)">
+                    Unread
+                </button>
+
+                <button class="btn @(Filter == false ? "btn-cidb-submit" : "btn-outline-secondary")"
+                        @onclick="() => ChangeFilter(false)">
+                    Read
+                </button>
+
+            </div>
+
+        </div>
+
+        <div class="card-body p-0">
+
+            @if (!NotificationList.Any())
+            {
+                <div class="text-center py-5">
+
+                    <i class="bi bi-bell-slash fs-1 text-muted"></i>
+
+                    <p class="text-muted mt-3">
+                        No notifications found.
+                    </p>
+
+                </div>
+            }
+            else
+            {
+                <table class="table table-hover mb-0">
+
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Title</th>
+                            <th>Message</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th style="width:220px;"></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        @foreach (var notification in NotificationList)
+                        {
+                            <tr class="@(!notification.IsRead ? "table-light notification-row" : "notification-row")"
+                                @onclick="() => OpenNotification(notification)">
+
+                                <td>
+                                    @GetIcon(notification.Type)
+                                </td>
+
+                                <td>
+                                    <strong>@notification.Title</strong>
+                                </td>
+
+                                <td>@notification.Message</td>
+
+                                <td>
+                                    @notification.CreatedOn.ToString("dd MMM yyyy HH:mm")
+                                </td>
+
+                                <td>
+
+                                    @if (notification.IsRead)
+                                    {
+                                        <span class="badge bg-success">
+                                            Read
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">
+                                            Unread
+                                        </span>
+                                    }
+
+                                </td>
+
+                                <td class="text-end">
+
+                                    @if (!notification.IsRead)
+                                    {
+                                        <button class="btn btn-sm btn-outline-success me-2"
+                                                @onclick="() => MarkAsRead(notification.Id)"
+                                                @onclick:stopPropagation="true">
+
+                                            <i class="bi bi-check2"></i>
+
+                                        </button>
+                                    }
+
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => Delete(notification.Id)"
+                                            @onclick:stopPropagation="true">
+
+                                        <i class="bi bi-trash"></i>
+
+                                    </button>
+
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+            }
+
+        </div>
+
+    </div>
+
+</div>
+
+@code
+{
+    private List<NotificationListModel> NotificationList = [];
+
+    private bool? Filter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadNotifications();
+    }
+
+    private async Task LoadNotifications()
+    {
+        var auth =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = Guid.Parse(
+            auth.User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        NotificationList =
+            await NotificationService.GetAllAsync(userId, Filter);
+    }
+
+    private async Task ChangeFilter(bool? filter)
+    {
+        Filter = filter;
+
+        await LoadNotifications();
+    }
+
+    private async Task MarkAsRead(Guid id)
+    {
+        await NotificationService.MarkAsReadAsync(id);
+
+        await LoadNotifications();
+    }
+
+    private async Task MarkAllAsRead()
+    {
+        var auth =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = Guid.Parse(
+            auth.User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        await NotificationService.MarkAllAsReadAsync(userId);
+
+        await LoadNotifications();
+    }
+
+    private async Task Delete(Guid id)
+    {
+        await NotificationService.DeleteAsync(id);
+
+        await LoadNotifications();
+    }
+
+    private static MarkupString GetIcon(NotificationType type)
+    {
+        var icon = type switch
+        {
+            NotificationType.Information => "<i class='bi bi-person-check-fill text-primary fs-5'></i>",
+            NotificationType.Warning => "<i class='bi bi-envelope-fill text-warning fs-5'></i>",
+            NotificationType.Success => "<i class='bi bi-check-circle-fill text-success fs-5'></i>",
+            NotificationType.Error => "<i class='bi bi-exclamation-triangle-fill text-danger fs-5'></i>",
+            _ => "<i class='bi bi-bell-fill text-secondary fs-5'></i>"
+        };
+
+        return (MarkupString)icon;
+    }
+
+    private async Task OpenNotification(NotificationListModel notification)
+    {
+        if (!notification.IsRead)
+        {
+            await NotificationService.MarkAsReadAsync(notification.Id);
+        }
+
+        if (!string.IsNullOrWhiteSpace(notification.Url))
+        {
+            Navigation.NavigateTo(notification.Url);
+        }
+    }
+}

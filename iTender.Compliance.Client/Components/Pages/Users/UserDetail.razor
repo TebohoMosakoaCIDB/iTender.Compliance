@@ -1,0 +1,407 @@
+﻿@page "/accounts/{Id:guid}"
+@rendermode InteractiveServer
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Application.Common
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Services
+
+@inject IUserService UserService
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "Administration")]
+
+<PageTitle>Account Details</PageTitle>
+
+<h2 class="mb-4">
+    <i class="bi bi-person-gear me-2 text-secondary"></i>
+    Edit User
+</h2>
+
+<small class="text-muted">
+    Manage user account details, permissions and security settings.
+</small>
+
+<hr />
+
+@if (Errors.Any())
+{
+    <div class="alert alert-danger">
+
+        <ul class="mb-0">
+
+            @foreach (var error in Errors)
+            {
+                <li>@error</li>
+            }
+
+        </ul>
+
+    </div>
+}
+
+<h5 class="mb-3">Personal Information</h5>
+
+<div class="row g-3">
+
+    <div class="col-md-6">
+        <label class="form-label">First Name</label>
+
+        <InputText class="form-control"
+                   @bind-Value="Model.FirstName" />
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Last Name</label>
+
+        <InputText class="form-control"
+                   @bind-Value="Model.LastName" />
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Email Address</label>
+
+        <InputText class="form-control"
+                   @bind-Value="Model.Email" />
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Phone Number</label>
+
+        <InputText class="form-control"
+                   @bind-Value="Model.PhoneNumber" />
+    </div>
+
+</div>
+
+<hr />
+
+<h5 class="mb-3">Role & Account Status</h5>
+
+<div class="row g-3">
+
+    <div class="col-md-6">
+        <label class="form-label">Role</label>
+
+        <InputSelect class="form-select"
+                     @bind-Value="Model.Role">
+
+            @foreach (var role in Roles.All)
+            {
+                <option value="@role">@role</option>
+            }
+
+        </InputSelect>
+
+    </div>
+
+    <div class="col-md-6 d-flex align-items-end">
+
+        <div class="form-check">
+
+            <InputCheckbox class="form-check-input"
+                           @bind-Value="Model.IsActive" />
+
+            <label class="form-check-label">
+                Active Account
+            </label>
+
+        </div>
+
+    </div>
+
+</div>
+
+<hr />
+
+@if (Model.Role == Roles.ComplianceAgent)
+{
+    <h5 class="mb-3">Agent Information</h5>
+
+    <div class="row g-3">
+
+        <div class="col-md-6">
+            <label class="form-label">
+                Employee Number
+            </label>
+
+            <InputText class="form-control"
+                       @bind-Value="Model.EmployeeNumber" />
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">
+                Department
+            </label>
+
+            <InputText class="form-control"
+                       @bind-Value="Model.Department" />
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">
+                Level
+            </label>
+
+            <InputSelect class="form-select"
+                         @bind-Value="Model.Level">
+
+                @foreach (var level in Enum.GetValues<AgentLevel>())
+                {
+                    <option value="@level">@level</option>
+                }
+
+            </InputSelect>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">
+                Job Title
+            </label>
+
+            <InputText class="form-control"
+                       @bind-Value="Model.JobTitle" />
+        </div>
+
+    </div>
+
+    <hr />
+
+    <h5 class="mb-3">Correspondence Branding</h5>
+
+    <div class="row g-3">
+
+        <div class="col-md-6">
+
+            <label class="form-label">
+                Header Image Path
+            </label>
+
+            <InputText class="form-control"
+                       @bind-Value="Model.HeaderImagePath"
+                       placeholder="correspondence/headers/header.png" />
+
+        </div>
+
+        <div class="col-md-6">
+
+            <label class="form-label">
+                Signature Image Path
+            </label>
+
+            <InputText class="form-control"
+                       @bind-Value="Model.SignatureImagePath"
+                       placeholder="correspondence/signatures/signature.png" />
+
+        </div>
+
+        <div class="col-12">
+
+            <label class="form-label">
+                Footer Text
+            </label>
+
+            <InputTextArea class="form-control"
+                           rows="4"
+                           @bind-Value="Model.FooterText" />
+
+        </div>
+
+    </div>
+
+    <hr />
+}
+
+<h5 class="mb-3">Security Information</h5>
+
+<div class="row gy-4">
+
+    <div class="col-md-3">
+
+        <div class="text-muted small">
+            Email Confirmed
+        </div>
+
+        <div class="fw-semibold">
+            @(Model.EmailConfirmed ? "Yes" : "No")
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="text-muted small">
+            Phone Confirmed
+        </div>
+
+        <div class="fw-semibold">
+            @(Model.PhoneNumberConfirmed ? "Yes" : "No")
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="text-muted small">
+            Two-Factor Authentication
+        </div>
+
+        <div class="fw-semibold">
+            @(Model.TwoFactorEnabled ? "Enabled" : "Disabled")
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="text-muted small">
+            Failed Login Attempts
+        </div>
+
+        <div class="fw-semibold">
+            @Model.AccessFailedCount
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="text-muted small">
+            Locked Until
+        </div>
+
+        <div class="fw-semibold">
+            @(Model.LockoutEnd?.ToString("dd MMM yyyy HH:mm") ?? "Never")
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="text-muted small">
+            Created
+        </div>
+
+        <div class="fw-semibold">
+            @Model.CreatedOn.ToString("dd MMM yyyy")
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="text-muted small">
+            Last Login
+        </div>
+
+        <div class="fw-semibold">
+            @(Model.LastLoginOn?.ToString("dd MMM yyyy HH:mm") ?? "Never")
+        </div>
+
+    </div>
+
+</div>
+
+<hr />
+
+<h5 class="mb-3">Account Actions</h5>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+
+    <button class="btn btn-sm btn-secondary"
+            @onclick="ResetPassword">
+        <i class="bi bi-key-fill me-2"></i>
+        Reset Password
+    </button>
+
+    <button class="btn btn-sm btn-secondary"
+            @onclick="UnlockUser"
+            disabled="@(!Model.LockoutEnd.HasValue)">
+        <i class="bi bi-unlock-fill me-2"></i>
+        Unlock User
+    </button>
+
+    <button class="btn btn-sm btn-secondary"
+            @onclick="ToggleTwoFactor">
+        <i class="bi bi-shield-lock-fill me-2"></i>
+        @(Model.TwoFactorEnabled ? "Disable 2FA" : "Enable 2FA")
+    </button>
+
+</div>
+
+<div class="d-flex justify-content-end gap-2 mt-4">
+
+    <button class="btn btn-secondary"
+            @onclick="Cancel">
+        <i class="bi bi-x-circle me-2"></i>
+        Cancel
+    </button>
+
+    <button class="btn btn-cidb-submit"
+            @onclick="Save">
+        <i class="bi bi-check-circle me-2"></i>
+        Save Changes
+    </button>
+
+</div>
+
+@code
+{
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private UpdateUserModel Model = new();
+
+    private List<string> Errors = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await UserService.GetByIdAsync(Id);
+
+        if (user == null)
+        {
+            Navigation.NavigateTo("/accounts");
+            return;
+        }
+
+        Model = user;
+    }
+
+    private async Task Save()
+    {
+        Errors.Clear();
+
+        var result = await UserService.UpdateAsync(Model);
+
+        if (!result.Succeeded)
+        {
+            Errors = result.Errors;
+            return;
+        }
+
+        Navigation.NavigateTo("/accounts");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/accounts");
+    }
+
+    private Task ResetPassword()
+    {
+        // TODO: Implement password reset
+        return Task.CompletedTask;
+    }
+
+    private Task UnlockUser()
+    {
+        // TODO: Implement unlock account
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleTwoFactor()
+    {
+        // TODO: Implement enable/disable 2FA
+        return Task.CompletedTask;
+    }
+}

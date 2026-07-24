@@ -1,0 +1,260 @@
+﻿@page "/reports"
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Application.Interfaces.Services
+
+@attribute [Authorize(Policy = "Administration")]
+
+@inject IPdfReportService PdfReportService
+
+<PageTitle>Reports</PageTitle>
+
+<div class="mb-4">
+
+    <h2 class="mb-1">
+        <i class="bi bi-file-earmark-pdf me-2 text-secondary"></i>
+        Reports
+    </h2>
+
+    <small class="text-muted">
+        Generate printable compliance and audit reports.
+    </small>
+
+</div>
+
+<div class="row g-4">
+
+    <div class="col-md-6">
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-body">
+
+                <h5>Compliance Summary</h5>
+
+                <p class="text-muted">
+                    Overall compliance statistics and case totals.
+                </p>
+
+                <button class="btn btn-cidb-submit"
+                        @onclick="GenerateComplianceSummary">
+
+                    <i class="bi bi-file-earmark-pdf me-2"></i>
+
+                    Generate PDF
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-6">
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-body">
+
+                <h5>Outstanding Cases</h5>
+
+                <p class="text-muted">
+                    Cases still requiring attention.
+                </p>
+
+                <button class="btn btn-cidb-submit"
+                        @onclick="GenerateOutstandingCases">
+
+                    <i class="bi bi-file-earmark-pdf me-2"></i>
+
+                    Generate PDF
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-6">
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-body">
+
+                <h5>Agent Performance</h5>
+
+                <p class="text-muted">
+                    Workload and completion statistics by agent.
+                </p>
+
+                <button class="btn btn-cidb-submit"
+                        @onclick="GenerateAgentPerformance">
+
+                    <i class="bi bi-file-earmark-pdf me-2"></i>
+
+                    Generate PDF
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-6">
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-body">
+
+                <h5>Synchronization History</h5>
+
+                <p class="text-muted">
+                    Tender synchronization history and statistics.
+                </p>
+
+                <button class="btn btn-cidb-submit"
+                        @onclick="GenerateSynchronizationHistory">
+
+                    <i class="bi bi-file-earmark-pdf me-2"></i>
+
+                    Generate PDF
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-6">
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-body">
+
+                <h5>Letter History</h5>
+
+                <p class="text-muted">
+                    Instruction and reminder letters issued.
+                </p>
+
+                <button class="btn btn-cidb-submit"
+                        @onclick="GenerateLetterHistory">
+
+                    <i class="bi bi-file-earmark-pdf me-2"></i>
+
+                    Generate PDF
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-6">
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-body">
+
+                <h5>Audit History</h5>
+
+                <p class="text-muted">
+                    Complete audit trail of user activity.
+                </p>
+
+                <button class="btn btn-cidb-submit"
+                        @onclick="GenerateAuditHistory">
+
+                    <i class="bi bi-file-earmark-pdf me-2"></i>
+
+                    Generate PDF
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="alert alert-info mt-4">
+        @Message
+    </div>
+}
+
+@code
+{
+    private string? Message;
+
+    private Task GenerateComplianceSummary()
+    {
+        return DownloadPdf(
+            () => PdfReportService.GenerateComplianceSummaryAsync(),
+            "Compliance Summary.pdf");
+    }
+
+    private Task GenerateOutstandingCases()
+    {
+        return DownloadPdf(
+            () => PdfReportService.GenerateOutstandingCasesAsync(),
+            "Outstanding Cases.pdf");
+    }
+
+    private Task GenerateAgentPerformance()
+    {
+        return DownloadPdf(
+            () => PdfReportService.GenerateAgentPerformanceAsync(),
+            "Agent Performance.pdf");
+    }
+
+    private Task GenerateSynchronizationHistory()
+    {
+        return DownloadPdf(
+            () => PdfReportService.GenerateSynchronizationHistoryAsync(),
+            "Synchronization History.pdf");
+    }
+
+    private Task GenerateLetterHistory()
+    {
+        return DownloadPdf(
+            () => PdfReportService.GenerateLetterHistoryAsync(),
+            "Letter History.pdf");
+    }
+
+    private Task GenerateAuditHistory()
+    {
+        return DownloadPdf(
+            () => PdfReportService.GenerateAuditHistoryAsync(),
+            "Audit History.pdf");
+    }
+
+    private async Task DownloadPdf(
+    Func<Task<byte[]>> generator,
+    string fileName)
+    {
+        var bytes = await generator();
+
+        var base64 = Convert.ToBase64String(bytes);
+
+        await JS.InvokeVoidAsync(
+            "downloadFile",
+            fileName,
+            "application/pdf",
+            base64);
+    }
+}

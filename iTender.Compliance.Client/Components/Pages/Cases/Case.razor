@@ -1,0 +1,816 @@
+﻿@page "/cases/{Id:guid}"
+
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Domain.Entities
+@using iTender.Compliance.Application.Interfaces.Repositories
+@using iTender.Compliance.Application.Interfaces.Services
+@rendermode InteractiveServer
+@inject IComplianceCaseRepository Repository
+@inject IAgentRepository AgentRepository
+@inject IComplianceService ComplianceService
+@inject ICorrespondenceService CorrespondenceService
+@inject ICaseNoteRepository CaseNoteRepository
+@inject ISystemSettingService SystemSettingService
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "CaseManagement")]
+
+<PageTitle>Compliance Case</PageTitle>
+
+<h2 class="mb-5">
+    <i class="bi bi-folder-check me-2 text-secondary"></i>
+    Compliance Case
+</h2>
+
+@if (Model == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-9">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+
+                <div>
+
+                    <h3 class="mb-1">
+                        @Model.Tender.TenderNumber
+                    </h3>
+
+                    <h5 class="text-muted fw-normal">
+                        @Model.Tender.Title
+                    </h5>
+
+                </div>
+
+                <span class="badge bg-secondary fs-6">
+                    @Model.Case.Status
+                </span>
+
+            </div>
+
+            <hr />
+
+            <div class="row mb-4">
+
+                <div class="col-md-6">
+
+                    <h5 class="table-header-brand mb-3">
+                        <i class="bi bi-file-earmark-text me-2"></i>
+                        Tender Details
+                    </h5>
+
+                    <table class="table table-sm">
+
+                        <tbody>
+
+                            <tr>
+                                <th width="180">Tender Number</th>
+                                <td>@Model.Tender.TenderNumber</td>
+                            </tr>
+
+                            <tr>
+                                <th>Employer</th>
+                                <td>@Model.Tender.Employer</td>
+                            </tr>
+
+                            <tr>
+                                <th>Closing Date</th>
+                                <td>@Model.Tender.ClosingDate.ToString("dd MMM yyyy HH:mm")</td>
+                            </tr>
+
+                            <tr>
+                                <th>Tender Link</th>
+                                <td>
+                                    <a href="@Model.Tender.TenderUrl"
+                                       target="_blank">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i>
+                                        Visit Originating Site
+                                    </a>
+                                </td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+                <div class="col-md-6">
+
+                    <h5 class="table-header-brand mb-3">
+                        <i class="bi bi-shield-check me-2"></i>
+                        Compliance Details
+                    </h5>
+
+                    <table class="table table-sm">
+
+                        <tbody>
+
+                            <tr>
+                                <th width="180">Priority</th>
+                                <td>@Model.Case.Priority</td>
+                            </tr>
+
+                            <tr>
+                                <th>Status</th>
+                                <td>@Model.Case.Status</td>
+                            </tr>
+
+                            <tr>
+                                <th>Assigned Agent</th>
+                                <td>@(Model.Case.Agent ?? "-")</td>
+                            </tr>
+
+                            <tr>
+                                <th>Outcome</th>
+                                <td>@(Model.Case.Outcome?.ToString() ?? "-")</td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+            <hr />
+
+            @if(Model.Case.Status != "Closed")
+            {
+                <div class="d-flex flex-wrap gap-2 mb-4">
+
+                    @if (Model.Case.Agent == null)
+                    {
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="OpenAssignAgent">
+                            Assign Agent
+                        </button>
+                    }
+
+                    @if (!Model.Letters.Any() && Model.Case.Agent != null)
+                    {
+                        <button class="btn btn-sm btn-cidb-submit-outline"
+                                @onclick="SendInstructionLetter">
+                            <i class="bi bi-envelope me-1"></i>
+                            Send Instruction Letter
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-cidb-submit-outline"
+                                @onclick="SendReminderLetter">
+                            <i class="bi bi-bell me-1"></i>
+                            Send Reminder
+                        </button>
+
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="OpenCaptureResponse">
+                            <i class="bi bi-check-circle me-1"></i>
+                            Capture Response
+                        </button>
+                    }
+                </div>
+            }
+
+            else
+            {
+                <div class="alert alert-danger">
+                    This compliance case has been closed and is marked as
+                    <strong>@Model.Case.Outcome</strong>.
+                </div>
+            }
+
+            <hr />
+
+            <div class="row">
+
+                <div class="col-lg-12">
+
+                    <h5 class="table-header-brand mb-3">
+                        <i class="bi bi-envelope-paper me-2"></i>
+                        Correspondence History
+                    </h5>
+
+                    <table class="table table-striped table-hover align-middle">
+
+                        <thead>
+
+                            <tr>
+
+                                <th>#</th>
+                                <th>Letter</th>
+                                <th>Recipient</th>
+                                <th>Sent</th>
+                                <th>Due</th>
+                                <th>Status</th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            @if (Model.Letters.Any())
+                            {
+                                @foreach (var letter in Model.Letters.OrderBy(x => x.LetterNumber))
+                                {
+                                    <tr>
+
+                                        <td>@letter.LetterNumber</td>
+
+                                        <td>
+                                            @(letter.LetterNumber == 1
+                                                ? "Instruction"
+                                                : $"Reminder {letter.LetterNumber - 1}")
+                                        </td>
+
+                                        <td>
+
+                                            <div class="fw-semibold">
+                                                @letter.RecipientName
+                                            </div>
+
+                                            <small class="text-muted">
+                                                @letter.RecipientEmail
+                                            </small>
+
+                                        </td>
+
+                                        <td>@letter.SentOn.ToString("dd MMM yyyy HH:mm")</td>
+
+                                        <td>@letter.ResponseDueOn.ToString("dd MMM yyyy HH:mm")</td>
+
+                                        <td>
+
+                                            @if (letter.RespondedOn.HasValue)
+                                            {
+                                                <span class="badge bg-secondary">Responded</span>
+                                            }
+                                            else if (letter.ResponseDueOn < DateTime.UtcNow)
+                                            {
+                                                <span class="badge bg-danger">Overdue</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary-subtle text-dark">Awaiting</span>
+                                            }
+
+                                        </td>
+
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+
+                                    <td colspan="6" class="text-center text-muted">
+                                        No correspondence has been sent.
+
+                                    </td>
+
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                    <div class="mt-4">
+
+                        <h5 class="table-header-brand mb-3">
+                            <i class="bi bi-journal-text me-2"></i>
+                            Case Notes
+                        </h5>
+
+                        @if (Model.Notes.Any())
+                        {
+                            <div class="timeline">
+
+                                @foreach (var note in Model.Notes.OrderByDescending(x => x.CreatedOn))
+                                {
+                                    <div class="card mb-2">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <span class="fw-semibold">
+                                                    <i class="bi bi-chat-left-text me-2 text-secondary"></i>
+                                                    Note
+                                                </span>
+
+                                                <small class="text-muted">
+                                                    @note.CreatedOn.ToString("dd MMM yyyy HH:mm")
+                                                </small>
+                                            </div>
+
+                                            <p class="mb-0 mt-2">
+                                                @note.Note
+                                            </p>
+
+                                        </div>
+
+                                    </div>
+                                }
+
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-center text-muted">
+                                No notes have been added.
+                            </div>
+                        }
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="col-lg-12">
+
+                <h5 class="table-header-brand mb-3">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Activity
+                </h5>
+
+                @if (Model.Timeline.Any())
+                {
+                    @foreach (var audit in Model.Timeline.OrderByDescending(x => x.Date))
+                    {
+                        <div class="timeline-item">
+
+                            <div class="timeline-icon">
+
+                                @switch (audit.Action)
+                                {
+                                    case AuditAction.Created:
+                                        <i class="bi bi-plus-circle-fill text-secondary"></i>
+                                        break;
+
+                                    case AuditAction.Assigned:
+                                        <i class="bi bi-person-plus-fill text-secondary"></i>
+                                        break;
+
+                                    case AuditAction.Reassigned:
+                                        <i class="bi bi-arrow-repeat text-secondary"></i>
+                                        break;
+
+                                    case AuditAction.InstructionLetterSent:
+                                        <i class="bi bi-envelope-fill text-secondary"></i>
+                                        break;
+
+                                    case AuditAction.ReminderLetterSent:
+                                        <i class="bi bi-bell-fill text-secondary"></i>
+                                        break;
+
+                                    case AuditAction.ResponseReceived:
+                                        <i class="bi bi-check-circle-fill text-secondary"></i>
+                                        break;
+
+                                    case AuditAction.CaseClosed:
+                                        <i class="bi bi-lock-fill text-secondary"></i>
+                                        break;
+
+                                    default:
+                                        <i class="bi bi-dot"></i>
+                                        break;
+                                }
+
+                            </div>
+
+                            <div class="timeline-content">
+
+                                <div class="fw-semibold">
+                                    @audit.Action
+                                </div>
+
+                                <small class="text-muted">
+                                    @audit.Date.ToString("dd MMM yyyy HH:mm")
+                                </small>
+
+                                <div class="mt-1">
+                                    @audit.Description
+                                </div>
+
+                            </div>
+
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="text-muted">
+                        No activity recorded.
+                    </div>
+                }
+
+            </div>
+        </div>
+    </div>
+        
+    @if (ShowAssignAgentModal)
+    {
+        <div class="modal fade show d-block"
+             tabindex="-1"
+             style="background-color:rgba(0,0,0,.5)">
+
+            <div class="modal-dialog modal-lg">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <h5 class="modal-title">
+                            Assign Compliance Agent
+                        </h5>
+
+                        <button class="btn-close"
+                                @onclick="CloseAssignAgent">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Agent <span class="text-danger">*</span>
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="SelectedAgentId">
+
+                                <option value="">-- Select Agent --</option>
+
+                                @foreach (var agent in Agents.OrderBy(x => x.FullName))
+                                {
+                                    <option value="@agent.Id">
+                                        @agent.FullName (@agent.OpenCases open cases)
+                                    </option>
+                                }
+
+                            </InputSelect>
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Priority
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="SelectedPriority">
+
+                                @foreach (var priority in Enum.GetValues<CasePriority>())
+                                {
+                                    <option value="@priority">
+                                        @priority
+                                    </option>
+                                }
+
+                            </InputSelect>
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Assignment Comments
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="4"
+                                           maxlength="500"
+                                           @bind-Value="AssignmentComments" />
+
+                            <small class="text-muted">
+                                Optional notes for the assigned agent.
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button class="btn btn-sm btn-secondary"
+                                @onclick="CloseAssignAgent">
+                            Cancel
+                        </button>
+
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="AssignAgent">
+                            <i class="bi bi-person-plus me-1"></i>
+                            Assign Agent
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+
+    @if (ShowCaptureResponseModal)
+    {
+        <div class="modal fade show d-block"
+             tabindex="-1"
+             style="background-color:rgba(0,0,0,.5)">
+
+            <div class="modal-dialog">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <h5 class="modal-title">
+                            Capture Response
+                        </h5>
+
+                        <button class="btn-close"
+                                @onclick="CloseCaptureResponse">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <!-- Outcome -->
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Outcome
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="Response.Outcome">
+
+                                <option value="@ComplianceOutcome.Compliant">
+                                    Compliant
+                                </option>
+
+                                <option value="@ComplianceOutcome.NonCompliant">
+                                    Non-Compliant
+                                </option>
+
+                            </InputSelect>
+
+                        </div>
+
+                        <!-- Date -->
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Response Date
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="Response.RespondedOn" />
+
+                        </div>
+
+                        <!-- Comments -->
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Comments
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="4"
+                                           @bind-Value="Response.Comments" />
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button class="btn btn-sm btn-secondary"
+                                @onclick="CloseCaptureResponse">
+                            Cancel
+                        </button>
+
+                        <!-- THIS is the Save button -->
+
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="SaveResponse">
+
+                            Save Response
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+}
+
+@code {
+    private CaptureResponseModel Response = new();
+    public List<CaseNoteModel> Notes { get; set; } = [];
+
+    private bool ShowCaptureResponseModal;
+
+    private CasePriority SelectedPriority = CasePriority.Normal;
+
+    private string AssignmentComments = string.Empty;
+
+    private bool ShowAssignAgentModal;
+
+    private Guid? SelectedAgentId;
+
+    private List<AgentLookupModel> Agents = [];
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private ComplianceCaseDetailModel? Model;
+
+    private bool CanSendInstructionLetter =>
+        Model != null &&
+        Model.Case.Agent != null &&
+        !Model.Letters.Any();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Model = await Repository.GetDetailAsync(Id);
+    }
+
+    private async Task OpenAssignAgent()
+    {
+        Agents = await AgentRepository.GetLookupAsync();
+
+        SelectedAgentId = null;
+
+        SelectedPriority = Model.Case.Priority;
+
+        AssignmentComments = Model.Case.Comments ?? string.Empty;
+
+        ShowAssignAgentModal = true;
+    }
+
+    private void CloseAssignAgent()
+    {
+        ShowAssignAgentModal = false;
+    }
+
+    private async Task AssignAgent()
+    {
+        if (!SelectedAgentId.HasValue)
+            return;
+
+        await ComplianceService.AssignAgentAsync(
+            Model.Id,
+            SelectedAgentId.Value,
+            SelectedPriority,
+            AssignmentComments);
+
+        ShowAssignAgentModal = false;
+
+        if (!string.IsNullOrWhiteSpace(AssignmentComments))
+        {
+            var note = new CaseNote
+            {
+                Id = Guid.NewGuid(),
+                ComplianceCaseId = Model.Id,
+                Comment = $"Agent assigned. Priority: {SelectedPriority}. " +
+                       $"Comment: {AssignmentComments}",
+                CreatedOn = DateTime.UtcNow
+            };
+
+            await CaseNoteRepository.AddAsync(note);
+        }
+
+        Model = await Repository.GetDetailAsync(Id);
+    }
+
+    private async Task SendInstructionLetter()
+    {
+        if (Model == null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(Model.Case.Agent))
+            throw new InvalidOperationException("Please assign an agent before sending the instruction letter.");
+
+        var settings = await SystemSettingService.GetAsync();
+
+        var request = new SendInstructionLetterModel
+        {
+            ComplianceCaseId = Model.Id,
+
+            RecipientName = Model.Tender.Employer,
+            RecipientEmail = Model.Case.Agent,
+
+            TenderNumber = Model.Tender.TenderNumber,
+            TenderTitle = Model.Tender.Title,
+            EmployerName = Model.Tender.Employer,
+            ClosingDate = Model.Tender.ClosingDate,
+            CompanyName = Model.Tender.Employer,
+            ContactPerson = Model.Case.Agent,
+
+            ResponseDueOn = DateTime.UtcNow.AddHours(settings.ResponseDueHours)
+        };
+
+        await CorrespondenceService.SendInstructionLetterAsync(request);
+
+        Model = await Repository.GetDetailAsync(Id);
+    }
+
+    private async Task SendReminderLetter()
+    {
+        if (Model == null)
+            return;
+
+        var latestLetter = Model.Letters
+            .OrderByDescending(x => x.LetterNumber)
+            .FirstOrDefault();
+
+        if (latestLetter == null)
+            throw new InvalidOperationException("No instruction letter exists.");
+
+        var settings = await SystemSettingService.GetAsync();
+
+        var request = new SendReminderLetterModel
+        {
+            ComplianceCaseId = Model.Id,
+
+            CaseLetterId = latestLetter.Id,
+
+            RecipientName = latestLetter.RecipientName,
+            RecipientEmail = latestLetter.RecipientEmail,
+
+            TenderNumber = Model.Tender.TenderNumber,
+            TenderTitle = Model.Tender.Title,
+            EmployerName = Model.Tender.Employer,
+            ClosingDate = Model.Tender.ClosingDate,
+
+            OriginalSentOn = latestLetter.SentOn,
+            ResponseDueOn = DateTime.UtcNow.AddHours(settings.ReminderDelayHours),
+
+            ReminderNumber = Model.Letters.Count(x => x.LetterNumber > 1)
+        };
+
+        await CorrespondenceService.SendReminderLetterAsync(request);
+
+        Model = await Repository.GetDetailAsync(Id);
+    }
+
+    private void OpenCaptureResponse()
+    {
+        var latestLetter = Model!.Letters
+            .OrderByDescending(x => x.LetterNumber)
+            .First(x => !x.RespondedOn.HasValue);
+
+        Response = new CaptureResponseModel
+        {
+            ComplianceCaseId = Model.Id,
+            CaseLetterId = latestLetter.Id,
+            RespondedOn = DateTime.UtcNow
+        };
+
+        ShowCaptureResponseModal = true;
+    }
+
+    private void CloseCaptureResponse()
+    {
+        ShowCaptureResponseModal = false;
+    }
+
+    private async Task SaveResponse()
+    {
+        await CorrespondenceService.CaptureResponseAsync(Response);
+
+        if (!string.IsNullOrWhiteSpace(Response.Comments))
+        {
+            var note = new CaseNote
+            {
+                Id = Guid.NewGuid(),
+                ComplianceCaseId = Model.Id,
+                Comment = $"Response Captured. Comments: {Response.Comments}",
+                CreatedOn = DateTime.UtcNow
+            };
+
+            await CaseNoteRepository.AddAsync(note);
+        }
+
+        ShowCaptureResponseModal = false;
+
+        Model = await Repository.GetDetailAsync(Id);
+    }
+}

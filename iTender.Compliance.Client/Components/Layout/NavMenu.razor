@@ -1,0 +1,133 @@
+﻿@implements IDisposable
+
+@inject NavigationManager NavigationManager
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="" hidden>iTender.Compliance.Client</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <img src="/cidb-logo.png" style="width:15em" />
+        </div>
+
+        <AuthorizeView Context="authContext">
+            <Authorized>
+
+                <!-- Dashboard -->
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <span class="bi bi-house-door-fill-nav-menu"></span>
+                        Dashboard
+                    </NavLink>
+                </div>
+
+                <!-- Cases -->
+                <AuthorizeView Policy="CaseManagement">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="cases">
+                            <span class="bi bi-patch-check-fill-nav-menu"></span>
+                            Compliance Cases
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
+
+                <!-- Reports -->
+                <AuthorizeView Policy="CaseAssignment">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="reports">
+                            <span class="bi bi-file-earmark-bar-graph-fill-nav-menu"
+                                  aria-hidden="true"></span>
+                            Reports
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
+
+                <!-- Administration -->
+                <AuthorizeView Policy="Administration">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="administration">
+                            <span class="bi bi-gear-fill-nav-menu"></span>
+                            Administration
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
+                
+                
+                <AuthorizeView Policy="Administration">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link"
+                                 href="/correspondence-templates">
+                            <span class="bi bi-envelope-paper-fill-nav-menu"></span>
+                            Templates
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
+
+                <!-- User Management -->
+                <AuthorizeView Policy="Administration">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="accounts">
+                            <span class="bi bi-people-fill-nav-menu"></span>
+                            Manage Accounts
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
+
+                <!-- Logout -->
+                <div class="nav-item px-3">
+                    <form action="Account/Logout" method="post">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+
+                        <button type="submit" class="nav-link">
+                            <span class="bi bi-box-arrow-left-nav-menu"></span>
+                            Logout
+                        </button>
+                    </form>
+                </div>
+
+            </Authorized>
+
+            <NotAuthorized>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Login">
+                        <span class="bi bi-box-arrow-in-right-nav-menu"></span>
+                        Login
+                    </NavLink>
+                </div>
+
+            </NotAuthorized>
+
+        </AuthorizeView>
+
+    </nav>
+</div>
+
+@code {
+    private string? currentUrl;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}
+

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\iTender.Compliance.Application\iTender.Compliance.Application.csproj" />
+    <ProjectReference Include="..\iTender.Compliance.Domain\iTender.Compliance.Domain.csproj" />
+    <ProjectReference Include="..\iTender.Compliance.Infrastructure\iTender.Compliance.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Services\" />
+    <Folder Include="Pages\" />
+  </ItemGroup>
+
+</Project>

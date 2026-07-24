@@ -1,0 +1,106 @@
+﻿@rendermode InteractiveServer
+
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Services
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Security.Claims
+@inject INotificationService NotificationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<AuthorizeView>
+    <Authorized>
+
+        <div class="dropdown">
+
+            <button type="button"
+                    class="btn btn-link position-relative"
+                    data-bs-toggle="dropdown">
+
+                <i class="bi bi-bell-fill fs-5"></i>
+
+                @if (UnreadCount > 0)
+                {
+                    <span class="position-absolute top-50 start-100 translate-middle badge rounded-pill bg-danger">
+                        @UnreadCount
+                    </span>
+                }
+
+            </button>
+
+            <ul class="dropdown-menu dropdown-menu-end shadow notification-dropdown">
+
+                @if (Notifications.Any())
+                {
+                    @foreach (var notification in Notifications)
+                    {
+                        <li>
+                            <a class="dropdown-item" href="@notification.Url">
+                                <div class="fw-semibold">@notification.Title</div>
+                                <small class="text-muted">@notification.Message</small>
+                            </a>
+                        </li>
+
+                        <li><hr class="dropdown-divider" /></li>
+                    }
+
+                    <li>
+                        <a class="dropdown-item text-center"
+                           href="/notifications">
+                            View All Notifications
+                        </a>
+                    </li>
+                }
+                else
+                {
+                    <li>
+                        <span class="dropdown-item text-muted">
+                            No notifications
+                        </span>
+                    </li>
+                }
+
+            </ul>
+
+        </div>
+
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private List<NotificationModel> Notifications = [];
+
+    private int UnreadCount;
+
+    private bool _loaded;
+
+    private HubConnection? _hubConnection;
+
+    private Guid _userId;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        await Task.Delay(2000);
+        _loaded = true;
+
+        var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        if (!(auth.User.Identity?.IsAuthenticated ?? false))
+            return;
+
+        var id = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+
+        if (id is null)
+            return;
+
+        var userId = Guid.Parse(id.Value);
+
+        Notifications = await NotificationService.GetRecentAsync(userId);
+        UnreadCount = await NotificationService.GetUnreadCountAsync(userId);
+
+        StateHasChanged();
+    }
+}

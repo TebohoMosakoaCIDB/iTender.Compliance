@@ -1,0 +1,695 @@
+﻿@page "/administration"
+@rendermode InteractiveServer
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Domain.Enums
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Domain.Entities
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Application.Models.Reports
+@using iTender.Compliance.Application.Interfaces.Repositories
+
+@attribute [Authorize(Roles = "Administrator")]
+
+@inject ISynchronizationService SynchronizationService
+@inject IReportingService ReportingService
+@inject ISystemSettingService SettingService
+@inject ITenderSyncLogRepository LogRepository
+@inject ITenderSyncRepository TenderSyncRepository
+
+<div class="container-fluid">
+
+    @if (ShowSuccessMessage)
+    {
+        <div class="alert alert-secondary alert-dismissible fade show" role="alert">
+
+            <i class="bi bi-check-circle-fill me-2"></i>
+
+            @SuccessMessage
+
+        </div>
+    }
+
+    @if (ShowErrorMessage)
+    {
+        <div class="alert alert-danger">
+
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+
+            @ErrorMessage
+
+        </div>
+    }
+
+    @if (ShowSyncDetailModal && SelectedSynchronization != null)
+    {
+        <div class="modal fade show d-block"
+             tabindex="-1"
+             style="background-color:rgba(0,0,0,.5)">
+
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <h5 class="modal-title">
+                            <i class="bi bi-clock-history me-2"></i>
+                            Synchronization Details
+                        </h5>
+
+                        <button type="button"
+                                class="btn-close"
+                                @onclick="CloseSynchronization">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <div class="row g-3 mb-4">
+
+                            <div class="col-md-3">
+
+                                <div class="border rounded p-3">
+
+                                    <small class="text-muted d-block">
+                                        Started
+                                    </small>
+
+                                    <strong>
+                                        @SelectedSynchronization.StartedOn.ToString("dd MMM yyyy HH:mm")
+                                    </strong>
+
+                                </div>
+
+                            </div>
+
+                            <div class="col-md-3">
+
+                                <div class="border rounded p-3">
+
+                                    <small class="text-muted d-block">
+                                        Completed
+                                    </small>
+
+                                    <strong>
+                                        @(SelectedSynchronization.CompletedOn?.ToString("dd MMM yyyy HH:mm") ?? "-")
+                                    </strong>
+
+                                </div>
+
+                            </div>
+
+                            <div class="col-md-2">
+
+                                <div class="border rounded p-3 text-center">
+
+                                    <small class="text-muted d-block">
+                                        Retrieved
+                                    </small>
+
+                                    <h4 class="mb-0">
+                                        @SelectedSynchronization.TotalRetrieved
+                                    </h4>
+
+                                </div>
+
+                            </div>
+
+                            <div class="col-md-2">
+
+                                <div class="border rounded p-3 text-center">
+
+                                    <small class="text-muted d-block">
+                                        Cases
+                                    </small>
+
+                                    <h4 class="mb-0">
+                                        @SelectedSynchronization.CasesCreated
+                                    </h4>
+
+                                </div>
+
+                            </div>
+
+                            <div class="col-md-2">
+
+                                <div class="border rounded p-3 text-center">
+
+                                    <small class="text-muted d-block">
+                                        Errors
+                                    </small>
+
+                                    <h4 class="mb-0">
+                                        @SelectedSynchronization.ErrorCount
+                                    </h4>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <hr />
+
+                        <h6 class="mb-3">
+                            Synchronization Timeline
+                        </h6>
+
+                        @if (SelectedSynchronization.Logs.Any())
+                        {
+                            @foreach (var log in SelectedSynchronization.Logs)
+                            {
+                                <div class="d-flex mb-4 px-4">
+
+                                    <div class="me-3">
+
+                                        @switch (log.Level)
+                                        {
+                                            case SyncLogLevel.Information:
+
+                                                <i class="bi bi-info-circle-fill text-primary fs-5"></i>
+
+                                                break;
+
+                                            case SyncLogLevel.Warning:
+
+                                                <i class="bi bi-exclamation-circle-fill text-warning fs-5"></i>
+
+                                                break;
+
+                                            case SyncLogLevel.Error:
+
+                                                <i class="bi bi-x-circle-fill text-danger fs-5"></i>
+
+                                                break;
+                                        }
+
+                                    </div>
+
+                                    <div class="flex-grow-1 border-start ps-3">
+
+                                        <div class="d-flex justify-content-between">
+
+                                            <strong>
+                                                @log.Title
+                                            </strong>
+
+                                            <small class="text-muted">
+                                                @log.Date.ToString("dd MMM yyyy HH:mm:ss")
+                                            </small>
+
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(log.TenderNumber))
+                                        {
+                                            <div class="text-primary fw-semibold mt-1">
+                                                @log.TenderNumber
+                                            </div>
+                                        }
+
+                                        <div class="mt-1">
+                                            @log.Message
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-center text-muted py-5">
+
+                                <i class="bi bi-clock-history fs-1"></i>
+
+                                <p class="mt-3 mb-0">
+                                    No synchronization logs were recorded.
+                                </p>
+
+                            </div>
+                        }
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button class="btn btn-secondary"
+                                @onclick="CloseSynchronization">
+                            <i class="bi bi-x-circle me-2"></i>
+                            Close
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-4"><i class="bi bi-gear-wide-connected me-2 text-secondary"></i>Administration</h2>
+            <small class="text-muted">
+                Tender Synchronization & System Administration
+            </small>
+        </div>
+
+        <button class="btn btn-sm btn-cidb-submit-outline"
+                @onclick="RunSynchronization"
+                disabled="@IsRunning">
+
+            @if (IsRunning)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            else
+            {
+                <i class="bi bi-arrow-repeat me-2"></i>
+            }
+
+            @(IsRunning ? "Synchronizing..." : "Run Synchronization")
+        </button>
+    </div>
+
+    <div class="row g-4">
+
+        <div class="col-md-3">
+
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+
+                    <h6 class="text-muted">
+                        <i class="bi bi-arrow-repeat me-2"></i>
+                        Total Synchronizations
+                    </h6>
+
+                    <h2>@Model.TotalSynchronizations</h2>
+
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+
+                    <h6 class="text-muted">
+                        <i class="bi bi-download me-2"></i>
+                        Tenders Retrieved
+                    </h6>
+
+                    <h2>@Model.TotalRetrieved</h2>
+
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+
+                    <h6 class="text-muted">
+                        <i class="bi bi-folder-plus me-2"></i>
+                        Cases Created
+                    </h6>
+
+                    <h2>@Model.TotalCasesCreated</h2>
+
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+
+                    <h6 class="text-muted">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Failed Synchronizations
+                    </h6>
+
+                    <h2>@Model.FailedSynchronizations</h2>
+
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="card shadow-sm mt-4">
+
+        <div class="card-header d-flex justify-content-between align-items-center">
+
+            <strong>
+                <i class="bi bi-clock-history me-2"></i>
+                Synchronization History
+            </strong>
+
+            <button class="btn btn-sm btn-cidb-submit-outline"
+                    @onclick="OpenSynchronizationHistory">
+
+                <i class="bi bi-list-ul me-1"></i>
+                View All
+
+            </button>
+
+        </div>
+        @if (Synchronizations?.Items.Any() == true)
+        {
+            <div class="card-body p-0">
+
+                <table class="table table-hover table-striped mb-0">
+
+                    <thead>
+
+                        <tr>
+
+                            <th>Started</th>
+                            <th>Completed</th>
+                            <th>Manual</th>
+                            <th>Retrieved</th>
+                            <th>Compliant</th>
+                            <th>Non-Compliant</th>
+                            <th>Cases Created</th>
+                            <th>Errors</th>
+                            <th>Action</th>
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        @foreach (var sync in Synchronizations.Items)
+                        {
+                            <tr>
+
+                                <td>@sync.StartedOn.ToString("dd MMM yyyy HH:mm")</td>
+
+                                <td>
+                                    @(sync.CompletedOn?.ToString("dd MMM yyyy HH:mm") ?? "-")
+                                </td>
+
+                                <td>
+
+                                    @if (sync.IsManual)
+                                    {
+                                        <span class="badge bg-primary">Manual</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Scheduled</span>
+                                    }
+
+                                </td>
+
+                                <td>@sync.TotalRetrieved</td>
+
+                                <td>@sync.TotalCompliant</td>
+
+                                <td>@sync.TotalNonCompliant</td>
+
+                                <td>@sync.CasesCreated</td>
+
+                                <td>
+
+                                    @if (sync.Status == SyncStatus.Completed)
+                                    {
+                                        <span class="badge bg-success">Completed</span>
+                                    }
+                                    else if (sync.Status == SyncStatus.Running)
+                                    {
+                                        <span class="badge bg-warning text-dark">Running</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Failed</span>
+                                    }
+
+                                </td>
+
+                                <td>
+                                    <button class="btn btn-sm btn-cidb-submit-outline"
+                                            @onclick="() => OpenSynchronization(sync.Id)">
+
+                                        <i class="bi bi-eye"></i>
+                                        View 
+                                    </button>
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+
+            </div>
+        }
+        else
+        {
+            <tr>
+                <td colspan="8" class="text-center text-muted">
+                    No synchronization history found.
+                </td>
+            </tr>
+        }
+        
+    </div>
+
+    <div class="card shadow-sm mt-4">
+
+        <div class="card-header">
+            <strong>
+                <i class="bi bi-sliders me-2"></i>
+                System Settings
+            </strong>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+                    <label class="form-label">Response Due (Hours)</label>
+
+                    <InputNumber class="form-control"
+                                 @bind-Value="Settings.ResponseDueHours" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Reminder Delay (Hours)</label>
+
+                    <InputNumber class="form-control"
+                                 @bind-Value="Settings.ReminderDelayHours" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Synchronization Interval (Hours)</label>
+
+                    <InputNumber class="form-control"
+                                 @bind-Value="Settings.SynchronizationIntervalHours" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Maximum Reminders</label>
+
+                    <InputNumber class="form-control"
+                                 @bind-Value="Settings.MaximumReminders" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Default Page Size</label>
+
+                    <InputNumber class="form-control"
+                                 @bind-Value="Settings.DefaultPageSize" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Case Distribution Method</label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="Settings.DistributionMethod">
+
+                        @foreach (var method in Enum.GetValues<CaseDistributionMethod>())
+                        {
+                            <option value="@method">@method</option>
+                        }
+
+                    </InputSelect>
+                    <div class="form-text mt-2">
+                        @GetDistributionMethodDescription(Settings.DistributionMethod)
+                    </div>
+                </div>
+
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                        <InputCheckbox class="form-check-input"
+                                       @bind-Value="Settings.AutoAssignmentEnabled" />
+
+                        <label class="form-check-label">
+                            Auto Assignment Enabled
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-4">
+
+                <button class="btn btn-cidb-submit"
+                        @onclick="SaveSettings">
+
+                    <i class="bi bi-check2 me-2"></i>
+
+                    Save Settings
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+@code {
+
+    private bool ShowSyncDetailModal;
+
+    private TenderSyncDetailModel? SelectedSynchronization;
+
+    private bool ShowErrorMessage;
+
+    private string ErrorMessage = string.Empty;
+
+    private bool ShowSuccessMessage;
+
+    private string SuccessMessage = string.Empty;
+
+    private SystemSettingModel Settings = new();
+
+    private SyncReportModel Model = new();
+
+    private PagedResult<TenderSync>? Synchronizations;
+
+    private TenderSyncSearchModel Search = new();
+
+    private bool IsRunning;
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private void OpenSynchronizationHistory()
+    {
+        Navigation.NavigateTo("/administration/synchronizations");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Model = await ReportingService.GetSynchronizationReportAsync(
+            DateTime.MinValue,
+            DateTime.UtcNow);
+
+        // Replace with repository/service later
+        Search = new TenderSyncSearchModel
+        {
+            PageNumber = 1,
+            PageSize = 5
+        };
+        Synchronizations = await TenderSyncRepository.SearchAsync(Search);
+
+        Settings = await SettingService.GetAsync();
+    }
+
+    private async Task RunSynchronization()
+    {
+        IsRunning = true;
+
+        StateHasChanged();
+
+        try
+        {
+            await SynchronizationService.SynchronizeAsync(true);
+
+            Model = await ReportingService.GetSynchronizationReportAsync(
+                DateTime.MinValue,
+                DateTime.UtcNow);
+        }
+        finally
+        {
+            IsRunning = false;
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        try
+        {
+            await SettingService.SaveAsync(Settings);
+
+            SuccessMessage = "System settings were saved successfully.";
+            ShowSuccessMessage = true;
+
+            await InvokeAsync(StateHasChanged);
+
+            await Task.Delay(3000);
+
+            ShowSuccessMessage = false;
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            ShowErrorMessage = true;
+        }
+    }
+
+    private async Task OpenSynchronization(Guid id)
+    {
+        SelectedSynchronization =
+            await LogRepository.GetDetailAsync(id);
+
+        ShowSyncDetailModal = true;
+    }
+
+    private void CloseSynchronization()
+    {
+        ShowSyncDetailModal = false;
+
+        SelectedSynchronization = null;
+    }
+
+    private static string GetDistributionMethodDescription(
+    CaseDistributionMethod method)
+    {
+        return method switch
+        {
+            CaseDistributionMethod.Manual =>
+                "Cases are not assigned automatically. Supervisors assign each case manually.",
+
+            CaseDistributionMethod.RoundRobin =>
+                "Cases are distributed evenly by assigning each new case to the next available agent in sequence.",
+
+            CaseDistributionMethod.LeastWorkload =>
+                "Each new case is assigned to the eligible agent with the fewest open cases.",
+
+            CaseDistributionMethod.Random =>
+                "A random eligible agent is selected for each new case.",
+
+            CaseDistributionMethod.PriorityBased =>
+                "Cases are assigned based on priority rules, ensuring high-priority cases are handled by the most appropriate agents.",
+
+            _ => string.Empty
+        };
+    }
+}

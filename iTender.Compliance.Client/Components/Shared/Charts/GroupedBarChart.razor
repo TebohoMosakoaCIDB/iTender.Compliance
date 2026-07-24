@@ -1,0 +1,36 @@
+﻿@inject IJSRuntime JS
+
+<div style="height:@Height">
+    <canvas id="@CanvasId"></canvas>
+</div>
+
+@code {
+    [Parameter]
+    public string Height { get; set; } = "240px";
+
+    [Parameter]
+    public string CanvasId { get; set; } = Guid.NewGuid().ToString();
+
+    [Parameter]
+    public List<string> Labels { get; set; } = [];
+
+    [Parameter]
+    public List<int> Retrieved { get; set; } = [];
+
+    [Parameter]
+    public List<int> Created { get; set; } = [];
+
+    [Parameter]
+    public List<int> Errors { get; set; } = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JS.InvokeVoidAsync(
+            "dashboardCharts.renderGroupedBarChart",
+            CanvasId,
+            Labels,
+            Retrieved,
+            Created,
+            Errors);
+    }
+}

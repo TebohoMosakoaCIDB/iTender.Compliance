@@ -1,0 +1,459 @@
+﻿@page "/cases"
+@rendermode InteractiveServer
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Repositories
+@using iTender.Compliance.Domain.Entities
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Application.Interfaces.Services
+
+@inject IComplianceCaseRepository ComplianceCaseRepository
+@inject ISystemSettingService SystemSettingService
+@inject ICaseAuthorizationService CaseAuthorizationService
+@inject IAgentRepository AgentRepository
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "CaseManagement")]
+
+<div class="mb-4">
+
+    <h2 class="mb-4">
+        <i class="bi bi-patch-check me-2 text-secondary"></i>
+        Compliance Cases
+    </h2>
+
+    <small class="text-muted">
+        Search, assign and manage tender compliance cases.
+    </small>
+
+</div>
+
+<div class="card shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <div class="row g-3">
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-search me-1"></i>
+                    Search
+                </label>
+                <input class="form-control"
+                       @bind="Search.SearchText"
+                       placeholder="Tender Number, Title or Employer" />
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-person-badge me-1"></i>
+                    Agent
+                </label>
+                <select class="form-select" @bind="Search.AgentId" disabled="@DisableAgentFilter">                    
+                    <option value="">All Agents</option>
+
+                    @foreach (var agent in Agents.OrderBy(x => x.FullName))
+                    {
+                        <option value="@agent.Id">
+                            @agent.FullName (@agent.OpenCases open cases)
+                        </option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-flag me-1"></i>
+                    Status
+                </label>
+                <select class="form-select" @bind="Search.Status">
+                    <option value="">All</option>
+
+                    @foreach (var item in Enum.GetValues<CaseStatus>())
+                    {
+                        <option value="@item">@item</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-check2-circle me-1"></i>
+                    Outcome
+                </label>
+                <select class="form-select" @bind="Search.Outcome">
+                    <option value="">All</option>
+
+                    @foreach (var item in Enum.GetValues<ComplianceOutcome>())
+                    {
+                        <option value="@item">@item</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    Priority
+                </label>
+                <select class="form-select" @bind="Search.Priority">
+                    <option value="">All</option>
+
+                    @foreach (var item in Enum.GetValues<CasePriority>())
+                    {
+                        <option value="@item">@item</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-envelope-paper me-1"></i>
+                    Letter Type
+                </label>
+                <select class="form-select" @bind="Search.LetterType">
+                    <option value="">All</option>
+
+                    @foreach (var item in Enum.GetValues<LetterType>())
+                    {
+                        <option value="@item">@item</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">
+                    <i class="bi bi-calendar-event me-1"></i>
+                    From Date
+                </label>
+                <input type="date"
+                       class="form-control"
+                       @bind="Search.FromDate" />
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">
+                    <i class="bi bi-calendar-check me-1"></i>
+                    To Date
+                </label>
+                <input type="date"
+                       class="form-control"
+                       @bind="Search.ToDate" />
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="form-check">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           @bind="Search.AssignedOnly" />
+
+                    <label class="form-check-label">
+                        Assigned Only
+                    </label>
+                </div>
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="form-check">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           @bind="Search.AwaitingResponse" />
+
+                    <label class="form-check-label">
+                        Awaiting Response
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <hr />
+
+        <div class="d-flex justify-content-between align-items-end">
+
+            <div class="d-flex align-items-center gap-2">
+
+                <label class="form-label mb-0">Page Size</label>
+
+                <select class="form-select"
+                        style="width:100px"
+                        @bind="Search.PageSize">
+
+                    @foreach (var size in PageSizes)
+                    {
+                        <option value="@size">@size</option>
+                    }
+
+                </select>
+
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-secondary"
+                        @onclick="ResetFilters">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                    Clear
+                </button>
+
+                <button class="btn btn-sm btn-cidb-submit"
+                        @onclick="SearchCases">
+                    <i class="bi bi-search me-1"></i>
+                    Search
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+@if (Result is null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-danger"></div>
+    </div>
+}
+else
+{
+    <table class="table table-striped table-hover align-middle">
+
+        <thead class="table-light table-header-brand">
+            <tr>
+                <th>Tender Details</th>
+                <th>Closing Date</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Agent</th>
+                <th style="width:120px;"></th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            @if (!Result.Items.Any())
+            {
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        No compliance cases found.
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var item in Result.Items)
+                {
+                    <tr>
+
+                        <td>
+                            <div class="fw-semibold">
+                                @(item.Tender?.TenderNumber ?? "-")
+                            </div>
+                        </td>
+
+                        <td>
+                            @(item.Tender?.ClosingDate.ToString("dd MMM yyyy"))
+                        </td>
+
+                        <td>@item.Status</td>
+
+                        <td>@item.Priority</td>
+
+                        <td>
+                            @(item.Agent?.FullName ?? "-")
+                        </td>
+
+                        <td>
+                            <div class="d-flex gap-2">
+                                <a href="@item.Tender?.TenderUrl"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="btn btn-sm btn-cidb-submit-outline">
+                                    Visit
+                                </a>
+                                <button class="btn btn-sm btn-cidb-submit"
+                                        @onclick="() => Open(item.Id)">
+                                    Open
+                                </button>                                
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+
+        </tbody>
+
+    </table>
+
+    <div class="text-center mb-2">
+        <small class="text-muted">
+            Showing @StartResult - @EndResult of @Result.TotalCount results
+        </small>
+    </div>
+
+    @if (Result.TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination justify-content-center">
+
+                @if (Result.HasPreviousPage)
+                {
+                    <li class="page-item">
+                        <button class="page-link"
+                                @onclick="() => GoToPage(1)">
+                            First
+                        </button>
+                    </li>
+                }
+
+                <li class="page-item @(Result.HasPreviousPage ? "" : "disabled")">
+                    <button class="page-link"
+                            @onclick="() => GoToPage(Result.PageNumber - 1)">
+                        Previous
+                    </button>
+                </li>
+
+                @foreach (var pageNumber in VisiblePages)
+                {
+                    <li class="page-item @(pageNumber == Result.PageNumber ? "active" : "")">
+                        <button class="page-link"
+                                @onclick="() => GoToPage(pageNumber)">
+                            @pageNumber
+                        </button>
+                    </li>
+                }
+
+                <li class="page-item @(Result.HasNextPage ? "" : "disabled")">
+                    <button class="page-link"
+                            @onclick="() => GoToPage(Result.PageNumber + 1)">
+                        Next
+                    </button>
+                </li>
+
+                @if (Result.HasNextPage)
+                {
+                    <li class="page-item">
+                        <button class="page-link"
+                                @onclick="() => GoToPage(Result.TotalPages)">
+                            Last
+                        </button>
+                    </li>
+                }
+
+            </ul>
+        </nav>
+    }
+}
+
+@code
+{
+    private List<int> PageSizes = [];
+    private SystemSettingModel Settings = new();
+    private bool DisableAgentFilter;
+    private List<AgentLookupModel> Agents = [];
+    private ComplianceCaseSearchModel Search = new()
+    {
+        PageNumber = 1
+    };
+
+    private PagedResult<ComplianceCase>? Result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Agents = await AgentRepository.GetLookupAsync();
+        DisableAgentFilter = !await CaseAuthorizationService.CanViewAllCasesAsync();
+        Settings = await SystemSettingService.GetAsync();
+
+        Search.PageSize = Settings.DefaultPageSize;
+
+        PageSizes =
+        [
+            Settings.DefaultPageSize,
+            Settings.DefaultPageSize * 2,
+            Settings.DefaultPageSize * 5,
+            Settings.DefaultPageSize * 10
+        ];
+
+        PageSizes = PageSizes
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
+        await LoadCases();
+    }
+
+    private async Task LoadCases()
+    {
+        if (!await CaseAuthorizationService.CanViewAllCasesAsync())
+        {
+            Search.AgentId = await CaseAuthorizationService.GetCurrentAgentIdAsync();
+        }
+
+        Result = await ComplianceCaseRepository.SearchAsync(Search);
+    }
+
+    private async Task SearchCases()
+    {
+        Search.PageNumber = 1;
+        await LoadCases();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (Result is null)
+            return;
+
+        page = Math.Max(1, Math.Min(page, Result.TotalPages));
+
+        Search.PageNumber = page;
+
+        await LoadCases();
+    }
+
+    private void Open(Guid id)
+    {
+        Navigation.NavigateTo($"/cases/{id}");
+    }
+
+    private async Task ResetFilters()
+    {
+        Search = new ComplianceCaseSearchModel
+        {
+            PageNumber = 1,
+            PageSize = Settings.DefaultPageSize
+        };
+
+        await LoadCases();
+    }
+
+    private IEnumerable<int> VisiblePages
+    {
+        get
+        {
+            if (Result is null)
+                return Enumerable.Empty<int>();
+
+            const int maxPages = 5;
+
+            int start = Math.Max(1, Result.PageNumber - 2);
+            int end = Math.Min(Result.TotalPages, start + maxPages - 1);
+
+            if (end - start < maxPages - 1)
+            {
+                start = Math.Max(1, end - maxPages + 1);
+            }
+
+            return Enumerable.Range(start, end - start + 1);
+        }
+    }
+
+    private int StartResult =>
+        Result == null || Result.TotalCount == 0
+            ? 0
+            : ((Result.PageNumber - 1) * Result.PageSize) + 1;
+
+    private int EndResult =>
+        Result == null
+            ? 0
+            : Math.Min(Result.PageNumber * Result.PageSize, Result.TotalCount);
+}

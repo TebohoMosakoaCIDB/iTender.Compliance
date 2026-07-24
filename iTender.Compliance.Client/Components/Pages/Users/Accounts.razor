@@ -1,0 +1,631 @@
+﻿@page "/accounts"
+@rendermode InteractiveServer
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Application.Common
+@using iTender.Compliance.Application.Interfaces.Services
+@inject ISystemSettingService SystemSettingService
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "Administration")]
+
+@inject IUserService UserService
+
+<PageTitle>Accounts</PageTitle>
+
+@if (Errors.Any())
+{
+    <div class="alert alert-danger">
+
+        <ul class="mb-0">
+
+            @foreach (var error in Errors)
+            {
+                <li>@error</li>
+            }
+
+        </ul>
+
+    </div>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+
+        <h2 class="mb-4">
+            <i class="bi bi-people-fill me-2 text-secondary"></i>
+            Account Administration
+        </h2>
+
+        <small class="text-muted">
+            Manage application users, roles and access.
+        </small>
+
+    </div>
+
+    <button class="btn btn-sm btn-cidb-submit-outline"
+            @onclick="OpenRegisterUser">
+
+        <i class="bi bi-person-plus-fill me-2"></i>
+
+        New User
+
+    </button>
+
+</div>
+
+
+<div class="card shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <div class="row g-3">
+
+            <div class="col-md-3">
+                <label class="form-label">Search</label>
+
+                <input class="form-control"
+                       @bind="Search.SearchText"
+                       placeholder="Search by name or email" />
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">
+                    <i class="bi bi-person-badge me-1"></i>
+                    Role
+                </label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="Search.Role">
+                    <option value="">All Roles</option>
+                    @foreach (var role in Roles.All)
+                    {
+                        <option value="@role">@role</option>
+                    }
+
+                </InputSelect>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="Search.IsActive">
+
+                    <option value="">All</option>
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+
+                </InputSelect>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Page Size</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="Search.PageSize">
+
+                    <option value="@Settings.DefaultPageSize">
+                        @Settings.DefaultPageSize
+                    </option>
+
+                    @if (Settings.DefaultPageSize != 20)
+                    {
+                        <option value="20">20</option>
+                    }
+
+                    @if (Settings.DefaultPageSize != 50)
+                    {
+                        <option value="50">50</option>
+                    }
+
+                    @if (Settings.DefaultPageSize != 100)
+                    {
+                        <option value="100">100</option>
+                    }
+
+                </InputSelect>
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end">
+
+                <button class="btn btn-sm btn-cidb-submit w-100"
+                        @onclick="SearchUsers">
+
+                    <i class="bi bi-search me-1"></i>
+
+                    Search
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+@if (Result == null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-danger"></div>
+    </div>
+}
+else
+{
+    <table class="table table-striped table-hover align-middle">
+
+        <thead class="table-header-brand">
+            <tr>
+
+                <th>Name</th>
+
+                <th>Email</th>
+
+                <th>Role</th>
+
+                <th>Level</th>
+
+                <th>Status</th>
+
+                <th>Agent</th>
+
+                <th style="width:160px;"></th>
+
+            </tr>
+        </thead>
+
+        <tbody>
+
+            @if (!Result.Items.Any())
+            {
+                <tr>
+
+                    <td colspan="5" class="text-center text-muted">
+
+                        No users found.
+
+                    </td>
+
+                </tr>
+            }
+            else
+            {
+                @foreach (var user in Result.Items)
+                {
+                    <tr>
+
+                        <td>@user.FullName</td>
+
+                        <td>@user.Email</td>
+
+                        <td>@user.Role</td>
+
+                        <td>@user.Level</td>
+
+                        <td>
+
+                            @if (user.IsActive)
+                            {
+                                <span class="badge bg-primary">
+                                    Active
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">
+                                    Inactive
+                                </span>
+                            }
+
+                        </td>
+
+                        <td>
+
+                            @if (user.Role == Roles.ComplianceAgent)
+                            {
+                                <span class="badge bg-primary">
+                                    Yes
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">
+                                    No
+                                </span>
+                            }
+
+                        </td>
+
+                        <td>
+
+                            <button class="btn btn-sm btn-cidb-submit"
+                                    @onclick="() => EditUser(user.Id)">
+
+                                <i class="bi bi-pencil-square me-1"></i>
+
+                                Edit User
+
+                            </button>
+
+                        </td>
+
+                    </tr>
+                }
+            }
+
+        </tbody>
+
+    </table>
+
+    <div class="text-center mb-2">
+
+        <small class="text-muted">
+
+            Showing @StartResult - @EndResult of @Result.TotalCount users
+
+        </small>
+
+    </div>
+
+    @if (Result.TotalPages > 1)
+    {
+        <nav>
+
+            <ul class="pagination justify-content-center">
+
+                <li class="page-item @(Result.HasPreviousPage ? "" : "disabled")">
+
+                    <button class="page-link"
+                            @onclick="() => GoToPage(Result.PageNumber - 1)">
+
+                        Previous
+
+                    </button>
+
+                </li>
+
+                @foreach (var pageNumber in VisiblePages)
+                {
+                    <li class="page-item @(pageNumber == Result.PageNumber ? "active" : "")">
+
+                        <button class="page-link"
+                                @onclick="() => GoToPage(pageNumber)">
+
+                            @pageNumber
+
+                        </button>
+
+                    </li>
+                }
+
+                <li class="page-item @(Result.HasNextPage ? "" : "disabled")">
+
+                    <button class="page-link"
+                            @onclick="() => GoToPage(Result.PageNumber + 1)">
+
+                        Next
+
+                    </button>
+
+                </li>
+
+            </ul>
+
+        </nav>
+    }
+}
+
+@if (ShowRegisterUserModal)
+{
+    <div class="modal fade show d-block"
+         tabindex="-1"
+         style="background-color:rgba(0,0,0,.5)">
+
+        <div class="modal-dialog modal-lg">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+
+                    <h5 class="modal-title">
+                        Register User
+                    </h5>
+
+                    <button class="btn-close"
+                            @onclick="CloseRegisterUser">
+                    </button>
+
+                </div>
+
+                <div class="modal-body">
+
+                    <EditForm Model="Model" FormName="RegisterUserForm" OnValidSubmit="Register">
+
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+
+                            <div class="col-md-6">
+                                <label class="form-label">First Name</label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="Model.FirstName" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Last Name</label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="Model.LastName" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="Model.Email" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Select Role</label>
+                                <InputSelect class="form-select" @bind-Value="Model.Role">
+                                    <option value="">Select Role</option>
+
+                                    @foreach (var role in Roles.All)
+                                    {
+                                        <option value="@role">@role</option>
+                                    }
+                                </InputSelect>
+
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Password</label>
+
+                                <InputText class="form-control"
+                                           type="password"
+                                           @bind-Value="Model.Password" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Confirm Password</label>
+
+                                <InputText class="form-control"
+                                           type="password"
+                                           @bind-Value="Model.ConfirmPassword" />
+                            </div>
+
+                            @if (Model.Role == Roles.ComplianceAgent)
+                            {
+                                <hr class="my-4" />
+
+                                <h5>Agent Details</h5>
+
+                                <div class="row g-3">
+
+                                    <div class="col-md-6">
+                                        <label class="form-label">Employee Number</label>
+
+                                        <InputText class="form-control"
+                                                   @bind-Value="Model.EmployeeNumber" />
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label">Phone Number</label>
+
+                                        <InputText class="form-control"
+                                                   @bind-Value="Model.PhoneNumber" />
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <InputSelect @bind-Value="Model.Level" class="form-select">
+                                            @foreach (var level in Enum.GetValues<AgentLevel>())
+                                            {
+                                                <option value="@level">@level</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <div class="form-check mt-4">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="Model.IsActive" />
+
+                                            <label class="form-check-label">
+                                                Active Agent
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <hr class="my-4" />
+
+                                    <h5>Correspondence Branding</h5>
+
+                                    <div class="row g-3">
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">Job Title</label>
+
+                                            <InputText class="form-control"
+                                                       @bind-Value="Model.JobTitle" />
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">Department</label>
+
+                                            <InputText class="form-control"
+                                                       @bind-Value="Model.Department" />
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">Header Image Path</label>
+
+                                            <InputText class="form-control"
+                                                       @bind-Value="Model.HeaderImagePath"
+                                                       placeholder="correspondence/headers/header.png" />
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">Signature Image Path</label>
+
+                                            <InputText class="form-control"
+                                                       @bind-Value="Model.SignatureImagePath"
+                                                       placeholder="correspondence/signatures/signature.png" />
+                                        </div>
+
+                                        <div class="col-12">
+                                            <label class="form-label">Footer Text</label>
+
+                                            <InputTextArea class="form-control"
+                                                           rows="3"
+                                                           @bind-Value="Model.FooterText" />
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            }
+
+                        </div>
+
+                        <div class="mt-4">
+
+                            <button class="btn btn-sm btn-cidb-submit"
+                                    type="submit">
+
+                                Register User
+
+                            </button>
+
+                        </div>
+
+                    </EditForm>
+
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+    private UserSearchModel Search = new()
+    {
+        PageNumber = 1
+    };
+
+    private SystemSettingModel Settings = new();
+
+    private RegisterUserModel Model = new();
+
+    private List<string> Errors = [];
+
+    private PagedResult<UserListModel>? Result;
+
+    private bool ShowRegisterUserModal;
+
+    private void OpenRegisterUser()
+    {
+        Errors.Clear();
+        Model = new RegisterUserModel();
+        ShowRegisterUserModal = true;
+    }
+
+    private void CloseRegisterUser()
+    {
+        ShowRegisterUserModal = false;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Settings = await SystemSettingService.GetAsync();
+
+        Search.PageSize = Settings.DefaultPageSize;
+
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        Result = await UserService.SearchAsync(Search);
+    }
+
+    private async Task Register()
+    {
+        Errors.Clear();
+
+        var result = await UserService.RegisterAsync(Model);
+
+        if (!result.Succeeded)
+        {
+            Errors = result.Errors;
+            return;
+        }
+
+        Model = new RegisterUserModel();
+
+        ShowRegisterUserModal = false;
+
+        await LoadUsers();
+    }
+
+    private async Task SearchUsers()
+    {
+        Search.PageNumber = 1;
+
+        await LoadUsers();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (Result == null)
+            return;
+
+        page = Math.Max(1, Math.Min(page, Result.TotalPages));
+
+        Search.PageNumber = page;
+
+        await LoadUsers();
+    }
+
+    private void EditUser(Guid id)
+    {
+        Navigation.NavigateTo($"/accounts/{id}");
+    }
+
+    private IEnumerable<int> VisiblePages
+    {
+        get
+        {
+            if (Result == null)
+                return Enumerable.Empty<int>();
+
+            const int maxPages = 5;
+
+            int start = Math.Max(1, Result.PageNumber - 2);
+            int end = Math.Min(Result.TotalPages, start + maxPages - 1);
+
+            if (end - start < maxPages - 1)
+                start = Math.Max(1, end - maxPages + 1);
+
+            return Enumerable.Range(start, end - start + 1);
+        }
+    }
+
+    private int StartResult =>
+        Result == null || Result.TotalCount == 0
+            ? 0
+            : ((Result.PageNumber - 1) * Result.PageSize) + 1;
+
+    private int EndResult =>
+        Result == null
+            ? 0
+            : Math.Min(Result.PageNumber * Result.PageSize, Result.TotalCount);
+}

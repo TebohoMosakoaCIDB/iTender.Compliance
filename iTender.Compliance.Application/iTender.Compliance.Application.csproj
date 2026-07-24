@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\iTender.Compliance.Domain\iTender.Compliance.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Interfaces\Infrastructure\" />
+    <Folder Include="Models\Agent\" />
+    <Folder Include="Models\ComplianceCase\" />
+    <Folder Include="Models\CaseLetter\" />
+    <Folder Include="Models\Tender\" />
+  </ItemGroup>
+
+</Project>
