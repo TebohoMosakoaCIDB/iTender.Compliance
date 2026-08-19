@@ -422,6 +422,7 @@ else
                                     </div>
 
                                     <div class="col-md-6">
+                                        <label class="form-label">Employee Level</label>
                                         <InputSelect @bind-Value="Model.Level" class="form-select">
                                             @foreach (var level in Enum.GetValues<AgentLevel>())
                                             {
@@ -431,7 +432,7 @@ else
                                     </div>
 
                                     <div class="col-md-3">
-                                        <div class="form-check mt-4">
+                                        <div class="form-check mt-5">
                                             <InputCheckbox class="form-check-input"
                                                            @bind-Value="Model.IsActive" />
 

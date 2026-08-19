@@ -12,8 +12,8 @@ using iTender.Compliance.Infrastructure.Data;
 namespace iTender.Compliance.Infrastructure.Migrations
 {
     [DbContext(typeof(ComplianceDbContext))]
-    [Migration("20260724085003_SigningHub")]
-    partial class SigningHub
+    [Migration("20260727073433_initial")]
+    partial class initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

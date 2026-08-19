@@ -6,6 +6,7 @@ using iTender.Compliance.Infrastructure.Data;
 using iTender.Compliance.Infrastructure.Extensions;
 using iTender.Compliance.Infrastructure.Hubs;
 using iTender.Compliance.Infrastructure.Identity;
+using iTender.Compliance.Infrastructure.Persistence.Seeders;
 using iTender.Compliance.Infrastructure.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -101,6 +102,8 @@ using (var scope = app.Services.CreateScope())
     await context.Database.MigrateAsync();
 
     await IdentitySeeder.SeedAsync(services);
+
+    await CorrespondenceTemplateSeeder.SeedAsync(context);
 }
 
 app.MapHub<NotificationHub>("/hubs/notifications");

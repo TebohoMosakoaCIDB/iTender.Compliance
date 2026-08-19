@@ -144,10 +144,10 @@ namespace iTender.Compliance.Infrastructure.Services
                     "Compliance Review Required - Tender {TenderNumber}",
 
                 CorrespondenceTemplateType.ReminderLetter =>
-                    "Reminder - Compliance Response Outstanding",
+                    "Reminder - Outstanding Compliance Response - Tender {TenderNumber}",
 
                 CorrespondenceTemplateType.CaseClosed =>
-                    "Compliance Case Closed",
+                    "Compliance Case Closed - Tender {TenderNumber}",
 
                 _ => string.Empty
             };
@@ -158,66 +158,68 @@ namespace iTender.Compliance.Infrastructure.Services
             return type switch
             {
                 CorrespondenceTemplateType.InstructionLetter => """
-                        Dear {CompanyName},
+Dear {CompanyName},
 
-                        A compliance review has been initiated for the following tender:
+A compliance review has been initiated for the following tender:
 
-                        Tender Number: {TenderNumber}
-                        Tender Title: {TenderTitle}
-                        Employer: {EmployerName}
-                        Case Reference: {CaseReference}
+Tender Number: {TenderNumber}
+Tender Title: {TenderTitle}
+Employer: {EmployerName}
+Closing Date: {ClosingDate}
 
-                        Please review the attached instruction letter and submit the requested documentation on or before {ResponseDueDate}.
+You are requested to submit the required compliance documentation on or before {ResponseDueDate}.
 
-                        If you have any questions, please contact your assigned Compliance Agent.
+The information provided will be used to assess compliance with the applicable CIDB requirements. Failure to respond within the prescribed period may affect the outcome of the compliance review.
 
-                        Kind regards,
+Should you require any clarification or assistance, please contact the assigned Compliance Agent.
 
-                        {AgentName}
-                        Compliance Department
-                        CIDB
-                        """,
+Kind regards,
 
-               CorrespondenceTemplateType.ReminderLetter => """
-                        Dear {CompanyName},
+{FooterText}
+""",
 
-                        This is a reminder that we have not yet received your response regarding the following compliance case.
+                CorrespondenceTemplateType.ReminderLetter => """
+Dear {CompanyName},
 
-                        Tender Number: {TenderNumber}
-                        Case Reference: {CaseReference}
+This serves as a reminder that we have not yet received your response regarding the compliance review for the following tender.
 
-                        Please submit the required documentation before {ResponseDueDate} to avoid delays in the compliance process.
+Tender Number: {TenderNumber}
+Tender Title: {TenderTitle}
+Employer: {EmployerName}
 
-                        Should you require assistance, please contact your assigned Compliance Agent.
+Our records indicate that the requested compliance documentation remains outstanding.
 
-                        Kind regards,
+Please submit the required information on or before {ResponseDueDate} to allow the compliance review to continue.
 
-                        {AgentName}
-                        Compliance Department
-                        CIDB
-                        """,
+If you have already submitted the requested documentation, kindly disregard this reminder.
 
-               CorrespondenceTemplateType.CaseClosed => """
-                        Hello {AgentName},
+Should you require any clarification or assistance, please contact the assigned Compliance Agent.
 
-                        A new compliance case has been assigned to you.
+Kind regards,
 
-                        Company:
-                        {CompanyName}
+{FooterText}
+""",
 
-                        Tender Number:
-                        {TenderNumber}
+                CorrespondenceTemplateType.CaseClosed => """
+Dear {CompanyName},
 
-                        Employer:
-                        {EmployerName}
+The compliance review for the following tender has been concluded.
 
-                        Please log into the Compliance Portal to review the case and begin processing.
+Tender Number: {TenderNumber}
+Tender Title: {TenderTitle}
+Employer: {EmployerName}
 
-                        Portal:
-                        {PortalUrl}
+The compliance case has now been closed.
 
-                        Thank you.
-                        """,
+Thank you for your cooperation throughout the compliance review process.
+
+Should you require any further information regarding this matter, please contact the Compliance Department.
+
+Kind regards,
+
+{FooterText}
+""",
+
                 _ => string.Empty
             };
         }

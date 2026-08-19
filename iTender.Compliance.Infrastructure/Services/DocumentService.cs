@@ -77,7 +77,7 @@ namespace iTender.Compliance.Infrastructure.Services
                                     column.Item()
                                         .Text($"Generated {DateTime.Now:dd MMM yyyy}");
                                 });
-                        });
+                        });;
 
                     page.Content()
                         .PaddingTop(20)
@@ -138,27 +138,24 @@ namespace iTender.Compliance.Infrastructure.Services
                     page.Margin(40);
 
                     page.Header()
-                        .Row(row =>
+                        .Column(column =>
                         {
-                            var logo = !string.IsNullOrWhiteSpace(template.HeaderImagePath)
-                                && File.Exists(template.HeaderImagePath)
-                                ? template.HeaderImagePath
-                                : _logoPath;
+                            if (!string.IsNullOrWhiteSpace(model.HeaderImagePath) &&
+                                File.Exists(model.HeaderImagePath))
+                            {
+                                column.Item()
+                                    .AlignCenter()
+                                    .Image(model.HeaderImagePath);
+                            }
 
-                            row.ConstantItem(120)
-                                .Image(logo);
+                            column.Item()
+                                .PaddingTop(10)
+                                .Text(subject)
+                                .FontSize(20)
+                                .Bold();
 
-                            row.RelativeItem()
-                                .Column(column =>
-                                {
-                                    column.Item()
-                                        .Text(subject)
-                                        .FontSize(20)
-                                        .Bold();
-
-                                    column.Item()
-                                        .Text($"Generated {DateTime.Now:dd MMM yyyy}");
-                                });
+                            column.Item()
+                                .Text($"Generated {DateTime.Now:dd MMM yyyy}");
                         });
 
                     page.Content()
@@ -191,7 +188,10 @@ namespace iTender.Compliance.Infrastructure.Services
                 FilePath = path
             };
         }
-        private static string ReplacePlaceholders(string template, SendInstructionLetterModel model, string user)
+        private static string ReplacePlaceholders(
+    string template,
+    SendInstructionLetterModel model,
+    string user)
         {
             return template
                 .Replace("{CompanyName}", model.RecipientName)
@@ -199,10 +199,11 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Replace("{TenderNumber}", model.TenderNumber)
                 .Replace("{TenderTitle}", model.TenderTitle)
                 .Replace("{EmployerName}", model.EmployerName)
-                .Replace("{ClosingDate}", model.ClosingDate.ToString("dd MMM yyyy"))
-                .Replace("{ResponseDueDate}", model.ResponseDueOn.ToString("dd MMM yyyy"))
+                .Replace("{ClosingDate}", model.ClosingDate.ToString("dd MMM yyyy hh:mm tt"))
+                .Replace("{ResponseDueDate}", model.ResponseDueOn.ToString("dd MMM yyyy hh:mm tt"))
                 .Replace("{AgentName}", user)
-                .Replace("{CurrentDate}", DateTime.Now.ToString("dd MMM yyyy"));
+                .Replace("{FooterText}", model.FooterText ?? string.Empty)
+                .Replace("{CurrentDate}", DateTime.Now.ToString("dd MMM yyyy hh:mm tt"));
         }
 
         private static string ReplacePlaceholdersReminder(string template, SendReminderLetterModel model, string user)
@@ -213,10 +214,11 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Replace("{TenderNumber}", model.TenderNumber)
                 .Replace("{TenderTitle}", model.TenderTitle)
                 .Replace("{EmployerName}", model.EmployerName)
-                .Replace("{ClosingDate}", model.ClosingDate.ToString("dd MMM yyyy"))
-                .Replace("{ResponseDueDate}", model.ResponseDueOn.ToString("dd MMM yyyy"))
+                .Replace("{ClosingDate}", model.ClosingDate.ToString("dd MMM yyyy hh:mm tt"))
+                .Replace("{ResponseDueDate}", model.ResponseDueOn.ToString("dd MMM yyyy hh:mm tt"))
                 .Replace("{AgentName}", user)
-                .Replace("{CurrentDate}", DateTime.Now.ToString("dd MMM yyyy"));
+                .Replace("{FooterText}", model.FooterText ?? string.Empty)
+                .Replace("{CurrentDate}", DateTime.Now.ToString("dd MMM yyyy hh:mm tt"));
         }
     }
 }

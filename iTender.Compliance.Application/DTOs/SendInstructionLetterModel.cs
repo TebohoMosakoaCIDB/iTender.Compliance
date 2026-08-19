@@ -10,6 +10,10 @@
 
         public string RecipientEmail { get; set; } = string.Empty;
 
+        public string? HeaderImagePath { get; set; }
+        public string? SignatureImagePath { get; set; }
+        public string? FooterText { get; set; }
+
         #endregion
 
         #region Tender

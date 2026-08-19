@@ -627,6 +627,9 @@
         finally
         {
             IsRunning = false;
+            Synchronizations = await TenderSyncRepository.SearchAsync(Search);
+
+            Settings = await SettingService.GetAsync();
         }
     }
 

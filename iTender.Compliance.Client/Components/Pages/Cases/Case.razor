@@ -724,7 +724,11 @@ else
             CompanyName = Model.Tender.Employer,
             ContactPerson = Model.Case.Agent,
 
-            ResponseDueOn = DateTime.UtcNow.AddHours(settings.ResponseDueHours)
+            ResponseDueOn = DateTime.UtcNow.AddHours(settings.ResponseDueHours),
+
+            HeaderImagePath = Model.Case.HeaderImagePath,
+            SignatureImagePath = Model.Case.SignatureImagePath,
+            FooterText = Model.Case.FooterText
         };
 
         await CorrespondenceService.SendInstructionLetterAsync(request);
@@ -763,7 +767,11 @@ else
             OriginalSentOn = latestLetter.SentOn,
             ResponseDueOn = DateTime.UtcNow.AddHours(settings.ReminderDelayHours),
 
-            ReminderNumber = Model.Letters.Count(x => x.LetterNumber > 1)
+            ReminderNumber = Model.Letters.Count(x => x.LetterNumber > 1),
+
+            HeaderImagePath = Model.Case.HeaderImagePath,
+            SignatureImagePath = Model.Case.SignatureImagePath,
+            FooterText = Model.Case.FooterText
         };
 
         await CorrespondenceService.SendReminderLetterAsync(request);

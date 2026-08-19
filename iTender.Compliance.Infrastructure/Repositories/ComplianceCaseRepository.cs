@@ -120,6 +120,10 @@ namespace iTender.Compliance.Infrastructure.Repositories
                         Outcome = x.Outcome.HasValue
                             ? x.Outcome.Value.ToString()
                             : null,
+                        AgentId = x.AgentId,
+                        Level = x.Agent.Level,
+                        JobTitle = x.Agent.JobTitle,
+                        FooterText = x.Agent.FooterText,
                         Agent = x.Agent != null
                             ? x.Agent.FullName
                             : null,
