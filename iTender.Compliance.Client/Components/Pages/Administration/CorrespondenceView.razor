@@ -1,0 +1,168 @@
+﻿@page "/correspondence/view/{Id:guid}"
+
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Entities
+
+@inject ICorrespondenceTemplateService TemplateService
+@inject NavigationManager Navigation
+
+@attribute [Authorize(Policy = "Correspondence")]
+
+<PageTitle>Templates | CRCIP Monitor</PageTitle>
+@if (Template == null)
+{
+    <div class="text-center py-5">
+
+        <div class="spinner-border text-secondary"></div>
+
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+
+            <h2 class="mb-0">
+
+                <i class="bi bi-envelope-paper-fill me-2 text-secondary"></i>
+
+                @Template.Name
+
+            </h2>
+
+            <small class="text-muted">
+                Correspondence Template
+            </small>
+
+        </div>
+
+        <div>
+
+            <button class="btn btn-sm btn-secondary"
+                    @onclick="Back">
+
+                <i class="bi bi-arrow-left me-1"></i>
+
+                Back
+
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="card shadow-sm">
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+
+                    <label class="form-label fw-semibold">
+                        Template Name
+                    </label>
+
+                    <div class="form-control bg-light">
+                        @Template.Name
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-3">
+
+                    <label class="form-label fw-semibold">
+                        Type
+                    </label>
+
+                    <div class="form-control bg-light">
+                        @Template.Type
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-3">
+
+                    <label class="form-label fw-semibold">
+                        Status
+                    </label>
+
+                    <div class="form-control bg-light">
+
+                        @if (Template.IsActive)
+                        {
+                            <span class="badge bg-success">
+                                Active
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">
+                                Inactive
+                            </span>
+                        }
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-12">
+
+                    <label class="form-label fw-semibold">
+                        Subject
+                    </label>
+
+                    <div class="form-control bg-light">
+                        @Template.Subject
+                    </div>
+
+                </div>
+
+
+                <div class="col-12">
+
+                    <label class="form-label fw-semibold">
+                        Template Content
+                    </label>
+
+                    <div class="border rounded p-3 bg-light"
+                         style="min-height:250px; white-space:pre-wrap;">
+
+                        @Template.Body
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code
+{
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private CorrespondenceTemplateModel? Template;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Template = await TemplateService.GetByIdAsync(Id);
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/correspondence");
+    }
+}

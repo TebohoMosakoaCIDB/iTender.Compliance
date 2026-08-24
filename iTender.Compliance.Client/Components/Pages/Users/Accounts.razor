@@ -8,11 +8,11 @@
 @inject NavigationManager Navigation
 
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Policy = "Administration")]
+@attribute [Authorize(Policy = "AccountManagement")]
 
 @inject IUserService UserService
 
-<PageTitle>Accounts</PageTitle>
+<PageTitle>Accounts | CRCIP Monitor</PageTitle>
 
 @if (Errors.Any())
 {
@@ -224,7 +224,7 @@ else
 
                         <td>
 
-                            @if (user.Role == Roles.ComplianceAgent)
+                            @if (user.Role == Roles.ComplianceOfficer)
                             {
                                 <span class="badge bg-primary">
                                     Yes
@@ -399,7 +399,7 @@ else
                                            @bind-Value="Model.ConfirmPassword" />
                             </div>
 
-                            @if (Model.Role == Roles.ComplianceAgent)
+                            @if (Model.Role == Roles.ComplianceOfficer)
                             {
                                 <hr class="my-4" />
 
@@ -441,53 +441,6 @@ else
                                             </label>
                                         </div>
                                     </div>
-
-                                    <hr class="my-4" />
-
-                                    <h5>Correspondence Branding</h5>
-
-                                    <div class="row g-3">
-
-                                        <div class="col-md-6">
-                                            <label class="form-label">Job Title</label>
-
-                                            <InputText class="form-control"
-                                                       @bind-Value="Model.JobTitle" />
-                                        </div>
-
-                                        <div class="col-md-6">
-                                            <label class="form-label">Department</label>
-
-                                            <InputText class="form-control"
-                                                       @bind-Value="Model.Department" />
-                                        </div>
-
-                                        <div class="col-md-6">
-                                            <label class="form-label">Header Image Path</label>
-
-                                            <InputText class="form-control"
-                                                       @bind-Value="Model.HeaderImagePath"
-                                                       placeholder="correspondence/headers/header.png" />
-                                        </div>
-
-                                        <div class="col-md-6">
-                                            <label class="form-label">Signature Image Path</label>
-
-                                            <InputText class="form-control"
-                                                       @bind-Value="Model.SignatureImagePath"
-                                                       placeholder="correspondence/signatures/signature.png" />
-                                        </div>
-
-                                        <div class="col-12">
-                                            <label class="form-label">Footer Text</label>
-
-                                            <InputTextArea class="form-control"
-                                                           rows="3"
-                                                           @bind-Value="Model.FooterText" />
-                                        </div>
-
-                                    </div>
-
                                 </div>
                             }
 

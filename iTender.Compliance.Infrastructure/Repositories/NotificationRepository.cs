@@ -1,4 +1,6 @@
-﻿using iTender.Compliance.Application.Interfaces.Repositories;
+﻿using DocumentFormat.OpenXml.InkML;
+using iTender.Compliance.Application.DTOs;
+using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -112,6 +114,23 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 return;
 
             Context.Notifications.Remove(notification);
+        }
+
+        public async Task<NotificationDetailModel?> GetByIdAsync(Guid id)
+        {
+            return await Context.Notifications
+                .Where(x => x.Id == id)
+                .Select(x => new NotificationDetailModel
+                {
+                    Id = x.Id,
+                    Type = x.Type,
+                    Title = x.Title,
+                    Message = x.Message,
+                    Url = x.Url,
+                    IsRead = x.IsRead,
+                    CreatedOn = x.CreatedOn
+                })
+                .FirstOrDefaultAsync();
         }
     }
 }

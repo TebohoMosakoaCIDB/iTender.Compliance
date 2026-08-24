@@ -11,7 +11,9 @@
 @inject NavigationManager Navigation
 
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Administrator")]
+@attribute [Authorize(Policy = "Administration")]
+
+<PageTitle>Synchronizations | CRCIP Monitor</PageTitle>
 
 <h2 class="mb-0">
     <i class="bi bi-clock-history me-2 text-secondary"></i>

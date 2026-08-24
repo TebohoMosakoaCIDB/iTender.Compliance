@@ -1,5 +1,8 @@
 <Solution>
   <Project Path="../../Updates/iTender Api/iTender/iTender.Api/iTender.Api.csproj" />
+  <Project Path="../../Updates/iTender Api/iTender/iTender.Application/iTender.Application.csproj" />
+  <Project Path="../../Updates/iTender Api/iTender/iTender.Domain/iTender.Domain.csproj" />
+  <Project Path="../../Updates/iTender Api/iTender/iTender.Infrastructure/iTender.Infrastructure.csproj" />
   <Project Path="iTender.Compliance.Application/iTender.Compliance.Application.csproj" />
   <Project Path="iTender.Compliance.Client/iTender.Compliance.Client.csproj" />
   <Project Path="iTender.Compliance.Domain/iTender.Compliance.Domain.csproj" />

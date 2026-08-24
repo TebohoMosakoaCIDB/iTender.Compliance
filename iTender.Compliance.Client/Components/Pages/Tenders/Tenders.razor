@@ -1,0 +1,760 @@
+﻿@page "/tenders"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Services
+@inject ISystemSettingService SystemSettingService
+
+@attribute [Authorize]
+
+@inject ITenderService TenderService
+@inject NavigationManager Navigation
+
+<PageTitle>Tenders | CRCIP Monitor</PageTitle>
+
+<div class="container-fluid">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+            <h2 class="mb-0">
+                <i class="bi bi-file-earmark-text me-2 text-secondary"></i>
+                Tenders
+            </h2>
+
+            <small class="text-muted">
+                View and manage monitored tenders.
+            </small>
+        </div>
+
+        <button class="btn btn-sm btn-cidb-submit"
+                @onclick="LoadTenders"
+                disabled="@IsLoading">
+
+            @if (IsLoading)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            else
+            {
+                <i class="bi bi-arrow-clockwise me-1"></i>
+            }
+
+            Refresh
+
+        </button>
+
+    </div>
+
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <!-- Search -->
+                <div class="col-md-4">
+
+                    <label class="form-label">
+                        <i class="bi bi-search me-1"></i>
+                        Search
+                    </label>
+
+                    <input class="form-control"
+                           @bind="Search.SearchText"
+                           placeholder="Tender number, title or employer..." />
+
+                </div>
+
+                <!-- Source -->
+                <div class="col-md-4">
+
+                    <label class="form-label">
+                        <i class="bi bi-globe me-1"></i>
+                        Source
+                    </label>
+
+                    <input class="form-control"
+                           @bind="Search.Source"
+                           placeholder="eTender, iTender, Client Website..." />
+
+                </div>
+
+                <!-- Construction -->
+                <div class="col-md-4">
+
+                    <label class="form-label">
+                        <i class="bi bi-building me-1"></i>
+                        Construction
+                    </label>
+
+                    <select class="form-select"
+                             value="@GetNullableBoolValue(Search.IsConstruction)"
+                             @onchange="e => Search.IsConstruction = ParseNullableBool(e.Value)">
+                        <option value="">All</option>
+                        <option value="true">Construction</option>
+                        <option value="false">Non-Construction</option>
+
+                    </select>
+                </div>
+
+                <!-- RoP -->
+                <div class="col-md-4">
+                    <label class="form-label">
+                        <i class="bi bi-database-check me-1"></i>
+                        RoP Status
+                    </label>
+
+                    <select class="form-select"
+                            value="@GetNullableBoolValue(Search.IsRegisteredOnRoP)"
+                            @onchange="e => Search.IsRegisteredOnRoP = ParseNullableBool(e.Value)">
+                        <option value="">All</option>
+                        <option value="true">Registered</option>
+                        <option value="false">Not Registered</option>
+                    </select>
+
+                </div>
+
+                <!-- Award Status -->
+                <div class="col-md-4">
+
+                    <label class="form-label">
+                        <i class="bi bi-trophy me-1"></i>
+                        Award Status
+                    </label>
+
+                    <select class="form-select"
+                            value="@GetNullableBoolValue(Search.HasBeenAwarded)"
+                            @onchange="e => Search.HasBeenAwarded = ParseNullableBool(e.Value)">
+                        <option value="">All</option>
+                        <option value="true">Awarded</option>
+                        <option value="false">Not Awarded</option>
+                    </select>
+                </div>
+
+                <!-- Compliance -->
+                <div class="col-md-4">
+
+                    <label class="form-label">
+                        <i class="bi bi-patch-check me-1"></i>
+                        Compliance
+                    </label>
+
+                    <select class="form-select"
+                            value="@GetNullableBoolValue(Search.HasComplianceCase)"
+                            @onchange="e => Search.HasComplianceCase = ParseNullableBool(e.Value)">
+                        <option value="">All</option>
+                        <option value="true">Has Case</option>
+                        <option value="false">No Case</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <hr />
+
+            <!-- Advertised Date -->
+            <div class="mb-3">
+
+                <h6 class="text-muted mb-3">
+                    <i class="bi bi-calendar-event me-1"></i>
+                    Advertised Date
+                </h6>
+
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+
+                        <label class="form-label">
+                            From
+                        </label>
+
+                        <input type="date"
+                               class="form-control"
+                               @bind="Search.FromAdvertisedDate" />
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label class="form-label">
+                            To
+                        </label>
+
+                        <input type="date"
+                               class="form-control"
+                               @bind="Search.ToAdvertisedDate" />
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Closing Date -->
+            <div class="mb-3">
+
+                <h6 class="text-muted mb-3">
+                    <i class="bi bi-calendar-check me-1"></i>
+                    Closing Date
+                </h6>
+
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+
+                        <label class="form-label">
+                            From
+                        </label>
+
+                        <input type="date"
+                               class="form-control"
+                               @bind="Search.FromClosingDate" />
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label class="form-label">
+                            To
+                        </label>
+
+                        <input type="date"
+                               class="form-control"
+                               @bind="Search.ToClosingDate" />
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <hr />
+
+            <!-- Bottom controls -->
+            <div class="d-flex justify-content-between align-items-end">
+
+                <div class="d-flex align-items-center gap-2">
+
+                    <label class="form-label mb-0">
+                        Page Size
+                    </label>
+
+                    <select class="form-select"
+                            style="width:100px"
+                            @bind="Search.PageSize">
+
+                        @foreach (var size in PageSizes)
+                        {
+                            <option value="@size">
+                                @size
+                            </option>
+                        }
+
+                    </select>
+
+                </div>
+
+                <div class="d-flex gap-2">
+
+                    <button class="btn btn-sm btn-secondary"
+                            @onclick="ClearFilters">
+
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+
+                        Clear
+
+                    </button>
+
+                    <button class="btn btn-sm btn-cidb-submit"
+                            @onclick="SearchTenders">
+
+                        <i class="bi bi-search me-1"></i>
+
+                        Search
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- Tender Table -->
+    <div class="card shadow-sm">
+
+        <div class="card-header d-flex justify-content-between align-items-center">
+
+            <strong>
+                <i class="bi bi-list-ul me-1"></i>
+                Tenders
+            </strong>
+
+            @if (Result is not null)
+            {
+                <span class="text-muted small">
+                    Showing @StartResult - @EndResult
+                    of @Result.TotalCount
+                </span>
+            }
+
+        </div>
+
+
+        <div class="card-body p-0">
+
+            @if (IsLoading)
+            {
+                <div class="text-center py-5">
+
+                    <div class="spinner-border text-secondary"></div>
+
+                    <p class="text-muted mt-3 mb-0">
+                        Loading tenders...
+                    </p>
+
+                </div>
+            }
+            else if (Result is null)
+            {
+                <div class="text-center py-5">
+
+                    <i class="bi bi-exclamation-circle fs-1 text-muted"></i>
+
+                    <p class="text-muted mt-3 mb-0">
+                        Unable to load tenders.
+                    </p>
+
+                </div>
+            }
+            else if (!Result.Items.Any())
+            {
+                <div class="text-center py-5">
+
+                    <i class="bi bi-file-earmark-x fs-1 text-muted"></i>
+
+                    <p class="text-muted mt-3 mb-0">
+                        No tenders found.
+                    </p>
+
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+
+                    <table class="table table-hover mb-0 align-middle">
+
+                        <thead class="table-light table-header-brand">
+
+                            <tr>
+
+                                <th>Tender Number</th>
+
+                                <th>Title</th>
+
+                                <th>Employer</th>
+
+                                <th>Advertised</th>
+
+                                <th>Closing</th>
+
+                                <th>Awarded</th>
+
+                                <th>RoP</th>
+
+                                <th>Compliance</th>
+
+                                <th style="width:120px;"></th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody>
+
+                            @foreach (var tender in Result.Items)
+                            {
+                                <tr>
+
+                                    <!-- Tender Number -->
+                                    <td>
+
+                                        <div class="fw-semibold">
+                                            @tender.EmployerTenderNumber
+                                        </div>
+
+                                    </td>
+
+
+                                    <!-- Title -->
+                                    <td>
+
+                                        <div class="fw-semibold">
+                                            @tender.Title
+                                        </div>
+
+                                    </td>
+
+
+                                    <!-- Employer -->
+                                    <td>
+                                        @tender.EmployerName
+                                    </td>
+
+
+                                    <!-- Advertised -->
+                                    <td>
+                                        @FormatDate(tender.DateAdvertised)
+                                    </td>
+
+
+                                    <!-- Closing -->
+                                    <td>
+                                        @FormatDate(tender.ClosingDateTime)
+                                    </td>
+
+
+                                    <!-- Awarded -->
+                                    <td>
+                                        @FormatDate(tender.AwardedDate)
+                                    </td>
+
+
+                                    <!-- RoP -->
+                                    <td>
+
+                                        @if (tender.IsRegisteredOnRoP)
+                                        {
+                                            <span class="badge bg-success">
+                                                Registered
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">
+                                                Not Registered
+                                            </span>
+                                        }
+
+                                    </td>
+
+
+                                    <!-- Compliance -->
+                                    <td>
+
+                                        @if (tender.HasComplianceCase)
+                                        {
+                                            <span class="badge bg-info text-dark">
+                                                @tender.ComplianceCaseStatus
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">
+                                                None
+                                            </span>
+                                        }
+
+                                    </td>
+
+
+                                    <!-- Actions -->
+                                    <td class="text-end">
+
+                                        <button class="btn btn-sm btn-cidb-submit"
+                                                @onclick="() => ViewTender(tender.Id)">
+
+                                            <i class="bi bi-eye me-1"></i>
+
+                                            View
+
+                                        </button>
+
+                                    </td>
+
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+            }
+
+        </div>
+
+    </div>
+
+
+    <!-- Pagination -->
+    @if (Result is not null && Result.TotalPages > 1)
+    {
+        <div class="mt-3">
+
+            <div class="text-center mb-2">
+
+                <small class="text-muted">
+                    Showing @StartResult - @EndResult
+                    of @Result.TotalCount results
+                </small>
+
+            </div>
+
+
+            <nav>
+
+                <ul class="pagination justify-content-center">
+
+
+                    <!-- First -->
+                    @if (Result.HasPreviousPage)
+                    {
+                        <li class="page-item">
+
+                            <button class="page-link"
+                                    @onclick="() => GoToPage(1)">
+
+                                First
+
+                            </button>
+
+                        </li>
+                    }
+
+
+                    <!-- Previous -->
+                    <li class="page-item @(Result.HasPreviousPage ? "" : "disabled")">
+
+                        <button class="page-link"
+                                @onclick="() => GoToPage(Result.PageNumber - 1)"
+                                disabled="@(!Result.HasPreviousPage)">
+
+                            Previous
+
+                        </button>
+
+                    </li>
+
+
+                    <!-- Page Numbers -->
+                    @foreach (var pageNumber in VisiblePages)
+                    {
+                        <li class="page-item @(pageNumber == Result.PageNumber ? "active" : "")">
+
+                            <button class="page-link"
+                                    @onclick="() => GoToPage(pageNumber)">
+
+                                @pageNumber
+
+                            </button>
+
+                        </li>
+                    }
+
+
+                    <!-- Next -->
+                    <li class="page-item @(Result.HasNextPage ? "" : "disabled")">
+
+                        <button class="page-link"
+                                @onclick="() => GoToPage(Result.PageNumber + 1)"
+                                disabled="@(!Result.HasNextPage)">
+
+                            Next
+
+                        </button>
+
+                    </li>
+
+
+                    <!-- Last -->
+                    @if (Result.HasNextPage)
+                    {
+                        <li class="page-item">
+
+                            <button class="page-link"
+                                    @onclick="() => GoToPage(Result.TotalPages)">
+
+                                Last
+
+                            </button>
+
+                        </li>
+                    }
+
+                </ul>
+
+            </nav>
+
+        </div>
+    }
+
+</div>
+
+@code
+{
+    private TenderSearchModel Search = new()
+    {
+        PageNumber = 1
+    };
+
+    private PagedResult<TenderDto>? Result;
+
+    private bool IsLoading;
+
+    private SystemSettingModel Settings = new();
+
+    private List<int> PageSizes = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Settings = await SystemSettingService.GetAsync();
+
+        Search.PageSize = Settings.DefaultPageSize;
+
+        PageSizes =
+        [
+            Settings.DefaultPageSize,
+            Settings.DefaultPageSize * 2,
+            Settings.DefaultPageSize * 5,
+            Settings.DefaultPageSize * 10
+        ];
+
+        PageSizes = PageSizes
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
+        await LoadTenders();
+    }
+
+    private async Task LoadTenders()
+    {
+        IsLoading = true;
+
+        try
+        {
+            Result = await TenderService.SearchAsync(Search);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task SearchTenders()
+    {
+        Search.PageNumber = 1;
+
+        await LoadTenders();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (Result is null)
+            return;
+
+        page = Math.Max(
+            1,
+            Math.Min(page, Result.TotalPages));
+
+        Search.PageNumber = page;
+
+        await LoadTenders();
+    }
+
+    private async Task ClearFilters()
+    {
+        Search = new TenderSearchModel
+        {
+            PageNumber = 1,
+            PageSize = Settings.DefaultPageSize
+        };
+
+        await LoadTenders();
+    }
+
+    private void ViewTender(Guid id)
+    {
+        Navigation.NavigateTo($"/tenders/{id}");
+    }
+
+    private static string FormatDate(DateTime? date)
+    {
+        return date?.ToString("dd MMM yyyy") ?? "-";
+    }
+
+    private static string GetNullableBoolValue(bool? value)
+    {
+        return value switch
+        {
+            true => "true",
+            false => "false",
+            _ => ""
+        };
+    }
+
+    private static bool? ParseNullableBool(object? value)
+    {
+        var stringValue = value?.ToString();
+
+        if (string.IsNullOrWhiteSpace(stringValue))
+            return null;
+
+        return bool.TryParse(stringValue, out var result)
+            ? result
+            : null;
+    }
+
+    private IEnumerable<int> VisiblePages
+    {
+        get
+        {
+            if (Result is null)
+                return Enumerable.Empty<int>();
+
+            const int maxPages = 5;
+
+            int start = Math.Max(
+                1,
+                Result.PageNumber - 2);
+
+            int end = Math.Min(
+                Result.TotalPages,
+                start + maxPages - 1);
+
+            if (end - start < maxPages - 1)
+            {
+                start = Math.Max(
+                    1,
+                    end - maxPages + 1);
+            }
+
+            return Enumerable.Range(
+                start,
+                end - start + 1);
+        }
+    }
+
+    private int StartResult =>
+        Result == null || Result.TotalCount == 0
+            ? 0
+            : ((Result.PageNumber - 1) * Result.PageSize) + 1;
+
+    private int EndResult =>
+        Result == null
+            ? 0
+            : Math.Min(
+                Result.PageNumber * Result.PageSize,
+                Result.TotalCount);
+}

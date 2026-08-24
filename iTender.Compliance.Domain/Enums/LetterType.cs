@@ -2,8 +2,10 @@
 {
     public enum LetterType
     {
+        Erratum,
         Instruction,
         Reminder,
+        ContraventionNotice,
         FinalNotice
     }
 }

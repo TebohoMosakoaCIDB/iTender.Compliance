@@ -36,5 +36,7 @@ namespace iTender.Compliance.Application.Interfaces.Services
         Task DeleteAsync(
             Guid notificationId,
             CancellationToken cancellationToken = default);
+
+        Task<NotificationDetailModel?> GetByIdAsync(Guid id);
     }
 }

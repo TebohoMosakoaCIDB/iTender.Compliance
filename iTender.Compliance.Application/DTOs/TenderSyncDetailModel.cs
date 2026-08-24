@@ -1,4 +1,6 @@
-﻿namespace iTender.Compliance.Application.DTOs
+﻿using iTender.Compliance.Domain.Enums;
+
+namespace iTender.Compliance.Application.DTOs
 {
     public class TenderSyncDetailModel
     {
@@ -21,5 +23,11 @@
         public int ErrorCount { get; set; }
 
         public List<TenderSyncLogModel> Logs { get; set; } = [];
+
+        public SyncStatus Status { get; set; }
+
+        public Guid? StartedByUserId { get; set; }
+
+        public string? Notes { get; set; }
     }
 }

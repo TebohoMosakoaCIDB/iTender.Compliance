@@ -30,6 +30,15 @@ namespace iTender.Compliance.Domain.Entities
 
         public string? ResponseComments { get; set; }
 
+        // ---- NEW PROPERTY ----
+
+        /// <summary>
+        /// Links this letter to a specific finding (since one case may have multiple findings).
+        /// </summary>
+        public Guid? ComplianceFindingId { get; set; }
+
+        // ---- Navigation ----
+
         public virtual ComplianceCase ComplianceCase { get; set; } = null!;
 
         public virtual SigningRequest? SigningRequest { get; set; }

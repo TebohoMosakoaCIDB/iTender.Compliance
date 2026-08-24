@@ -15,7 +15,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 
-<PageTitle>Notifications</PageTitle>
+<PageTitle>Notifications | CRCIP Monitor</PageTitle>
 
 <div class="container-fluid">
 
@@ -241,16 +241,9 @@
         return (MarkupString)icon;
     }
 
-    private async Task OpenNotification(NotificationListModel notification)
+    private void OpenNotification(NotificationListModel notification)
     {
-        if (!notification.IsRead)
-        {
-            await NotificationService.MarkAsReadAsync(notification.Id);
-        }
-
-        if (!string.IsNullOrWhiteSpace(notification.Url))
-        {
-            Navigation.NavigateTo(notification.Url);
-        }
+        Navigation.NavigateTo(
+            $"/notifications/{notification.Id}");
     }
 }

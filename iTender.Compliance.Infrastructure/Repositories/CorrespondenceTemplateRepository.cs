@@ -1,4 +1,5 @@
-﻿using iTender.Compliance.Application.Interfaces.Repositories;
+﻿using DocumentFormat.OpenXml.InkML;
+using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Data;
@@ -15,50 +16,46 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
-        public async Task<List<CorrespondenceTemplateModel>> GetAllAsync(
-            CancellationToken cancellationToken = default)
+        public async Task<List<CorrespondenceTemplateModel>> GetAllAsync()
         {
             return await Context.CorrespondenceTemplates
-                .OrderBy(x => x.TemplateType)
-                .ToListAsync(cancellationToken);
+                .OrderBy(x => x.Type)
+                .ThenByDescending(x => x.Version)
+                .ToListAsync();
         }
 
         public async Task<CorrespondenceTemplateModel?> GetByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken = default)
+        Guid id)
         {
             return await Context.CorrespondenceTemplates
-                .FirstOrDefaultAsync(x =>
-                    x.Id == id,
-                    cancellationToken);
+                .FirstOrDefaultAsync(x => x.Id == id);
         }
 
-        public async Task<CorrespondenceTemplateModel?> GetByTypeAsync(
-            CorrespondenceTemplateType type,
-            CancellationToken cancellationToken = default)
+        public async Task<CorrespondenceTemplateModel?> GetActiveAsync(
+            CorrespondenceTemplateType type)
         {
             return await Context.CorrespondenceTemplates
                 .FirstOrDefaultAsync(x =>
-                    x.TemplateType == type &&
-                    x.IsActive,
-                    cancellationToken);
+                    x.Type == type &&
+                    x.IsActive &&
+                    x.Status == CorrespondenceTemplateStatus.Approved);
         }
 
         public async Task AddAsync(
-            CorrespondenceTemplateModel template,
-            CancellationToken cancellationToken = default)
+        CorrespondenceTemplateModel template)
         {
             await Context.CorrespondenceTemplates
-                .AddAsync(template, cancellationToken);
+                .AddAsync(template);
+
+            await Context.SaveChangesAsync();
         }
 
-        public Task UpdateAsync(
-            CorrespondenceTemplateModel template,
-            CancellationToken cancellationToken = default)
+        public async Task UpdateAsync(
+            CorrespondenceTemplateModel template)
         {
             Context.CorrespondenceTemplates.Update(template);
 
-            return Task.CompletedTask;
+            await Context.SaveChangesAsync();
         }
     }
 }

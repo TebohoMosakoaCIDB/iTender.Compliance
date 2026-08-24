@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using iTender.Compliance.Application.Common;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace iTender.Compliance.Infrastructure.Identity
@@ -7,21 +8,37 @@ namespace iTender.Compliance.Infrastructure.Identity
     {
         public static async Task SeedAsync(IServiceProvider serviceProvider)
         {
-            var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-            var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var roleManager =
+                serviceProvider.GetRequiredService<
+                    RoleManager<IdentityRole<Guid>>>();
+
+            var userManager =
+                serviceProvider.GetRequiredService<
+                    UserManager<ApplicationUser>>();
 
             string[] roles =
             [
-                "Administrator",
-                "Compliance Agent",
-                "Supervisor"
+                Roles.Director,
+            Roles.ComplianceManager,
+            Roles.ComplianceOfficer,
+            Roles.ComplianceAdministrator
             ];
 
             foreach (var role in roles)
             {
                 if (!await roleManager.RoleExistsAsync(role))
                 {
-                    await roleManager.CreateAsync(new IdentityRole<Guid>(role));
+                    var result =
+                        await roleManager.CreateAsync(
+                            new IdentityRole<Guid>(role));
+
+                    if (!result.Succeeded)
+                    {
+                        throw new Exception(
+                            string.Join(
+                                Environment.NewLine,
+                                result.Errors.Select(x => x.Description)));
+                    }
                 }
             }
 
@@ -42,18 +59,25 @@ namespace iTender.Compliance.Infrastructure.Identity
                     EmailConfirmed = true
                 };
 
-                var result = await userManager.CreateAsync(user, password);
+                var result =
+                    await userManager.CreateAsync(user, password);
 
                 if (!result.Succeeded)
                 {
-                    throw new Exception(string.Join(Environment.NewLine,
-                        result.Errors.Select(x => x.Description)));
+                    throw new Exception(
+                        string.Join(
+                            Environment.NewLine,
+                            result.Errors.Select(x => x.Description)));
                 }
             }
 
-            if (!await userManager.IsInRoleAsync(user, "Administrator"))
+            if (!await userManager.IsInRoleAsync(
+                    user,
+                    Roles.ComplianceAdministrator))
             {
-                await userManager.AddToRoleAsync(user, "Administrator");
+                await userManager.AddToRoleAsync(
+                    user,
+                    Roles.ComplianceAdministrator);
             }
         }
     }

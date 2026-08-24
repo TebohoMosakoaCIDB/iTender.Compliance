@@ -80,7 +80,6 @@ namespace iTender.Compliance.Infrastructure.Services.SigningHub
             if (request == null)
                 return;
 
-            request.WorkflowId = workflowId;
             request.DocumentId = documentId;
             request.Status = SigningRequestStatus.PendingSignature;
             request.SentOn = DateTime.UtcNow;

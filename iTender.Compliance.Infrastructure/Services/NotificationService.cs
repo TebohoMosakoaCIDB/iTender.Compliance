@@ -152,5 +152,10 @@ namespace iTender.Compliance.Infrastructure.Services
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task<NotificationDetailModel?> GetByIdAsync(Guid id)
+        {
+            return await _notificationRepository.GetByIdAsync(id);
+        }
     }
 }

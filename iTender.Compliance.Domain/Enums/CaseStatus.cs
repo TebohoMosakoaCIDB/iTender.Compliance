@@ -2,12 +2,12 @@
 {
     public enum CaseStatus
     {
-        New = 1,
-
-        Assigned = 2,
-
-        WaitingForResponse = 3,
-
-        Closed = 4
+        New,
+        Assigned,
+        AwaitingILResponse,
+        AwaitingCNResponse,
+        Escalated,
+        UnderReview,
+        Closed
     }
 }

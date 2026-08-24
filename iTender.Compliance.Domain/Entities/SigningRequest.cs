@@ -10,11 +10,9 @@ namespace iTender.Compliance.Domain.Entities
         public SigningRequestStatus Status { get; set; }
 
         // SigningHub IDs
-        public string? WorkflowId { get; set; }
 
         public string? DocumentId { get; set; }
-
-        public string? EnvelopeId { get; set; }
+        public int? PackageId { get; set; }
 
         // Files
         public string OriginalDocumentPath { get; set; } = string.Empty;

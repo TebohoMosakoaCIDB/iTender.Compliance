@@ -1,27 +1,26 @@
 ﻿@rendermode InteractiveServer
 
+@using Microsoft.AspNetCore.SignalR.Client
 @using iTender.Compliance.Application.DTOs
 @using iTender.Compliance.Application.Interfaces.Services
-@using Microsoft.AspNetCore.SignalR.Client
-@using System.Security.Claims
 @inject INotificationService NotificationService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 
 <AuthorizeView>
     <Authorized>
-
-        <div class="dropdown">
+        <div class="dropdown notification-wrapper">
 
             <button type="button"
-                    class="btn btn-link position-relative"
-                    data-bs-toggle="dropdown">
+                    class="btn btn-link position-relative notification-button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false">
 
                 <i class="bi bi-bell-fill fs-5"></i>
 
                 @if (UnreadCount > 0)
                 {
-                    <span class="position-absolute top-50 start-100 translate-middle badge rounded-pill bg-danger">
+                    <span class="notification-badge badge rounded-pill bg-danger">
                         @UnreadCount
                     </span>
                 }
@@ -34,14 +33,30 @@
                 {
                     @foreach (var notification in Notifications)
                     {
-                        <li>
-                            <a class="dropdown-item" href="@notification.Url">
-                                <div class="fw-semibold">@notification.Title</div>
-                                <small class="text-muted">@notification.Message</small>
+                        <li class="notification-list-item">
+
+                            <a class="notification-item"
+                               href="/notifications/@notification.Id">
+
+                                <div class="notification-content">
+
+                                    <div class="notification-title">
+                                        @notification.Title
+                                    </div>
+
+                                    <div class="notification-message">
+                                        @notification.Message
+                                    </div>
+
+                                </div>
+
                             </a>
+
                         </li>
 
-                        <li><hr class="dropdown-divider" /></li>
+                        <li>
+                            <hr class="dropdown-divider" />
+                        </li>
                     }
 
                     <li>
@@ -63,7 +78,6 @@
             </ul>
 
         </div>
-
     </Authorized>
 </AuthorizeView>
 

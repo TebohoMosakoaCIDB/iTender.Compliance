@@ -18,10 +18,10 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IAgentRepository _agentRepository;
 
         public CaseAuthorizationService(
-                ICurrentUserService currentUser,
-                UserManager<ApplicationUser> userManager,
-                IComplianceCaseRepository caseRepository,
-                IAgentRepository agentRepository)
+            ICurrentUserService currentUser,
+            UserManager<ApplicationUser> userManager,
+            IComplianceCaseRepository caseRepository,
+            IAgentRepository agentRepository)
         {
             _currentUser = currentUser;
             _userManager = userManager;
@@ -29,86 +29,98 @@ namespace iTender.Compliance.Infrastructure.Services
             _agentRepository = agentRepository;
         }
 
-        public async Task<bool> CanAssignAsync(Guid caseId, CancellationToken cancellationToken = default)
+        public async Task<bool> CanAssignAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default)
         {
             var user = await GetCurrentUserAsync();
 
             if (user == null)
                 return false;
 
-            return await IsAdministratorAsync(user)
-                || await IsSupervisorAsync(user);
+            return await IsDirectorAsync(user)
+                || await IsRegulatoryComplianceManagerAsync(user);
         }
 
-        public async Task<bool> CanCloseAsync(Guid caseId, CancellationToken cancellationToken = default)
+        public async Task<bool> CanCloseAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default)
         {
             var user = await GetCurrentUserAsync();
 
             if (user == null)
                 return false;
 
-            return await IsAdministratorAsync(user)
-                || await IsSupervisorAsync(user);
-        }
-        public Task<bool> CanEditAsync(Guid caseId, CancellationToken cancellationToken = default)
-        {
-            return CanViewAsync(caseId, cancellationToken);
+            return await IsDirectorAsync(user)
+                || await IsRegulatoryComplianceManagerAsync(user);
         }
 
-        public async Task<bool> CanViewAsync(Guid caseId, CancellationToken cancellationToken = default)
+        public async Task<bool> CanEditAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default)
         {
             var user = await GetCurrentUserAsync();
 
             if (user == null)
                 return false;
 
-            if (await IsAdministratorAsync(user))
+            // Director can edit any case
+            if (await IsDirectorAsync(user))
                 return true;
 
-            if (await IsSupervisorAsync(user))
+            // Regulatory Compliance Manager can edit any case
+            if (await IsRegulatoryComplianceManagerAsync(user))
                 return true;
 
+            // Compliance Officer can edit cases assigned to them
             var agent = await GetCurrentAgentAsync(cancellationToken);
 
             if (agent == null)
                 return false;
 
             var complianceCase =
-                await _caseRepository.GetByIdAsync(caseId, cancellationToken);
+                await _caseRepository.GetByIdAsync(
+                    caseId,
+                    cancellationToken);
+
+            if (complianceCase == null)
+                return false;
 
             return complianceCase.AgentId == agent.Id;
         }
 
-        private async Task<ApplicationUser?> GetCurrentUserAsync()
+        public async Task<bool> CanViewAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default)
         {
-            if (_currentUser.UserId == null)
-                return null;
+            var user = await GetCurrentUserAsync();
 
-            return await _userManager.FindByIdAsync(_currentUser.UserId.ToString()!);
-        }
+            if (user == null)
+                return false;
 
-        private async Task<bool> IsAdministratorAsync(ApplicationUser user)
-        {
-            return await _userManager.IsInRoleAsync(
-                user,
-                Roles.Administrator);
-        }
+            // Director can view all cases
+            if (await IsDirectorAsync(user))
+                return true;
 
-        private async Task<bool> IsSupervisorAsync(ApplicationUser user)
-        {
-            return await _userManager.IsInRoleAsync(
-                user,
-                Roles.Supervisor);
-        }
+            // Regulatory Compliance Manager can view all cases
+            if (await IsRegulatoryComplianceManagerAsync(user))
+                return true;
 
-        private async Task<Agent?> GetCurrentAgentAsync(CancellationToken cancellationToken)
-        {
-            if (_currentUser.UserId == null)
-                return null;
+            // Compliance Officer can view assigned cases
+            var agent = await GetCurrentAgentAsync(cancellationToken);
 
-            return await _agentRepository.GetByUserIdAsync(
-                _currentUser.UserId.Value,
-                cancellationToken);
+            if (agent == null)
+                return false;
+
+            var complianceCase =
+                await _caseRepository.GetByIdAsync(
+                    caseId,
+                    cancellationToken);
+
+            if (complianceCase == null)
+                return false;
+
+            return complianceCase.AgentId == agent.Id;
         }
 
         public async Task<bool> CanViewAllCasesAsync()
@@ -118,15 +130,68 @@ namespace iTender.Compliance.Infrastructure.Services
             if (user == null)
                 return false;
 
-            return await IsAdministratorAsync(user)
-                || await IsSupervisorAsync(user);
+            return await IsDirectorAsync(user)
+                || await IsRegulatoryComplianceManagerAsync(user);
         }
 
         public async Task<Guid?> GetCurrentAgentIdAsync()
         {
-            var agent = await GetCurrentAgentAsync(CancellationToken.None);
+            var agent = await GetCurrentAgentAsync(
+                CancellationToken.None);
 
             return agent?.Id;
+        }
+
+        private async Task<ApplicationUser?> GetCurrentUserAsync()
+        {
+            if (_currentUser.UserId == null)
+                return null;
+
+            return await _userManager.FindByIdAsync(
+                _currentUser.UserId.Value.ToString());
+        }
+
+        private async Task<bool> IsDirectorAsync(
+            ApplicationUser user)
+        {
+            return await _userManager.IsInRoleAsync(
+                user,
+                Roles.Director);
+        }
+
+        private async Task<bool> IsRegulatoryComplianceManagerAsync(
+            ApplicationUser user)
+        {
+            return await _userManager.IsInRoleAsync(
+                user,
+                Roles.ComplianceManager);
+        }
+
+        private async Task<bool> IsComplianceOfficerAsync(
+            ApplicationUser user)
+        {
+            return await _userManager.IsInRoleAsync(
+                user,
+                Roles.ComplianceOfficer);
+        }
+
+        private async Task<bool> IsComplianceAdministratorAsync(
+            ApplicationUser user)
+        {
+            return await _userManager.IsInRoleAsync(
+                user,
+                Roles.ComplianceAdministrator);
+        }
+
+        private async Task<Agent?> GetCurrentAgentAsync(
+            CancellationToken cancellationToken)
+        {
+            if (_currentUser.UserId == null)
+                return null;
+
+            return await _agentRepository.GetByUserIdAsync(
+                _currentUser.UserId.Value,
+                cancellationToken);
         }
     }
 }

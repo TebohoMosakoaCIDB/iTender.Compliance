@@ -12,7 +12,7 @@ namespace iTender.Compliance.Domain.Entities
         public LetterType Type { get; set; }
         public DateTime? ClosedDate { get; set; }
         public string? Comments { get; set; }
-         public DateTime? AssignedOn { get; set; }
+        public DateTime? AssignedOn { get; set; }
 
         #region Navigation Properties
         public virtual Tender Tender { get; set; } = null!;
@@ -25,8 +25,14 @@ namespace iTender.Compliance.Domain.Entities
         public virtual ICollection<AuditLog> AuditLogs { get; set; }
             = new List<AuditLog>();
 
-        public virtual ICollection<CaseNote> CaseNotes { get; set; } 
+        public virtual ICollection<CaseNote> CaseNotes { get; set; }
             = new List<CaseNote>();
+
+        public virtual ICollection<ComplianceFinding> ComplianceFindings { get; set; }
+            = new List<ComplianceFinding>();
+
+        public virtual ICollection<ComplianceAction> ComplianceActions { get; set; }
+            = new List<ComplianceAction>();
 
         #endregion
     }

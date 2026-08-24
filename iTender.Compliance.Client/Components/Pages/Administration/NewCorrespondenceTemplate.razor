@@ -1,173 +1,574 @@
-﻿@page "/correspondence-templates/new"
-@using Microsoft.AspNetCore.Authorization
-@using iTender.Compliance.Application.Interfaces.Services
-@using iTender.Compliance.Domain.Enums
+﻿@page "/correspondence/create"
+
 @rendermode InteractiveServer
-@attribute [Authorize(Policy = "Administration")]
 
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Domain.Entities
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Application.Interfaces.Services
+
+@attribute [Authorize(Policy = "CorrespondenceDraft")]
 
 @inject ICorrespondenceTemplateService TemplateService
 @inject NavigationManager Navigation
 
-@inject ICorrespondenceTemplateService TemplateService
-@inject NavigationManager Navigation
+<PageTitle>Templates | CRCIP Monitor</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid">
 
-    <div>
+    <!-- ===================================================== -->
+    <!-- HEADER -->
+    <!-- ===================================================== -->
 
-        <h2 class="mb-0">
-            <i class="bi bi-envelope-plus-fill me-2 text-secondary"></i>
-            Create Correspondence Template
-        </h2>
-
-        <small class="text-muted">
-            Select the correspondence template you would like to configure.
-        </small>
-
-    </div>
-
-    <button class="btn btn-outline-secondary"
-            @onclick="Back">
-
-        <i class="bi bi-arrow-left me-2"></i>
-
-        Back
-
-    </button>
-
-</div>
-
-<hr />
-
-@if (!AvailableTypes.Any())
-{
-    <div class="alert alert-success d-flex align-items-center">
-
-        <i class="bi bi-check-circle-fill me-2 fs-4"></i>
+    <div class="d-flex justify-content-between align-items-center mb-4">
 
         <div>
 
-            <strong>All templates have been configured.</strong>
+            <h2 class="mb-1">
 
-            <div class="small">
-                Every correspondence template has already been created. You can edit them from the Templates page.
-            </div>
+                <i class="bi bi-file-earmark-plus me-2 text-secondary"></i>
+
+                New Correspondence Template
+
+            </h2>
+
+            <small class="text-muted">
+                Create a new correspondence template for the compliance process.
+            </small>
 
         </div>
 
+        <button class="btn btn-sm btn-secondary"
+                @onclick="Cancel">
+
+            <i class="bi bi-arrow-left me-2"></i>
+
+            Back
+
+        </button>
+
     </div>
-}
-else
-{
+
+
+    <!-- ===================================================== -->
+    <!-- ERROR -->
+    <!-- ===================================================== -->
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-danger">
+
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+
+            @ErrorMessage
+
+        </div>
+    }
+
+
+    <!-- ===================================================== -->
+    <!-- FORM -->
+    <!-- ===================================================== -->
+
     <div class="row g-4">
 
-        @foreach (var type in AvailableTypes)
-        {
-            <div class="col-md-6 col-xl-4">
+        <!-- ================================================= -->
+        <!-- TEMPLATE DETAILS -->
+        <!-- ================================================= -->
 
-                <div class="card shadow-sm border-0 h-100">
+        <div class="col-lg-8">
 
-                    <div class="card-body d-flex flex-column">
+            <div class="card shadow-sm">
 
-                        <div class="mb-3">
+                <div class="card-header bg-white">
 
-                            <h5 class="card-title mb-1">
+                    <strong>
 
-                                @GetDisplayName(type)
+                        <i class="bi bi-file-earmark-text me-2"></i>
 
-                            </h5>
+                        Template Details
 
-                            <small class="text-muted">
+                    </strong>
 
-                                @type
+                </div>
 
-                            </small>
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+                        <!-- NAME -->
+
+                        <div class="col-md-8">
+
+                            <label class="form-label">
+                                Template Name
+                            </label>
+
+                            <input type="text"
+                                   class="form-control"
+                                   @bind="Template.Name"
+                                   placeholder="e.g. Instructional Letter" />
 
                         </div>
 
-                        <p class="text-muted flex-grow-1">
 
-                            @GetDescription(type)
+                        <!-- TYPE -->
 
-                        </p>
+                        <div class="col-md-4">
 
-                        <button class="btn btn-cidb-submit mt-auto"
-                                @onclick="() => Create(type)">
+                            <label class="form-label">
+                                Template Type
+                            </label>
 
-                            <i class="bi bi-plus-circle me-2"></i>
+                            <select class="form-select"
+                                    @bind="Template.Type">
 
-                            Create Template
+                                <option value="">
+                                    Select Type
+                                </option>
 
-                        </button>
+                                @foreach (var type in Enum.GetValues<CorrespondenceTemplateType>())
+                                {
+                                    <option value="@type">
+                                        @GetTypeName(type)
+                                    </option>
+                                }
+
+                            </select>
+
+                        </div>
+
+
+                        <!-- SUBJECT -->
+
+                        <div class="col-12">
+
+                            <label class="form-label">
+                                Subject
+                            </label>
+
+                            <input type="text"
+                                   class="form-control"
+                                   @bind="Template.Subject"
+                                   placeholder="Correspondence subject" />
+
+                            <div class="form-text">
+
+                                You can use template variables such as
+                                <code>{TenderNumber}</code> and
+                                <code>{ClientName}</code>.
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- BODY -->
+
+                        <div class="col-12">
+
+                            <label class="form-label">
+                                Template Body
+                            </label>
+
+                            <textarea class="form-control"
+                                      rows="18"
+                                      @bind="Template.Body"
+                                      placeholder="Enter the correspondence template...">
+                            </textarea>
+
+                            <div class="form-text">
+
+                                Template variables can be inserted into the
+                                correspondence body.
+
+                            </div>
+
+                        </div>
 
                     </div>
 
                 </div>
 
             </div>
-        }
+
+        </div>
+
+
+        <!-- ================================================= -->
+        <!-- TEMPLATE INFORMATION -->
+        <!-- ================================================= -->
+
+        <div class="col-lg-4">
+
+            <div class="card shadow-sm mb-4">
+
+                <div class="card-header bg-white">
+
+                    <strong>
+
+                        <i class="bi bi-info-circle me-2"></i>
+
+                        Template Information
+
+                    </strong>
+
+                </div>
+
+                <div class="card-body">
+
+                    <div class="mb-3">
+
+                        <small class="text-muted d-block">
+                            Status
+                        </small>
+
+                        <span class="badge bg-secondary">
+                            Draft
+                        </span>
+
+                    </div>
+
+
+                    <div class="mb-3">
+
+                        <small class="text-muted d-block">
+                            Version
+                        </small>
+
+                        <strong>
+                            Version 1
+                        </strong>
+
+                    </div>
+
+
+                    <div class="mb-3">
+
+                        <small class="text-muted d-block">
+                            Created
+                        </small>
+
+                        <strong>
+                            @DateTime.UtcNow.ToString("dd MMM yyyy HH:mm")
+                        </strong>
+
+                    </div>
+
+
+                    <div>
+
+                        <small class="text-muted d-block">
+                            Active
+                        </small>
+
+                        <span class="badge bg-success">
+                            Yes
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- AVAILABLE VARIABLES -->
+            <!-- ================================================= -->
+
+            <div class="card shadow-sm">
+
+                <div class="card-header bg-white">
+
+                    <strong>
+
+                        <i class="bi bi-braces me-2"></i>
+
+                        Available Variables
+
+                    </strong>
+
+                </div>
+
+                <div class="card-body">
+
+                    <p class="small text-muted">
+                        These placeholders can be used in the subject and body.
+                        They will be replaced with actual case information when
+                        correspondence is generated.
+                    </p>
+
+
+                    <div class="mb-2">
+
+                        <code>{TenderNumber}</code>
+
+                        <small class="text-muted ms-2">
+                            Tender number
+                        </small>
+
+                    </div>
+
+
+                    <div class="mb-2">
+
+                        <code>{TenderTitle}</code>
+
+                        <small class="text-muted ms-2">
+                            Tender title
+                        </small>
+
+                    </div>
+
+
+                    <div class="mb-2">
+
+                        <code>{ClientName}</code>
+
+                        <small class="text-muted ms-2">
+                            Client / employer
+                        </small>
+
+                    </div>
+
+
+                    <div class="mb-2">
+
+                        <code>{AdvertisedDate}</code>
+
+                        <small class="text-muted ms-2">
+                            Advertisement date
+                        </small>
+
+                    </div>
+
+
+                    <div class="mb-2">
+
+                        <code>{ClosingDate}</code>
+
+                        <small class="text-muted ms-2">
+                            Tender closing date
+                        </small>
+
+                    </div>
+
+
+                    <div class="mb-2">
+
+                        <code>{ResponseDueDate}</code>
+
+                        <small class="text-muted ms-2">
+                            Response deadline
+                        </small>
+
+                    </div>
+
+
+                    <div class="mb-2">
+
+                        <code>{AgentName}</code>
+
+                        <small class="text-muted ms-2">
+                            Compliance officer
+                        </small>
+
+                    </div>
+
+
+                    <div class="mb-2">
+
+                        <code>{AgentSignature}</code>
+
+                        <small class="text-muted ms-2">
+                            Officer signature
+                        </small>
+
+                    </div>
+
+
+                    <div>
+
+                        <code>{FooterText}</code>
+
+                        <small class="text-muted ms-2">
+                            Standard footer
+                        </small>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
 
     </div>
-}
 
-@code
-{
-    private List<CorrespondenceTemplateType> AvailableTypes = [];
 
-    protected override async Task OnInitializedAsync()
+    <!-- ===================================================== -->
+    <!-- ACTIONS -->
+    <!-- ===================================================== -->
+
+    <div class="card shadow-sm mt-4">
+
+        <div class="card-body d-flex justify-content-between align-items-center">
+
+            <div>
+
+                <strong>
+                    Save Template
+                </strong>
+
+                <div class="small text-muted">
+                    The template will be saved as a draft and will require
+                    approval before it can be used.
+                </div>
+
+            </div>
+
+            <div>
+
+                <button class="btn btn-sm btn-secondary me-2"
+                        @onclick="Cancel"
+                        disabled="@IsSaving">
+
+                    Cancel
+
+                </button>
+
+
+                <button class="btn btn-sm btn-cidb-submit"
+                        @onclick="Save"
+                        disabled="@IsSaving">
+
+                    @if (IsSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-save me-2"></i>
+
+                        <span>Save Draft</span>
+                    }
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+@code {
+
+    private CorrespondenceTemplateModel Template = new()
     {
-        var templates = await TemplateService.GetAllAsync();
+        IsActive = true,
+        Status = CorrespondenceTemplateStatus.Draft,
+        Version = 1,
+        CreatedOn = DateTime.UtcNow
+    };
 
-        AvailableTypes = Enum
-            .GetValues<CorrespondenceTemplateType>()
-            .Except(templates.Select(x => x.Type))
-            .ToList();
+
+    private bool IsSaving;
+
+    private string ErrorMessage = string.Empty;
+
+
+    private async Task Save()
+    {
+        ErrorMessage = string.Empty;
+
+
+        // ============================================
+        // VALIDATION
+        // ============================================
+
+        if (string.IsNullOrWhiteSpace(Template.Name))
+        {
+            ErrorMessage = "Template name is required.";
+            return;
+        }
+
+
+        if (string.IsNullOrWhiteSpace(Template.Subject))
+        {
+            ErrorMessage = "Template subject is required.";
+            return;
+        }
+
+
+        if (string.IsNullOrWhiteSpace(Template.Body))
+        {
+            ErrorMessage = "Template body is required.";
+            return;
+        }
+
+
+        IsSaving = true;
+
+
+        try
+        {
+            Template.Id = Guid.NewGuid();
+
+            Template.Status =
+                CorrespondenceTemplateStatus.Draft;
+
+            Template.Version = 1;
+
+            Template.IsActive = true;
+
+            Template.CreatedOn =
+                DateTime.UtcNow;
+
+
+            await TemplateService.CreateAsync(Template);
+
+
+            Navigation.NavigateTo("/correspondence");
+
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage =
+                "Unable to save the template: "
+                + ex.Message;
+        }
+        finally
+        {
+            IsSaving = false;
+        }
     }
 
-    private static string GetDescription(
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/correspondence");
+    }
+
+
+    private static string GetTypeName(
         CorrespondenceTemplateType type)
     {
         return type switch
         {
-            CorrespondenceTemplateType.InstructionLetter =>
-                "Sent when a compliance case is assigned.",
+            CorrespondenceTemplateType.InstructionalLetter =>
+                "Instructional Letter",
 
-            CorrespondenceTemplateType.ReminderLetter =>
-                "Sent when no response has been received.",
+            CorrespondenceTemplateType.ContraventionNotice =>
+                "Contravention Notice",
 
-            CorrespondenceTemplateType.CaseClosed =>
-                "Sent to notify an agent of a Case Closed.",
-
-            _ => ""
+            _ =>
+                type.ToString()
         };
     }
 
-    private async Task Create(
-        CorrespondenceTemplateType type)
-    {
-        var id = await TemplateService.CreateAsync(type);
-
-        Navigation.NavigateTo(
-            $"/correspondence-templates/{id}");
-    }
-
-    private static string GetDisplayName(CorrespondenceTemplateType type)
-    {
-        return type switch
-        {
-            CorrespondenceTemplateType.InstructionLetter => "Instruction Letter",
-
-            CorrespondenceTemplateType.ReminderLetter => "Reminder Letter",
-
-            CorrespondenceTemplateType.CaseClosed => "Case Closed",
-
-            _ => type.ToString()
-        };
-    }
-
-    private void Back()
-    {
-        Navigation.NavigateTo("/correspondence-templates");
-    }
 }

@@ -1,0 +1,315 @@
+﻿@page "/notifications/{Id:guid}"
+
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Enums
+
+@attribute [Authorize]
+
+@inject INotificationService NotificationService
+@inject NavigationManager Navigation
+
+<PageTitle>Notifications | CRCIP Monitor</PageTitle>
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+
+            <h2 class="mb-0">
+                <i class="bi bi-bell me-2 text-secondary"></i>
+                Notification
+            </h2>
+
+            <small class="text-muted">
+                Notification details
+            </small>
+
+        </div>
+
+        <button class="btn btn-cidb-submit-outline"
+                @onclick="GoBack">
+
+            <i class="bi bi-arrow-left me-2"></i>
+            Back to Notifications
+
+        </button>
+
+    </div>
+
+
+    @if (_loading)
+    {
+        <div class="card shadow-sm">
+
+            <div class="card-body text-center py-5">
+
+                <div class="spinner-border text-secondary"
+                     role="status">
+                </div>
+
+                <div class="text-muted mt-3">
+                    Loading notification...
+                </div>
+
+            </div>
+
+        </div>
+    }
+    else if (NotificationModel == null)
+    {
+        <div class="card shadow-sm">
+
+            <div class="card-body text-center py-5">
+
+                <i class="bi bi-bell-slash fs-1 text-muted"></i>
+
+                <h5 class="mt-3">
+                    Notification not found
+                </h5>
+
+                <p class="text-muted">
+                    The notification may have been deleted or is no longer available.
+                </p>
+
+                <button class="btn btn-cidb-submit"
+                        @onclick="GoBack">
+
+                    Back to Notifications
+
+                </button>
+
+            </div>
+
+        </div>
+    }
+    else
+    {
+        <div class="row">
+
+            <div class="col-lg-8">
+
+                <div class="card shadow-sm">
+
+                    <div class="card-header bg-white">
+
+                        <div class="d-flex align-items-center">
+
+                            <div class="notification-detail-icon me-3">
+                                @GetIcon(NotificationModel.Type)
+                            </div>
+
+                            <div>
+
+                                <h4 class="mb-1">
+                                    @NotificationModel.Title
+                                </h4>
+
+                                <div class="text-muted">
+
+                                    @NotificationModel.CreatedOn.ToString(
+                                        "dd MMMM yyyy HH:mm")
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="notification-message-detail">
+                            @NotificationModel.Message
+                        </div>
+
+                    </div>
+
+                    <div class="card-footer bg-white">
+
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <div>
+
+                                @if (NotificationModel.IsRead)
+                                {
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check2 me-1"></i>
+                                        Read
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="bi bi-envelope me-1"></i>
+                                        Unread
+                                    </span>
+                                }
+
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(NotificationModel.Url))
+                            {
+                                <button class="btn btn-cidb-submit"
+                                        @onclick="OpenRelatedItem">
+
+                                    <i class="bi bi-box-arrow-up-right me-2"></i>
+                                    View Related Item
+
+                                </button>
+                            }
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="col-lg-4">
+
+                <div class="card shadow-sm">
+
+                    <div class="card-header bg-white">
+
+                        <h5 class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Notification Details
+                        </h5>
+
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="mb-3">
+
+                            <small class="text-muted d-block">
+                                Type
+                            </small>
+
+                            <strong>
+                                @NotificationModel.Type
+                            </strong>
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <small class="text-muted d-block">
+                                Created
+                            </small>
+
+                            <strong>
+                                @NotificationModel.CreatedOn.ToString(
+                                    "dd MMMM yyyy HH:mm")
+                            </strong>
+
+                        </div>
+
+                        <div>
+
+                            <small class="text-muted d-block">
+                                Status
+                            </small>
+
+                            @if (NotificationModel.IsRead)
+                            {
+                                <span class="text-success">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    Read
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-warning">
+                                    <i class="bi bi-circle me-1"></i>
+                                    Unread
+                                </span>
+                            }
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private NotificationDetailModel? NotificationModel;
+
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            NotificationModel =
+                await NotificationService.GetByIdAsync(Id);
+
+            if (NotificationModel != null &&
+                !NotificationModel.IsRead)
+            {
+                await NotificationService.MarkAsReadAsync(Id);
+
+                NotificationModel.IsRead = true;
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/notifications");
+    }
+
+    private void OpenRelatedItem()
+    {
+        if (!string.IsNullOrWhiteSpace(NotificationModel?.Url))
+        {
+            Navigation.NavigateTo(NotificationModel.Url);
+        }
+    }
+
+    private static MarkupString GetIcon(NotificationType type)
+    {
+        var icon = type switch
+        {
+            NotificationType.Information =>
+                "<i class='bi bi-person-check-fill text-primary fs-4'></i>",
+
+            NotificationType.Warning =>
+                "<i class='bi bi-envelope-fill text-warning fs-4'></i>",
+
+            NotificationType.Success =>
+                "<i class='bi bi-check-circle-fill text-success fs-4'></i>",
+
+            NotificationType.Error =>
+                "<i class='bi bi-exclamation-triangle-fill text-danger fs-4'></i>",
+
+            _ =>
+                "<i class='bi bi-bell-fill text-secondary fs-4'></i>"
+        };
+
+        return (MarkupString)icon;
+    }
+}

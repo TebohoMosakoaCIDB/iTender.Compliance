@@ -2,8 +2,8 @@
 {
     public enum CorrespondenceTemplateType
     {
-        InstructionLetter = 1,
-        ReminderLetter = 2,
-        CaseClosed = 3
+        InstructionalLetter = 1,
+        ContraventionNotice = 2,
+        Erratum = 3
     }
 }

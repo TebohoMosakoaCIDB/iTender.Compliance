@@ -9,9 +9,9 @@
 @inject NavigationManager Navigation
 
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Policy = "Administration")]
+@attribute [Authorize(Policy = "AccountManagement")]
 
-<PageTitle>Account Details</PageTitle>
+<PageTitle>Accounts | CRCIP Monitor</PageTitle>
 
 <h2 class="mb-4">
     <i class="bi bi-person-gear me-2 text-secondary"></i>
@@ -114,7 +114,7 @@
 
 <hr />
 
-@if (Model.Role == Roles.ComplianceAgent)
+@if (Model.Role == Roles.ComplianceOfficer)
 {
     <h5 class="mb-3">Agent Information</h5>
 
@@ -161,50 +161,6 @@
 
             <InputText class="form-control"
                        @bind-Value="Model.JobTitle" />
-        </div>
-
-    </div>
-
-    <hr />
-
-    <h5 class="mb-3">Correspondence Branding</h5>
-
-    <div class="row g-3">
-
-        <div class="col-md-6">
-
-            <label class="form-label">
-                Header Image Path
-            </label>
-
-            <InputText class="form-control"
-                       @bind-Value="Model.HeaderImagePath"
-                       placeholder="correspondence/headers/header.png" />
-
-        </div>
-
-        <div class="col-md-6">
-
-            <label class="form-label">
-                Signature Image Path
-            </label>
-
-            <InputText class="form-control"
-                       @bind-Value="Model.SignatureImagePath"
-                       placeholder="correspondence/signatures/signature.png" />
-
-        </div>
-
-        <div class="col-12">
-
-            <label class="form-label">
-                Footer Text
-            </label>
-
-            <InputTextArea class="form-control"
-                           rows="4"
-                           @bind-Value="Model.FooterText" />
-
         </div>
 
     </div>

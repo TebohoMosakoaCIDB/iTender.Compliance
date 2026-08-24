@@ -2,8 +2,9 @@
 {
     public enum ComplianceOutcome
     {
-        Compliant = 1,
-
-        NonCompliant = 2
+        Compliant,
+        NonCompliant,
+        UnderReview,
+        Escalated
     }
 }

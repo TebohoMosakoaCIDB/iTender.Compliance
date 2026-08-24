@@ -37,6 +37,10 @@ namespace iTender.Compliance.Infrastructure.Data
 
         public DbSet<CorrespondenceTemplateModel> CorrespondenceTemplates => Set<CorrespondenceTemplateModel>();
 
+        public DbSet<ComplianceAction> ComplianceActions => Set<ComplianceAction>();
+
+        public DbSet<ComplianceFinding> ComplianceFindings => Set<ComplianceFinding>();
+
         public DbSet<SigningRequest> SigningRequests => Set<SigningRequest>();
 
         protected override void OnModelCreating(ModelBuilder builder)

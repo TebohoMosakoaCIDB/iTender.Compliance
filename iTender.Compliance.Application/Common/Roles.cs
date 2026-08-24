@@ -2,17 +2,20 @@
 {
     public static class Roles
     {
-        public const string Administrator = "Administrator";
+        public const string Director = "Director";
 
-        public const string Supervisor = "Supervisor";
+        public const string ComplianceManager = "Compliance Manager";
 
-        public const string ComplianceAgent = "Compliance Agent";
+        public const string ComplianceOfficer = "Compliance Officer";
 
-        public static readonly IReadOnlyList<string> All =
-        [
-            Administrator,
-            Supervisor,
-            ComplianceAgent
-        ];
+        public const string ComplianceAdministrator = "Compliance Administrator";
+
+        public static readonly string[] All =
+    [
+        Director,
+        ComplianceManager,
+        ComplianceOfficer,
+        ComplianceAdministrator
+    ];
     }
 }

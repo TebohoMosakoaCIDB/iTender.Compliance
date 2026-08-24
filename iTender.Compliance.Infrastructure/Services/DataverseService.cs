@@ -1,4 +1,5 @@
-﻿using iTender.Compliance.Application.DTOs;
+﻿using iTender.Application.DTOs;
+using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
@@ -17,8 +18,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _currentUser = currentUser;
         }
 
-        public async Task<List<Tender>> GetAdvertisedTendersAsync(
-            CancellationToken cancellationToken = default)
+        public async Task<List<Tender>> GetAdvertisedTendersAsync(CancellationToken cancellationToken = default)
         {
             var tenders =
                 await _httpClient.GetFromJsonAsync<List<TenderDto>>(
@@ -35,6 +35,18 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Select(Map)
                 .ToList()
                 ?? [];
+        }
+
+        public async Task<List<ContractModel>> GetAwardedContractsAsync(DateTime fromDate, CancellationToken cancellationToken = default)
+        {
+            var url = $"Contracts/GetAllAwardedContracts\"?fromDate={fromDate:yyyy-MM-dd}";
+
+            var contracts =
+                await _httpClient.GetFromJsonAsync<List<ContractModel>>(
+                    url,
+                    cancellationToken);
+
+            return contracts ?? [];
         }
 
         private static Tender Map(TenderDto dto)

@@ -12,6 +12,15 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
+        public async Task<IEnumerable<CaseLetter>> GetOverdueLettersAsync(CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            return await Context.CaseLetters
+                .Include(l => l.ComplianceCase)
+                .Where(l => l.ResponseDueOn < now && l.RespondedOn == null)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task AddAsync(
             CaseLetter letter,
             CancellationToken cancellationToken = default)

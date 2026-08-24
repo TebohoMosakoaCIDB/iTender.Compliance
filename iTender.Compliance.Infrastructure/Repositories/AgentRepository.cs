@@ -73,6 +73,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 {
                     Id = x.Id,
                     FullName = x.FullName,
+                    UserId = x.UserId,
                     OpenCases = x.ComplianceCases.Count(c => c.Status != CaseStatus.Closed)
                 })
                 .ToListAsync(cancellationToken);

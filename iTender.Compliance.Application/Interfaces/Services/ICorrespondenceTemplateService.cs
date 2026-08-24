@@ -1,24 +1,22 @@
-﻿using iTender.Compliance.Application.DTOs;
-using iTender.Compliance.Domain.Entities;
+﻿using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 
 namespace iTender.Compliance.Application.Interfaces.Services
 {
     public interface ICorrespondenceTemplateService
     {
-        Task<List<CorrespondenceTemplateListModel>> GetAllAsync(
-            CancellationToken cancellationToken = default);
+        Task<List<CorrespondenceTemplateModel>> GetAllAsync();
 
         Task<CorrespondenceTemplateModel?> GetByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken = default);
+            Guid id);
+
+        Task<CorrespondenceTemplateModel?> GetActiveAsync(
+            CorrespondenceTemplateType type);
+
+        Task<CorrespondenceTemplateModel> CreateAsync(
+            CorrespondenceTemplateModel template);
 
         Task UpdateAsync(
-            SaveCorrespondenceTemplateModel model,
-            CancellationToken cancellationToken = default);
-
-        Task<Guid> CreateAsync(
-            CorrespondenceTemplateType type,
-            CancellationToken cancellationToken = default);
+            CorrespondenceTemplateModel template);
     }
 }

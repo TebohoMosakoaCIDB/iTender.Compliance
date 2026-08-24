@@ -1,329 +1,798 @@
 ﻿@page "/"
 @rendermode InteractiveServer
+
 @using iTender.Compliance.Application.Interfaces.Services
-@using iTender.Compliance.Application.Models.Dashboard;
+@using iTender.Compliance.Application.Models.Dashboard
 @using iTender.Compliance.Domain.Enums
 @using iTender.Compliance.Client.Components.Shared.Charts
 @using Microsoft.AspNetCore.Authorization
 
 @inject IDashboardService DashboardService
+@inject NavigationManager Navigation
 
 @attribute [Authorize]
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Dashboard | CRCIP Monitor</PageTitle>
 
-<div class="mb-4">
+<div class="container-fluid px-4">
 
-    <h2 class="mb-4">
-        <i class="bi bi-clipboard2-check me-2 text-secondary"></i>
-        Dashboard
-    </h2>
+    <!-- ===================================================== -->
+    <!-- HEADER -->
+    <!-- ===================================================== -->
 
-    <small class="text-muted">
-        Monitor tender synchronization, compliance cases and agent activities.
-    </small>
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-4">
 
-</div>
+        <div>
 
-<div class="row g-3 mb-4">
+            <h2 class="mb-1">
+                <i class="bi bi-clipboard2-check me-2"></i>
+                Dashboard
+            </h2>
 
-    <div class="col-md-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
+            <p class="text-muted mb-0">
+                Monitor tender synchronization, compliance cases and agent activity.
+            </p>
 
-                <i class="bi bi-folder2-open fs-2 text-secondary me-3"></i>
+        </div>
 
-                <div>
-                    <small class="text-muted">
-                        Total Cases
-                    </small>
+        <div class="d-flex flex-column align-items-end gap-1">
 
-                    <h3 class="mb-0">
-                        @Dashboard.Cards.TotalCases
-                    </h3>
+            <button class="btn btn-sm btn-cidb-submit"
+                    @onclick="RefreshDashboard"
+                    disabled="@IsLoading">
+
+                @if (IsLoading)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                else
+                {
+                    <i class="bi bi-arrow-clockwise me-1"></i>
+                }
+
+                Refresh
+
+            </button>
+
+            <span class="text-muted small">
+                <i class="bi bi-clock me-1"></i>
+                Last updated:
+                @LastUpdated.ToString("dd MMM yyyy HH:mm")
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <!-- ===================================================== -->
+    <!-- KPI CARDS -->
+    <!-- ===================================================== -->
+
+    <div class="row g-3 mb-4">
+
+        <!-- TOTAL CASES -->
+
+        <div class="col-xl-2 col-lg-4 col-md-6">
+
+            <div class="card dashboard-card h-100">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start">
+
+                        <div>
+
+                            <div class="text-muted small">
+                                Total Cases
+                            </div>
+
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.TotalCases
+                            </div>
+
+                        </div>
+
+                        <div class="dashboard-icon">
+                            <i class="bi bi-folder2-open"></i>
+                        </div>
+
+                    </div>
+
+                    <div class="small text-muted mt-2">
+                        All compliance cases
+                    </div>
+
                 </div>
 
             </div>
+
         </div>
-    </div>
 
 
-    <div class="col-md-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
+        <!-- NEW CASES -->
 
-                <i class="bi bi-plus-circle fs-2 text-secondary me-3"></i>
+        <div class="col-xl-2 col-lg-4 col-md-6">
 
-                <div>
-                    <small class="text-muted">
-                        New Cases
-                    </small>
+            <div class="card dashboard-card h-100">
 
-                    <h3 class="mb-0">
-                        @Dashboard.Cards.NewCases
-                    </h3>
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start">
+
+                        <div>
+
+                            <div class="text-muted small">
+                                New Cases
+                            </div>
+
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.NewCases
+                            </div>
+
+                        </div>
+
+                        <div class="dashboard-icon">
+                            <i class="bi bi-plus-circle"></i>
+                        </div>
+
+                    </div>
+
+                    <div class="small text-muted mt-2">
+                        Awaiting processing
+                    </div>
+
                 </div>
 
             </div>
+
         </div>
-    </div>
 
 
-    <div class="col-md-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
+        <!-- WAITING -->
 
-                <i class="bi bi-hourglass-split fs-2 text-secondary me-3"></i>
+        <div class="col-xl-2 col-lg-4 col-md-6">
 
-                <div>
-                    <small class="text-muted">
-                        Waiting Response
-                    </small>
+            <div class="card dashboard-card h-100">
 
-                    <h3 class="mb-0">
-                        @Dashboard.Cards.WaitingForResponse
-                    </h3>
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start">
+
+                        <div>
+
+                            <div class="text-muted small">
+                                Waiting Response
+                            </div>
+
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.WaitingForResponse
+                            </div>
+
+                        </div>
+
+                        <div class="dashboard-icon">
+                            <i class="bi bi-hourglass-split"></i>
+                        </div>
+
+                    </div>
+
+                    <div class="small text-muted mt-2">
+                        Awaiting client response
+                    </div>
+
                 </div>
 
             </div>
+
         </div>
-    </div>
 
 
-    <div class="col-md-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
+        <!-- ASSIGNED -->
 
-                <i class="bi bi-person-check fs-2 text-secondary me-3"></i>
+        <div class="col-xl-2 col-lg-4 col-md-6">
 
-                <div>
-                    <small class="text-muted">
-                        Assigned
-                    </small>
+            <div class="card dashboard-card h-100">
 
-                    <h3 class="mb-0">
-                        @Dashboard.Cards.AssignedCases
-                    </h3>
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start">
+
+                        <div>
+
+                            <div class="text-muted small">
+                                Assigned
+                            </div>
+
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.AssignedCases
+                            </div>
+
+                        </div>
+
+                        <div class="dashboard-icon">
+                            <i class="bi bi-person-check"></i>
+                        </div>
+
+                    </div>
+
+                    <div class="small text-muted mt-2">
+                        Cases assigned to agents
+                    </div>
+
                 </div>
 
             </div>
+
         </div>
-    </div>
 
 
-    <div class="col-md-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
+        <!-- COMPLIANT -->
 
-                <i class="bi bi-check-circle fs-2 text-secondary me-3"></i>
+        <div class="col-xl-2 col-lg-4 col-md-6">
 
-                <div>
-                    <small class="text-muted">
-                        Compliant
-                    </small>
+            <div class="card dashboard-card h-100">
 
-                    <h3 class="mb-0">
-                        @Dashboard.Cards.Compliant
-                    </h3>
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start">
+
+                        <div>
+
+                            <div class="text-muted small">
+                                Compliant
+                            </div>
+
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.Compliant
+                            </div>
+
+                        </div>
+
+                        <div class="dashboard-icon">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+
+                    </div>
+
+                    <div class="small text-muted mt-2">
+                        Compliance confirmed
+                    </div>
+
                 </div>
 
             </div>
+
         </div>
-    </div>
 
 
-    <div class="col-md-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
+        <!-- NON COMPLIANT -->
 
-                <i class="bi bi-x-circle fs-2 text-secondary me-3"></i>
+        <div class="col-xl-2 col-lg-4 col-md-6">
 
-                <div>
-                    <small class="text-muted">
-                        Non-Compliant
-                    </small>
+            <div class="card dashboard-card h-100">
 
-                    <h3 class="mb-0">
-                        @Dashboard.Cards.NonCompliant
-                    </h3>
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start">
+
+                        <div>
+
+                            <div class="text-muted small">
+                                Non-Compliant
+                            </div>
+
+                            <div class="dashboard-value text-danger">
+                                @Dashboard.Cards.NonCompliant
+                            </div>
+
+                        </div>
+
+                        <div class="dashboard-icon text-danger">
+                            <i class="bi bi-exclamation-triangle"></i>
+                        </div>
+
+                    </div>
+
+                    <div class="small text-muted mt-2">
+                        Requiring attention
+                    </div>
+
                 </div>
 
             </div>
+
         </div>
+
     </div>
 
-</div>
 
-<div class="row g-4 mb-4">
+    <!-- ===================================================== -->
+    <!-- QUICK ACTIONS -->
+    <!-- ===================================================== -->
 
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Case Status</h5>
-            </div>
-            <div class="card-body">
-                <PieChart Labels="@StatusLabels"
-                          Values="@StatusValues"
-                          Height="220px" />
-            </div>
-        </div>
-    </div>
+    <div class="card mb-4">
 
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Compliance Trend</h5>
-            </div>
-            <div class="card-body">
-                <LineChart Labels="@TrendLabels"
-                           Compliant="@TrendCompliant"
-                           NonCompliant="@TrendNonCompliant"
-                           Height="220px" />
-            </div>
-        </div>
-    </div>
+        <div class="card-header bg-white">
 
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Cases by Priority</h5>
-            </div>
-            <div class="card-body">
-                <PieChart Labels="@PriorityLabels"
-                          Values="@PriorityValues"
-                          Height="220px" />
-            </div>
-        </div>
-    </div>
+            <div>
 
-</div>
+                <h6 class="mb-0">
+                    <i class="bi bi-lightning-charge me-2"></i>
+                    Quick Actions
+                </h6>
 
-<div class="row g-4 mb-4">
-
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Case Outcomes</h5>
-            </div>
-            <div class="card-body">
-                <DoughnutChart Labels="@OutcomeLabels"
-                               Values="@OutcomeValues"
-                               Height="220px" />
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Agent Workload</h5>
-            </div>
-            <div class="card-body">
-                <BarChart Labels="@AgentLabels"
-                          Values="@AgentValues"
-                          Height="220px" />
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Synchronization History</h5>
-            </div>
-            <div class="card-body">
-                <GroupedBarChart Labels="@SyncLabels"
-                                 Retrieved="@SyncRetrieved"
-                                 Created="@SyncCreated"
-                                 Errors="@SyncErrors"
-                                 Height="220px" />
-            </div>
-        </div>
-    </div>
-
-</div>
-
-<div class="card shadow-sm mb-4">
-
-    <div class="card-header bg-white">
-        <h5 class="mb-0">
-            <i class="bi bi-arrow-repeat me-2 text-secondary"></i>
-            Synchronization Status
-        </h5>
-    </div>
-
-    <div class="card-body">
-
-        <div class="row">
-
-            <div class="col-md-3">
                 <small class="text-muted">
-                    Last Sync
+                    Access frequently used areas
                 </small>
 
-                <div class="fw-semibold">
-                    @(Dashboard.Sync.LastSync?
-                        .ToString("dd MMM yyyy HH:mm")
-                        ?? "No sync completed")
-                </div>
             </div>
 
+        </div>
 
-            <div class="col-md-3">
-                <small class="text-muted">
-                    Status
-                </small>
+        <div class="card-body">
 
-                <div>
+            <div class="row g-3">
 
-                    @if (Dashboard.Sync.Status == SyncStatus.Completed)
-                    {
-                        <span class="badge bg-success">
-                            Completed
-                        </span>
-                    }
-                    else if (Dashboard.Sync.Status == SyncStatus.Failed)
-                    {
-                        <span class="badge bg-danger">
-                            Failed
-                        </span>
-                    }
-                    else if (Dashboard.Sync.Status == SyncStatus.Running)
-                    {
-                        <span class="badge bg-warning text-dark">
-                            Running
-                        </span>
-                    }
-                    else
-                    {
-                        <span class="badge bg-secondary">
-                            Unknown
-                        </span>
-                    }
+                <!-- COMPLIANCE CASES -->
+                <AuthorizeView Policy="CaseManagement">
 
-                </div>
+                    <div class="col-lg-3 col-md-6">
+
+                        <button class="quick-action w-100"
+                                @onclick="OpenCases">
+
+                            <i class="bi bi-folder2-open"></i>
+
+                            <div>
+                                <strong>Compliance Cases</strong>
+                                <small>View and manage cases</small>
+                            </div>
+
+                            <i class="bi bi-chevron-right ms-auto"></i>
+
+                        </button>
+
+                    </div>
+
+                </AuthorizeView>
+
+
+                <!-- TENDERS -->
+                <AuthorizeView Policy="CaseManagement">
+
+                    <div class="col-lg-3 col-md-6">
+
+                        <button class="quick-action w-100"
+                                @onclick="OpenTenders">
+
+                            <i class="bi bi-file-earmark-text"></i>
+
+                            <div>
+                                <strong>Tenders</strong>
+                                <small>View monitored tenders</small>
+                            </div>
+
+                            <i class="bi bi-chevron-right ms-auto"></i>
+
+                        </button>
+
+                    </div>
+
+                </AuthorizeView>
+
+
+                <!-- REPORTS -->
+                <AuthorizeView Policy="CaseAssignment">
+
+                    <div class="col-lg-3 col-md-6">
+
+                        <button class="quick-action w-100"
+                                @onclick="OpenReports">
+
+                            <i class="bi bi-bar-chart-line"></i>
+
+                            <div>
+                                <strong>Reports</strong>
+                                <small>Generate reports</small>
+                            </div>
+
+                            <i class="bi bi-chevron-right ms-auto"></i>
+
+                        </button>
+
+                    </div>
+
+                </AuthorizeView>
+
+
+                <!-- ADMINISTRATION -->
+                <AuthorizeView Policy="Administration">
+
+                    <div class="col-lg-3 col-md-6">
+
+                        <button class="quick-action w-100"
+                                @onclick="OpenAdministration">
+
+                            <i class="bi bi-gear-wide-connected"></i>
+
+                            <div>
+                                <strong>Administration</strong>
+                                <small>System configuration</small>
+                            </div>
+
+                            <i class="bi bi-chevron-right ms-auto"></i>
+
+                        </button>
+
+                    </div>
+
+                </AuthorizeView>
+
             </div>
 
+        </div>
 
-            <div class="col-md-3">
-                <small class="text-muted">
-                    Tenders Retrieved
-                </small>
+    </div>
 
-                <div class="fw-semibold">
-                    @Dashboard.Sync.TotalRetrieved
+
+    <!-- ===================================================== -->
+    <!-- CHARTS ROW 1 -->
+    <!-- ===================================================== -->
+
+    <div class="row g-4 mb-4">
+
+        <!-- CASE STATUS -->
+
+        <div class="col-lg-4">
+
+            <div class="card h-100">
+
+                <div class="card-header bg-white">
+
+                    <h6 class="mb-0">
+                        <i class="bi bi-pie-chart me-2"></i>
+                        Case Status
+                    </h6>
+
+                    <small class="text-muted">
+                        Current case distribution
+                    </small>
+
                 </div>
+
+                <div class="card-body">
+
+                    <PieChart Labels="@StatusLabels"
+                              Values="@StatusValues"
+                              Height="240px" />
+
+                </div>
+
             </div>
 
+        </div>
 
-            <div class="col-md-3">
+
+        <!-- COMPLIANCE TREND -->
+
+        <div class="col-lg-4">
+
+            <div class="card h-100">
+
+                <div class="card-header bg-white">
+
+                    <h6 class="mb-0">
+                        <i class="bi bi-graph-up me-2"></i>
+                        Compliance Trend
+                    </h6>
+
+                    <small class="text-muted">
+                        Monthly compliance activity
+                    </small>
+
+                </div>
+
+                <div class="card-body">
+
+                    <LineChart Labels="@TrendLabels"
+                               Compliant="@TrendCompliant"
+                               NonCompliant="@TrendNonCompliant"
+                               Height="240px" />
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- PRIORITY -->
+
+        <div class="col-lg-4">
+
+            <div class="card h-100">
+
+                <div class="card-header bg-white">
+
+                    <h6 class="mb-0">
+                        <i class="bi bi-exclamation-diamond me-2"></i>
+                        Cases by Priority
+                    </h6>
+
+                    <small class="text-muted">
+                        Distribution by case priority
+                    </small>
+
+                </div>
+
+                <div class="card-body">
+
+                    <PieChart Labels="@PriorityLabels"
+                              Values="@PriorityValues"
+                              Height="240px" />
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ===================================================== -->
+    <!-- CHARTS ROW 2 -->
+    <!-- ===================================================== -->
+
+    <div class="row g-4 mb-4">
+
+        <!-- OUTCOMES -->
+
+        <div class="col-lg-4">
+
+            <div class="card h-100">
+
+                <div class="card-header bg-white">
+
+                    <h6 class="mb-0">
+                        <i class="bi bi-clipboard-check me-2"></i>
+                        Case Outcomes
+                    </h6>
+
+                    <small class="text-muted">
+                        Compliance outcomes
+                    </small>
+
+                </div>
+
+                <div class="card-body">
+
+                    <DoughnutChart Labels="@OutcomeLabels"
+                                   Values="@OutcomeValues"
+                                   Height="240px" />
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- AGENT WORKLOAD -->
+
+        <div class="col-lg-4">
+
+            <div class="card h-100">
+
+                <div class="card-header bg-white">
+
+                    <h6 class="mb-0">
+                        <i class="bi bi-people me-2"></i>
+                        Agent Workload
+                    </h6>
+
+                    <small class="text-muted">
+                        Cases assigned per agent
+                    </small>
+
+                </div>
+
+                <div class="card-body">
+
+                    <BarChart Labels="@AgentLabels"
+                              Values="@AgentValues"
+                              Height="240px" />
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- SYNCHRONIZATION -->
+
+        <div class="col-lg-4">
+
+            <div class="card h-100">
+
+                <div class="card-header bg-white">
+
+                    <h6 class="mb-0">
+                        <i class="bi bi-arrow-repeat me-2"></i>
+                        Synchronization History
+                    </h6>
+
+                    <small class="text-muted">
+                        Recent tender synchronization activity
+                    </small>
+
+                </div>
+
+                <div class="card-body">
+
+                    <GroupedBarChart Labels="@SyncLabels"
+                                     Retrieved="@SyncRetrieved"
+                                     Created="@SyncCreated"
+                                     Errors="@SyncErrors"
+                                     Height="240px" />
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ===================================================== -->
+    <!-- SYNCHRONIZATION STATUS -->
+    <!-- ===================================================== -->
+
+    <div class="card mb-4">
+
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+            <div>
+
+                <h6 class="mb-0">
+                    <i class="bi bi-arrow-repeat me-2"></i>
+                    Synchronization Status
+                </h6>
+
                 <small class="text-muted">
-                    Cases Created
+                    Latest tender synchronization
                 </small>
 
-                <div class="fw-semibold">
-                    @Dashboard.Sync.CasesCreated
+            </div>
+
+            <AuthorizeView Policy="Administration">
+
+                <button class="btn btn-sm btn-cidb-submit-outline"
+                        @onclick="OpenAdministration">
+
+                    View Administration
+                    <i class="bi bi-arrow-right ms-1"></i>
+
+                </button>
+
+            </AuthorizeView>
+
+        </div>
+
+        <div class="card-body">
+
+            <div class="row g-4">
+
+                <!-- LAST SYNC -->
+
+                <div class="col-md-3">
+
+                    <div class="sync-stat">
+
+                        <small class="text-muted">
+                            Last Synchronization
+                        </small>
+
+                        <div class="fw-semibold mt-1">
+
+                            @(Dashboard.Sync.LastSync?
+                                .ToString("dd MMM yyyy HH:mm")
+                                ?? "No sync completed")
+
+                        </div>
+
+                    </div>
+
                 </div>
+
+
+                <!-- STATUS -->
+
+                <div class="col-md-3">
+
+                    <div class="sync-stat">
+
+                        <small class="text-muted">
+                            Status
+                        </small>
+
+                        <div class="mt-1">
+
+                            @if (Dashboard.Sync.Status == SyncStatus.Completed)
+                            {
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    Completed
+                                </span>
+                            }
+                            else if (Dashboard.Sync.Status == SyncStatus.Failed)
+                            {
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-circle me-1"></i>
+                                    Failed
+                                </span>
+                            }
+                            else if (Dashboard.Sync.Status == SyncStatus.Running)
+                            {
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-arrow-repeat me-1"></i>
+                                    Running
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">
+                                    Unknown
+                                </span>
+                            }
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- RETRIEVED -->
+
+                <div class="col-md-3">
+
+                    <div class="sync-stat">
+
+                        <small class="text-muted">
+                            Tenders Retrieved
+                        </small>
+
+                        <div class="fw-semibold fs-5 mt-1">
+                            @Dashboard.Sync.TotalRetrieved
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- CASES -->
+
+                <div class="col-md-3">
+
+                    <div class="sync-stat">
+
+                        <small class="text-muted">
+                            Cases Created
+                        </small>
+
+                        <div class="fw-semibold fs-5 mt-1">
+                            @Dashboard.Sync.CasesCreated
+                        </div>
+
+                    </div>
+
+                </div>
+
             </div>
 
         </div>
@@ -331,22 +800,111 @@
     </div>
 
 </div>
+
+
+<style>
+
+    .dashboard-card {
+        border: none;
+        transition: all .2s ease;
+    }
+
+        .dashboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 .35rem .8rem rgba(0,0,0,.08) !important;
+        }
+
+    .dashboard-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-top: .2rem;
+    }
+
+    .dashboard-icon {
+        width: 42px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(179,32,42,.08);
+        color: #b3202a;
+        font-size: 1.25rem;
+    }
+
+    .quick-action {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: .5rem;
+        text-align: left;
+        transition: all .2s ease;
+    }
+
+        .quick-action:hover {
+            border-color: #b3202a;
+            transform: translateY(-2px);
+            box-shadow: 0 .25rem .5rem rgba(0,0,0,.06);
+        }
+
+        .quick-action > i:first-child {
+            color: #b3202a;
+            font-size: 1.35rem;
+        }
+
+        .quick-action strong {
+            display: block;
+            font-size: .9rem;
+        }
+
+        .quick-action small {
+            display: block;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+
+    .sync-stat {
+        padding: 4px 0;
+    }
+
+</style>
+
 
 @code {
+
+    private DashboardModel Dashboard = new();
+
+    private bool IsLoading;
+
+    private DateTime LastUpdated = DateTime.UtcNow;
+
+
+    // =========================================================
+    // AGENT WORKLOAD
+    // =========================================================
+
     private List<string> AgentLabels =>
-    Dashboard.AgentWorkloads
-        .Select(x => x.AgentName)
-        .ToList();
+        Dashboard.AgentWorkloads
+            .Select(x => x.AgentName)
+            .ToList();
 
     private List<int> AgentValues =>
         Dashboard.AgentWorkloads
             .Select(x => x.AssignedCases)
             .ToList();
 
+
+    // =========================================================
+    // COMPLIANCE TREND
+    // =========================================================
+
     private List<string> TrendLabels =>
-    Dashboard.ComplianceTrend
-        .Select(x => x.Month)
-        .ToList();
+        Dashboard.ComplianceTrend
+            .Select(x => x.Month)
+            .ToList();
 
     private List<int> TrendCompliant =>
         Dashboard.ComplianceTrend
@@ -357,6 +915,11 @@
         Dashboard.ComplianceTrend
             .Select(x => x.NonCompliant)
             .ToList();
+
+
+    // =========================================================
+    // SYNCHRONIZATION
+    // =========================================================
 
     private List<string> SyncLabels =>
         Dashboard.SyncHistory
@@ -378,15 +941,20 @@
             .Select(x => x.Errors)
             .ToList();
 
+
+    // =========================================================
+    // CASE STATUS
+    // =========================================================
+
     private List<string> StatusLabels =>
-        [
-            "New",
-            "Assigned",
-            "Waiting",
-            "Compliant",
-            "Non-Compliant",
-            "Closed"
-        ];
+    [
+        "New",
+        "Assigned",
+        "Waiting",
+        "Compliant",
+        "Non-Compliant",
+        "Closed"
+    ];
 
     private List<int> StatusValues =>
     [
@@ -397,6 +965,11 @@
         Dashboard.StatusChart.NonCompliant,
         Dashboard.StatusChart.Closed
     ];
+
+
+    // =========================================================
+    // PRIORITY
+    // =========================================================
 
     private List<string> PriorityLabels =>
     [
@@ -409,30 +982,94 @@
     private List<int> PriorityValues =>
     [
         Dashboard.PriorityChart.Low,
-    Dashboard.PriorityChart.Normal,
-    Dashboard.PriorityChart.High,
-    Dashboard.PriorityChart.Critical
+        Dashboard.PriorityChart.Normal,
+        Dashboard.PriorityChart.High,
+        Dashboard.PriorityChart.Critical
     ];
 
+
+    // =========================================================
+    // OUTCOMES
+    // =========================================================
+
     private List<string> OutcomeLabels =>
-        [
-            "Compliant",
-            "Non-Compliant",
-            "Pending"
-        ];
+    [
+        "Compliant",
+        "Non-Compliant",
+        "Pending"
+    ];
 
     private List<int> OutcomeValues =>
     [
         Dashboard.OutcomeChart.Compliant,
-    Dashboard.OutcomeChart.NonCompliant,
-    Dashboard.OutcomeChart.Pending
+        Dashboard.OutcomeChart.NonCompliant,
+        Dashboard.OutcomeChart.Pending
     ];
 
-    private DashboardModel Dashboard = new();
+
+    // =========================================================
+    // INITIAL LOAD
+    // =========================================================
 
     protected override async Task OnInitializedAsync()
     {
-        Dashboard = await DashboardService.GetDashboardAsync();
+        await LoadDashboard();
+    }
+
+
+    // =========================================================
+    // REFRESH
+    // =========================================================
+
+    private async Task RefreshDashboard()
+    {
+        await LoadDashboard();
+    }
+
+
+    private async Task LoadDashboard()
+    {
+        IsLoading = true;
+
+        try
+        {
+            Dashboard =
+                await DashboardService.GetDashboardAsync();
+
+            LastUpdated = DateTime.UtcNow;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+
+    // =========================================================
+    // NAVIGATION
+    // =========================================================
+
+    private void OpenCases()
+    {
+        Navigation.NavigateTo("/cases");
+    }
+
+
+    private void OpenTenders()
+    {
+        Navigation.NavigateTo("/tenders");
+    }
+
+
+    private void OpenReports()
+    {
+        Navigation.NavigateTo("/reports");
+    }
+
+
+    private void OpenAdministration()
+    {
+        Navigation.NavigateTo("/administration");
     }
 
 }

@@ -5,17 +5,13 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface IComplianceCaseRepository
     {
-        Task<List<ComplianceCase>> GetCasesAwaitingReminderAsync(
-            int reminderAfterHours,
-            CancellationToken cancellationToken = default);
+        Task<List<ComplianceCase>> GetCasesAwaitingReminderAsync(int reminderAfterHours, CancellationToken cancellationToken = default);
 
-        Task<int> GetOpenCaseCountByAgentAsync(
-    Guid agentId,
-    CancellationToken cancellationToken = default);
+        Task<IEnumerable<ComplianceCase>> GetOverdueCasesAsync(CancellationToken cancellationToken = default);
 
-        Task<ComplianceCase?> GetByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken = default);
+        Task<int> GetOpenCaseCountByAgentAsync(Guid agentId, CancellationToken cancellationToken = default);
+
+        Task<ComplianceCase?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
         Task<CaseLetter?> GetLatestOutstandingAsync(
             Guid complianceCaseId,
@@ -39,5 +35,7 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<ComplianceCaseDetailModel?> GetDetailAsync(
             Guid id,
             CancellationToken cancellationToken = default);
+
+        Task<ComplianceCase?> GetByTenderIdAsync(Guid tenderId, CancellationToken cancellationToken = default);
     }
 }

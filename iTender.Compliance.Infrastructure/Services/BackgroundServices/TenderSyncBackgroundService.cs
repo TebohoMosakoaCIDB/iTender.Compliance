@@ -19,14 +19,10 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
         }
 
 
-        protected override async Task ExecuteAsync(
-            CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            // Wait before first automatic run
-            await Task.Delay(
-                TimeSpan.FromHours(12),
-                stoppingToken);
-
+            // Wait before first automatic run (as before)
+            await Task.Delay(TimeSpan.FromHours(12), stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -36,31 +32,26 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
 
                     var syncService = scope.ServiceProvider
                         .GetRequiredService<ISynchronizationService>();
+                    var followUpService = scope.ServiceProvider
+                        .GetRequiredService<IComplianceFollowUpService>();
 
-                    _logger.LogInformation(
-                        "Starting scheduled tender synchronization");
+                    // 1. Run tender synchronization
+                    _logger.LogInformation("Starting scheduled tender synchronization");
+                    await syncService.SynchronizeAsync(false, stoppingToken);
+                    _logger.LogInformation("Scheduled tender synchronization completed");
 
-
-                    await syncService.SynchronizeAsync(
-                        false,
-                        stoppingToken);
-
-
-                    _logger.LogInformation(
-                        "Scheduled tender synchronization completed");
+                    // 2. Process overdue responses (follow‑up)
+                    _logger.LogInformation("Starting overdue response processing");
+                    await followUpService.ProcessOverdueResponsesAsync(stoppingToken);
+                    _logger.LogInformation("Overdue response processing completed");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(
-                        ex,
-                        "Scheduled tender synchronization failed");
+                    _logger.LogError(ex, "Scheduled background task failed");
                 }
 
-
-                // Every 12 hours
-                await Task.Delay(
-                    TimeSpan.FromHours(12),
-                    stoppingToken);
+                // Wait 12 hours before next run
+                await Task.Delay(TimeSpan.FromHours(12), stoppingToken);
             }
         }
     }

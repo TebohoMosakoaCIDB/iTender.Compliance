@@ -6,16 +6,11 @@
 
         public string BaseUrl { get; set; } = string.Empty;
 
-        public string Username { get; set; } = string.Empty;
-
-        public string Password { get; set; } = string.Empty;
-
-        public string ApiKey { get; set; } = string.Empty;
-
         public string ClientId { get; set; } = string.Empty;
-
         public string ClientSecret { get; set; } = string.Empty;
-
-        public string CallbackUrl { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Scope { get; set; } = string.Empty;
+        public string AuthenticationEndpoint { get; set; } = string.Empty;
     }
 }

@@ -1,4 +1,5 @@
-﻿using iTender.Compliance.Application.Interfaces;
+﻿using iTender.Application.DTOs;
+using iTender.Compliance.Application.Interfaces;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Scrapers;
 using iTender.Compliance.Application.Interfaces.Services;
@@ -15,6 +16,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IComplianceCaseRepository _complianceCaseRepository;
         private readonly IAuditService _auditService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ITenderDiscoveryAgent _openAI;
         private readonly IEnumerable<IScraperService> _scrapers;
         private readonly IDataverseService _dataverseService;
         private readonly ICurrentUserService _currentUser;
@@ -22,6 +24,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IConfiguration _configuration;
         private readonly IAutoAssignmentService _autoAssignmentService;
         private readonly ISystemSettingRepository _systemSettingRepository;
+        private readonly IComplianceProcessingService _complianceProcessingService;
 
         public SynchronizationService(
             IEnumerable<IScraperService> scrapers,
@@ -35,6 +38,8 @@ namespace iTender.Compliance.Infrastructure.Services
             ITenderSyncLogRepository syncLogRepository,
             IUnitOfWork unitOfWork,
             IConfiguration configuration,
+            ITenderDiscoveryAgent openAI,
+            IComplianceProcessingService complianceProcessingService,
             IAutoAssignmentService autoAssignmentService)
         {
             _scrapers = scrapers;
@@ -49,6 +54,8 @@ namespace iTender.Compliance.Infrastructure.Services
             _configuration = configuration;
             _autoAssignmentService = autoAssignmentService;
             _systemSettingRepository = systemSettingRepository;
+            _complianceProcessingService = complianceProcessingService;
+            _openAI = openAI;
         }
 
         public async Task SynchronizeAsync(bool isManual, CancellationToken cancellationToken = default)
@@ -86,6 +93,10 @@ namespace iTender.Compliance.Infrastructure.Services
 
                     scrapedTenders.AddRange(tenders);
 
+                    //var clientTenders = await _openAI.FindTendersAsync(
+                    //        new DateTime(2026, 8, 23),
+                    //        DateTime.Now);
+
                     await LogAsync(
                         sync.Id,
                         SyncLogType.Information,
@@ -105,6 +116,25 @@ namespace iTender.Compliance.Infrastructure.Services
                     .Select(x => x.TenderNumber.Trim())
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+                var stream3Tenders = scrapedTenders
+                    .Where(x =>
+                        x.AwardedDate.HasValue &&
+                        x.AwardValue.HasValue)
+                    .ToList();
+
+                List<ContractModel> crmContracts = [];
+
+                if (stream3Tenders.Any())
+                {
+                    var earliestAwardDate = stream3Tenders
+                        .Min(x => x.AwardedDate!.Value);
+
+                    crmContracts = await _dataverseService
+                        .GetAwardedContractsAsync(
+                            earliestAwardDate,
+                            cancellationToken);
+                }
+
                 var compliant = 0;
                 var nonCompliant = 0;
                 var casesCreated = 0;
@@ -116,27 +146,9 @@ namespace iTender.Compliance.Infrastructure.Services
                     if (string.IsNullOrWhiteSpace(tender.TenderNumber))
                         continue;
 
-                    if (crmTenderNumbers.Contains(tender.TenderNumber.Trim()))
-                    {
-                        compliant++;
-
-                        await LogAsync(
-                            sync.Id,
-                            SyncLogType.TenderSkipped,
-                            SyncLogLevel.Information,
-                            "Tender Exists",
-                            "Tender already exists in Dataverse.",
-                            tender.TenderNumber,
-                            cancellationToken);
-
-                        continue;
-                    }
-
+                    // Check for duplicate in our own DB
                     var existingTender = await _tenderRepository
-                        .GetByTenderNumberAsync(
-                            tender.TenderNumber,
-                            cancellationToken);
-
+                        .GetByTenderNumberAsync(tender.TenderNumber, cancellationToken);
                     if (existingTender != null)
                     {
                         await LogAsync(
@@ -147,15 +159,13 @@ namespace iTender.Compliance.Infrastructure.Services
                             "Tender has already been synchronized previously.",
                             tender.TenderNumber,
                             cancellationToken);
-
                         continue;
                     }
 
+                    // Save tender
                     tender.TenderSyncId = sync.Id;
-
-                    await _tenderRepository.AddAsync(
-                        tender,
-                        cancellationToken);
+                    await _tenderRepository.AddAsync(tender, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken); // get Id
 
                     await LogAsync(
                         sync.Id,
@@ -166,50 +176,40 @@ namespace iTender.Compliance.Infrastructure.Services
                         tender.TenderNumber,
                         cancellationToken);
 
-                    var complianceCase = new ComplianceCase
+                    // ---- Process Compliance ----
+                    Guid? createdCaseId = null;
+                    try
                     {
-                        TenderId = tender.Id,
-                        Status = CaseStatus.New,
-                        Priority = CasePriority.Normal
-                    };
-                    var settings = await _systemSettingRepository.GetAsync(cancellationToken);
-                    var agent = await _autoAssignmentService.SelectAgentAsync(
-                        complianceCase,
-                        settings.DistributionMethod,
-                        cancellationToken);
-
-                    if (agent != null)
+                        createdCaseId = await _complianceProcessingService.ProcessTenderAsync(
+                            tender,
+                            crmTenderNumbers,
+                            crmContracts,
+                            sync.Id,
+                            executionUserId,
+                            cancellationToken);
+                    }
+                    catch (Exception ex)
                     {
-                        complianceCase.AgentId = agent.Id;
-                        complianceCase.AssignedOn = DateTime.UtcNow;
-                        complianceCase.Status = CaseStatus.Assigned;
+                        await LogAsync(
+                            sync.Id,
+                            SyncLogType.Error,
+                            SyncLogLevel.Error,
+                            "Compliance Processing Failed",
+                            $"Error processing tender {tender.TenderNumber}: {ex.Message}",
+                            tender.TenderNumber,
+                            cancellationToken);
+                        sync.ErrorCount++;
                     }
 
-                    await _complianceCaseRepository.AddAsync(
-                        complianceCase,
-                        cancellationToken);
-
-                    await _auditService.LogAsync(
-                        AuditAction.Created,
-                        AuditEntity.ComplianceCase,
-                        complianceCase.Id,
-                        $"Compliance case created for tender '{tender.TenderNumber}'.",
-                        executionUserId,
-                        cancellationToken);
-
-                    await LogAsync(
-                        sync.Id,
-                        SyncLogType.CaseCreated,
-                        SyncLogLevel.Information,
-                        "Compliance Case Created",
-                        "Compliance case created successfully.",
-                        tender.TenderNumber,
-                        cancellationToken);
-
-                    await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                    nonCompliant++;
-                    casesCreated++;
+                    if (createdCaseId.HasValue)
+                    {
+                        nonCompliant++;
+                        casesCreated++;
+                    }
+                    else
+                    {
+                        compliant++;
+                    }
                 }
 
                 sync.CompletedOn = DateTime.UtcNow;
@@ -239,7 +239,7 @@ namespace iTender.Compliance.Infrastructure.Services
                     sync.Id,
                     SyncLogType.Error,
                     SyncLogLevel.Error,
-                    "Dataverse Connection Failed",
+                    "Connection to iTender Failed",
                     ex.Message,
                     cancellationToken: cancellationToken);
 

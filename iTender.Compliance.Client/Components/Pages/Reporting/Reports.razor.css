@@ -1,0 +1,49 @@
+/* CSS for Reports component */
+/* CSS for Reports component */
+/* ============================================
+   REPORTS PAGE
+   ============================================ */
+
+.border-cidb {
+    border: 2px solid #b3202a !important;
+    box-shadow: 0 0 0 0.2rem rgba(179, 32, 42, 0.25);
+}
+
+.card[onclick] {
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+    .card[onclick]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+/* Progress bars for reports */
+.progress {
+    background-color: #e9ecef;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+/* Table styles */
+.table td {
+    vertical-align: middle;
+}
+
+/* Summary cards */
+.dashboard-card .display-6 {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.dashboard-card .text-muted {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}

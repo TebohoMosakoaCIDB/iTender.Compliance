@@ -66,6 +66,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
             var query = Context.ComplianceCases
                 .Include(x => x.Tender)
                 .Include(x => x.Agent)
+                .Include(c => c.ComplianceFindings)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search.SearchText))
@@ -85,12 +86,21 @@ namespace iTender.Compliance.Infrastructure.Repositories
             if (search.AgentId.HasValue)
                 query = query.Where(x => x.AgentId == search.AgentId);
 
-            return await query
-                .OrderByDescending(x => x.CreatedOn)
-                .ToPagedResultAsync(
-                    search.PageNumber,
-                    search.PageSize,
-                    cancellationToken);
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .Skip((search.PageNumber - 1) * search.PageSize)
+                .Take(search.PageSize)
+                .ToListAsync(cancellationToken);
+
+            return new PagedResult<ComplianceCase>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = search.PageNumber,
+                PageSize = search.PageSize
+            };
+
         }
 
         public async Task<ComplianceCaseDetailModel?> GetDetailAsync(
@@ -121,15 +131,12 @@ namespace iTender.Compliance.Infrastructure.Repositories
                             ? x.Outcome.Value.ToString()
                             : null,
                         AgentId = x.AgentId,
-                        Level = x.Agent.Level,
-                        JobTitle = x.Agent.JobTitle,
-                        FooterText = x.Agent.FooterText,
-                        Agent = x.Agent != null
-                            ? x.Agent.FullName
-                            : null,
-                        AgentEmail = x.Agent != null
-                            ? x.Agent.Email
-                            : null,
+                        // ---- Null‑safe access for Agent ----
+                        Level = x.Agent != null ? x.Agent.Level : (AgentLevel?)null,
+                        JobTitle = x.Agent != null ? x.Agent.JobTitle : null,
+                        FooterText = x.Agent != null ? x.Agent.FooterText : null,
+                        Agent = x.Agent != null ? x.Agent.FullName : null,
+                        AgentEmail = x.Agent != null ? x.Agent.Email : null,
                         CreatedOn = x.CreatedOn,
                         ClosedOn = x.ClosedDate,
                         Comments = x.Comments
@@ -160,6 +167,34 @@ namespace iTender.Compliance.Infrastructure.Repositories
                             CreatedOn = n.CreatedOn
                         })
                         .ToList(),
+
+                    Findings = x.ComplianceFindings
+                        .Select(f => new ComplianceFindingDto
+                        {
+                            Id = f.Id,
+                            Stream = f.Stream,
+                            FindingType = f.FindingType,
+                            Description = f.Description,
+                            RegulatoryReference = f.RegulatoryReference,
+                            IdentifiedAt = f.IdentifiedAt,
+                            IsResolved = f.IsResolved,
+                            ResolvedOn = f.ResolvedOn,
+                            TenderStatusAtCheck = f.TenderStatusAtCheck
+                        })
+                        .ToList(),
+
+                    Actions = x.ComplianceActions
+                        .Select(a => new ComplianceActionDto
+                        {
+                            Id = a.Id,
+                            ActionType = a.ActionType,
+                            Status = a.Status,
+                            ActionDate = a.ActionDate,
+                            ResponseDueDate = a.ResponseDueDate,
+                            CompletedDate = a.CompletedDate,
+                            Comments = a.Comments
+                        })
+                        .ToList()
                 })
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -180,7 +215,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                     Action = x.Action,
                     Description = x.Description
                 })
-                        .ToListAsync(cancellationToken);
+                .ToListAsync(cancellationToken);
 
             return model;
         }
@@ -208,6 +243,16 @@ namespace iTender.Compliance.Infrastructure.Repositories
                     cancellationToken);
         }
 
+        public async Task<IEnumerable<ComplianceCase>> GetOverdueCasesAsync(CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            return await Context.ComplianceCases
+                .Include(c => c.CaseLetters) // to get the letters
+                .Where(c => (c.Status == CaseStatus.AwaitingILResponse || c.Status == CaseStatus.AwaitingCNResponse)
+                            && c.CaseLetters.Any(l => l.ResponseDueOn < now && l.RespondedOn == null))
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<List<ComplianceCase>> GetCasesAwaitingReminderAsync(
     int reminderAfterHours,
     CancellationToken cancellationToken = default)
@@ -227,7 +272,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .Where(x => x.AgentId != null)
 
                 // Waiting for supplier response
-                .Where(x => x.Status == CaseStatus.WaitingForResponse)
+                .Where(x => x.Status == CaseStatus.AwaitingILResponse)
 
                 // Must have an instruction letter older than X hours
                 .Where(x => x.CaseLetters.Any(l =>
@@ -241,6 +286,11 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .OrderBy(x => x.CreatedOn)
 
                 .ToListAsync(cancellationToken);
+        }
+
+        public async Task<ComplianceCase?> GetByTenderIdAsync(Guid tenderId, CancellationToken cancellationToken = default)
+        {
+            return await Context.ComplianceCases.FirstOrDefaultAsync(c => c.TenderId == tenderId, cancellationToken);
         }
     }
 }

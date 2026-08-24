@@ -9,12 +9,14 @@ namespace iTender.Compliance.Infrastructure.Services
     {
         private readonly IComplianceCaseRepository _complianceCaseRepository;
         private readonly INotificationService _notificationService;
+        private readonly IAgentRepository _agentRepository;
         private readonly IAuditService _auditService;
         private readonly ICurrentUserService _currentUser;
         private readonly IUnitOfWork _unitOfWork;
 
         public ComplianceService(
             IComplianceCaseRepository complianceCaseRepository,
+            IAgentRepository agentRepository,
             IAuditService auditService,
             INotificationService notificationService,
             ICurrentUserService currentUser,
@@ -22,6 +24,7 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             _complianceCaseRepository = complianceCaseRepository;
             _notificationService = notificationService;
+            _agentRepository = agentRepository;
             _auditService = auditService;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
@@ -29,10 +32,10 @@ namespace iTender.Compliance.Infrastructure.Services
 
         public async Task AssignAgentAsync(
             Guid complianceCaseId,
-    Guid agentId,
-    CasePriority priority,
-    string? comments,
-    CancellationToken cancellationToken = default)
+            Guid agentId,
+            CasePriority priority,
+            string? comments,
+            CancellationToken cancellationToken = default)
         {
             var complianceCase = await _complianceCaseRepository.GetByIdAsync(
                 complianceCaseId,
@@ -59,9 +62,11 @@ namespace iTender.Compliance.Infrastructure.Services
                 _currentUser.UserId,
                 cancellationToken);
 
+            var Agent = _agentRepository.GetByIdAsync(agentId);
+
             await _notificationService.NotifyAsync(new CreateNotificationModel
             {
-                UserId = agentId,
+                UserId = Agent.Result.UserId,
                 Title = "New Case Assigned",
                 Message = $"Tender {complianceCase.Tender.TenderNumber} has been assigned to you.",
                 Type = NotificationType.Information,
@@ -147,6 +152,119 @@ namespace iTender.Compliance.Infrastructure.Services
                 complianceCase.Id,
                 "Compliance case closed.",
                 cancellationToken: cancellationToken);
+        }
+
+        public async Task<NextCorrespondenceModel?> GetNextCorrespondenceAsync(Guid complianceCaseId)
+        {
+            var model = await _complianceCaseRepository.GetDetailAsync(complianceCaseId);
+
+            if (model == null)
+                return null;
+
+            if (model.Case.Status == "Closed")
+                return null;
+
+            if (!model.Findings.Any(f => !f.IsResolved))
+                return null;
+
+            var latestLetter = model.Letters
+                .OrderByDescending(x => x.LetterNumber)
+                .FirstOrDefault();
+
+            var finding = model.Findings
+                .Where(x => !x.IsResolved)
+                .OrderBy(x => x.IdentifiedAt)
+                .First();
+
+            /*
+             * STREAM 1 & 2
+             */
+            if (finding.Stream == ComplianceStream.ClassOfWorks || finding.Stream == ComplianceStream.Advertisement)
+            {
+                if (finding.TenderStatusAtCheck == TenderStatus.Open)
+                {
+                    if (latestLetter == null)
+                    {
+                        return new NextCorrespondenceModel
+                        {
+                            CanGenerate = true,
+
+                            Type = CorrespondenceTemplateType.Erratum,
+
+                            Title = "Issue Erratum Instruction",
+
+                            Description =
+                                "The tender is still open. The client must correct the non-compliance by issuing an erratum within 48 hours.",
+
+                            ResponseHours = 48,
+
+                            ResponsePeriodText = "48 hours"
+                        };
+                    }
+                }
+
+                if (finding.TenderStatusAtCheck == TenderStatus.Closed)
+                {
+                    return new NextCorrespondenceModel
+                    {
+                        CanGenerate = true,
+
+                        Type = CorrespondenceTemplateType.ContraventionNotice,
+
+                        Title = "Issue Contravention Notice",
+
+                        Description =
+                            "The tender is closed and the identified non-compliance requires a Contravention Notice.",
+
+                        ResponseHours = 14 * 24,
+
+                        ResponsePeriodText = "14 days"
+                    };
+                }
+            }
+
+            /*
+             * STREAM 3
+             *
+             * Award identified but project is not registered on RoP.
+             */
+            if (finding.Stream == ComplianceStream.RopRegistration)
+            {
+                if (latestLetter == null)
+                {
+                    return new NextCorrespondenceModel
+                    {
+                        CanGenerate = true,
+                        Type = CorrespondenceTemplateType.InstructionalLetter,
+                        Title = "Issue Instructional Letter",
+                        Description =
+                            "The awarded project has not been identified on the Register of Projects. An Instructional Letter must be issued to the client.",
+                        ResponseHours = 48,
+                        ResponsePeriodText = "48 hours"
+                    };
+                }
+
+                /*
+                 * IL was already issued and no response/compliance.
+                 * Next step = CN.
+                 */
+                if (latestLetter.LetterNumber == 1 &&
+                    !latestLetter.RespondedOn.HasValue)
+                {
+                    return new NextCorrespondenceModel
+                    {
+                        CanGenerate = true,
+                        Type = CorrespondenceTemplateType.ContraventionNotice,
+                        Title = "Issue Contravention Notice",
+                        Description =
+                            "The client has not complied with the Instructional Letter. A Contravention Notice may now be issued.",
+                        ResponseHours = 14 * 24,
+                        ResponsePeriodText = "14 days"
+                    };
+                }
+            }
+
+            return null;
         }
     }
 }

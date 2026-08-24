@@ -3,257 +3,256 @@ using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
     public class CorrespondenceService : ICorrespondenceService
     {
-        private readonly IComplianceCaseRepository _complianceCaseRepository;
+        private readonly IComplianceCaseRepository _caseRepository;
+        private readonly ICorrespondenceTemplateRepository _templateRepository;
         private readonly ICaseLetterRepository _caseLetterRepository;
-        private readonly IDocumentService _documentService;
-        private readonly ICurrentUserService _currentUser;
-        private readonly IAuditService _auditService;
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly IComplianceActionRepository _complianceActionRepository;
 
         public CorrespondenceService(
-            IComplianceCaseRepository complianceCaseRepository,
+            IComplianceCaseRepository caseRepository,
+            ICorrespondenceTemplateRepository templateRepository,
             ICaseLetterRepository caseLetterRepository,
-            IDocumentService documentService,
-            ICurrentUserService currentUser,
-            IAuditService auditService,
-            IUnitOfWork unitOfWork)
+            IComplianceActionRepository complianceActionRepository)
         {
-            _complianceCaseRepository = complianceCaseRepository;
+            _caseRepository = caseRepository;
+            _templateRepository = templateRepository;
             _caseLetterRepository = caseLetterRepository;
-            _documentService = documentService;
-            _auditService = auditService;
-            _currentUser = currentUser;
-            _unitOfWork = unitOfWork;
+            _complianceActionRepository = complianceActionRepository;
         }
 
-        public async Task SendInstructionLetterAsync(SendInstructionLetterModel model, CancellationToken cancellationToken = default)
+        public async Task<byte[]> GenerateErratumAsync(Guid complianceCaseId)
         {
-            // Get the case
-            var complianceCase = await _complianceCaseRepository.GetByIdAsync(
-                model.ComplianceCaseId,
-                cancellationToken);
+            return await GenerateAsync(
+                complianceCaseId,
+                CorrespondenceTemplateType.Erratum);
+        }
 
-            if (complianceCase == null)
-                throw new InvalidOperationException("Compliance case not found.");
+        public async Task<byte[]> GenerateInstructionalLetterAsync(
+            Guid complianceCaseId)
+        {
+            return await GenerateAsync(
+                complianceCaseId,
+                CorrespondenceTemplateType.InstructionalLetter);
+        }
 
-            // Determine the next letter number
-            var latestLetter = await _caseLetterRepository.GetLatestAsync(
-                model.ComplianceCaseId,
-                cancellationToken);
+        public async Task<byte[]> GenerateContraventionNoticeAsync(
+            Guid complianceCaseId)
+        {
+            return await GenerateAsync(
+                complianceCaseId,
+                CorrespondenceTemplateType.ContraventionNotice);
+        }
+        private async Task<byte[]> GenerateAsync(
+            Guid complianceCaseId,
+            CorrespondenceTemplateType templateType)
+        {
+            var caseModel =
+                await _caseRepository.GetDetailAsync(complianceCaseId);
 
-            var nextLetterNumber = latestLetter == null
-                ? 1
-                : latestLetter.LetterNumber + 1;
+            if (caseModel == null)
+                throw new InvalidOperationException(
+                    "Compliance case could not be found.");
 
-            // Generate the document
-            var document = await _documentService.GenerateInstructionLetterAsync(
-                model,
-                cancellationToken);
+            var template =
+                await _templateRepository.GetActiveAsync(templateType);
 
-            // Create the correspondence record
+            if (template == null)
+                throw new InvalidOperationException(
+                    $"No active template exists for {templateType}.");
+
+            var responseDueDate = GetResponseDueDate(templateType);
+
+            var subject = ReplacePlaceholders(
+                template.Subject,
+                caseModel,
+                responseDueDate);
+
+            var body = ReplacePlaceholders(
+                template.Body,
+                caseModel,
+                responseDueDate);
+
+            // Create the correspondence records BEFORE returning the PDF
+            await CreateCorrespondenceRecordsAsync(
+                caseModel,
+                templateType,
+                subject,
+                responseDueDate);
+
+            return GeneratePdf(
+                subject,
+                body);
+        }
+
+        private static DateTime GetResponseDueDate(
+            CorrespondenceTemplateType templateType)
+        {
+            return templateType switch
+            {
+                CorrespondenceTemplateType.Erratum =>
+                    DateTime.UtcNow.AddHours(48),
+
+                CorrespondenceTemplateType.InstructionalLetter =>
+                    DateTime.UtcNow.AddHours(48),
+
+                CorrespondenceTemplateType.ContraventionNotice =>
+                    DateTime.UtcNow.AddDays(14),
+
+                _ => throw new InvalidOperationException(
+                    $"No response period configured for {templateType}.")
+            };
+        }
+
+        private async Task CreateCorrespondenceRecordsAsync(
+    ComplianceCaseDetailModel model,
+    CorrespondenceTemplateType templateType,
+    string subject,
+    DateTime responseDueDate)
+        {
+            var now = DateTime.UtcNow;
+
+            var letterNumber =
+                model.Letters.Any()
+                    ? model.Letters.Max(x => x.LetterNumber) + 1
+                    : 1;
+
             var letter = new CaseLetter
             {
-                ComplianceCaseId = model.ComplianceCaseId,
+                Id = Guid.NewGuid(),
 
-                LetterNumber = nextLetterNumber,
+                ComplianceCaseId = model.Id,
 
-                RecipientName = model.RecipientName,
-                RecipientEmail = model.RecipientEmail,
+                LetterNumber = letterNumber,
 
-                FileName = document.FileName,
-                FilePath = document.FilePath,
+                RecipientName = model.Tender.Employer,
+                RecipientEmail = model.Tender.Employer,
 
-                SentOn = DateTime.UtcNow,
-                ResponseDueOn = model.ResponseDueOn
+                SentOn = now,
+
+                ResponseDueOn = responseDueDate,
+
+                RespondedOn = null
             };
 
-            await _caseLetterRepository.AddAsync(
-                letter,
-                cancellationToken);
+            await _caseLetterRepository.AddAsync(letter);
 
-            // Update the case
-            complianceCase.Status = CaseStatus.WaitingForResponse;
-            complianceCase.ModifiedOn = DateTime.UtcNow;
-
-            await _complianceCaseRepository.UpdateAsync(
-                complianceCase,
-                cancellationToken);
-
-            await _unitOfWork.SaveChangesAsync(
-                cancellationToken);
-
-            // Audit
-            await _auditService.LogAsync(
-                AuditAction.InstructionLetterSent,
-                AuditEntity.ComplianceCase,
-                complianceCase.Id,
-                $"Instruction letter sent to {model.RecipientName}.",
-                _currentUser.UserId,
-                cancellationToken);
-        }
-
-        public async Task SendReminderLetterAsync(SendReminderLetterModel model, CancellationToken cancellationToken = default)
-        {
-            // Get the compliance case
-            var complianceCase = await _complianceCaseRepository.GetByIdAsync(
-                model.ComplianceCaseId,
-                cancellationToken);
-
-            if (complianceCase == null)
-                throw new InvalidOperationException("Compliance case not found.");
-
-            // Get the latest correspondence
-            var latestLetter = await _caseLetterRepository.GetLatestAsync(
-                model.ComplianceCaseId,
-                cancellationToken);
-
-            if (latestLetter == null)
-                throw new InvalidOperationException("No instruction letter has been sent.");
-
-            // Determine next letter number
-            var nextLetterNumber = latestLetter.LetterNumber + 1;
-
-            // Generate the reminder document
-            var document = await _documentService.GenerateReminderLetterAsync(
-                model,
-                cancellationToken);
-
-            // Create reminder letter
-            var reminderLetter = new CaseLetter
+            var action = new ComplianceAction
             {
-                ComplianceCaseId = model.ComplianceCaseId,
+                Id = Guid.NewGuid(),
 
-                LetterNumber = nextLetterNumber,
+                ComplianceCaseId = model.Id,
 
-                RecipientName = model.RecipientName,
-                RecipientEmail = model.RecipientEmail,
+                ActionDate = now,
 
-                FileName = document.FileName,
-                FilePath = document.FilePath,
+                ResponseDueDate = responseDueDate,
 
-                SentOn = DateTime.UtcNow,
+                Status = ComplianceActionStatus.Pending,
 
-                // Usually keep the original due date
-                ResponseDueOn = model.ResponseDueOn
+                Comments = $"Correspondence generated: {templateType}."
             };
 
-            await _caseLetterRepository.AddAsync(
-                reminderLetter,
-                cancellationToken);
-
-            // Update the case
-            complianceCase.ModifiedOn = DateTime.UtcNow;
-
-            await _complianceCaseRepository.UpdateAsync(
-                complianceCase,
-                cancellationToken);
-
-            await _unitOfWork.SaveChangesAsync(
-                cancellationToken);
-
-            // Audit
-            await _auditService.LogAsync(
-                AuditAction.ReminderLetterSent,
-                AuditEntity.ComplianceCase,
-                complianceCase.Id,
-                $"Reminder letter #{model.ReminderNumber} sent to {model.RecipientName}.",
-                _currentUser.UserId,
-                cancellationToken);
+            await _complianceActionRepository.AddAsync(action);
         }
 
-        public async Task RecordResponseAsync(
-            Guid caseLetterId,
-            bool accepted,
-            string? comments,
-            Guid userId,
-            CancellationToken cancellationToken = default)
+        private static byte[] GeneratePdf(
+            string subject,
+            string body)
         {
-            var letter = await _caseLetterRepository.GetByIdAsync(
-                caseLetterId,
-                cancellationToken);
+            using var stream = new MemoryStream();
 
-            if (letter == null)
-                throw new InvalidOperationException("Case letter not found.");
+            Document.Create(document =>
+            {
+                document.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
 
-            letter.RespondedOn = DateTime.UtcNow;
-            letter.Accepted = accepted;
-            letter.ResponseComments = comments;
-            letter.ModifiedBy = userId;
-            letter.ModifiedOn = DateTime.UtcNow;
+                    page.Margin(50);
 
-            await _caseLetterRepository.UpdateAsync(letter, cancellationToken);
+                    page.DefaultTextStyle(
+                        x => x.FontSize(10));
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    page.Header()
+                        .Column(column =>
+                        {
+                            column.Item()
+                                .Height(45)
+                                .Image("wwwroot/cidb-logo.png");
 
-            await _auditService.LogAsync(
-                AuditAction.ResponseReceived,
-                AuditEntity.CaseLetter,
-                letter.Id,
-                accepted
-                    ? "Response accepted."
-                    : "Response rejected.",
-                userId,
-                cancellationToken);
+                            column.Item()
+                                .Text("Compliance Monitoring")
+                                .FontSize(10)
+                                .FontColor("#666666");
+
+                            column.Item()
+                                .PaddingTop(8)
+                                .LineHorizontal(1)
+                                .LineColor("#B3202A");
+                        });
+
+                    page.Content()
+                        .PaddingTop(30)
+                        .Column(column =>
+                        {
+                            column.Item()
+                                .Text(subject)
+                                .Bold()
+                                .FontSize(14);
+
+                            column.Item()
+                                .PaddingTop(25)
+                                .Text(body);
+                        });
+
+                    page.Footer()
+                        .AlignCenter()
+                        .Text(text =>
+                        {
+                            text.Span("iTender Compliance Monitoring");
+                        });
+                });
+            })
+            .GeneratePdf(stream);
+
+            return stream.ToArray();
         }
 
-        public async Task CaptureResponseAsync(
-    CaptureResponseModel model,
-    CancellationToken cancellationToken = default)
+        private static string ReplacePlaceholders(
+            string content,
+            ComplianceCaseDetailModel model,
+            DateTime? responseDueDate)
         {
-            var complianceCase = await _complianceCaseRepository.GetByIdAsync(
-                model.ComplianceCaseId,
-                cancellationToken);
-
-            if (complianceCase == null)
-                throw new InvalidOperationException("Compliance case not found.");
-
-            var letter = await _caseLetterRepository.GetByIdAsync(
-                model.CaseLetterId,
-                cancellationToken);
-
-            if (letter == null)
-                throw new InvalidOperationException("Letter not found.");
-
-            letter.RespondedOn = model.RespondedOn;
-            letter.Accepted = model.Outcome == ComplianceOutcome.Compliant;
-            letter.ResponseComments = model.Comments;
-
-            await _caseLetterRepository.UpdateAsync(letter, cancellationToken);
-
-            complianceCase.Status = CaseStatus.Closed;
-            complianceCase.Outcome = model.Outcome;
-            complianceCase.ClosedDate = model.RespondedOn;
-            complianceCase.ModifiedOn = DateTime.UtcNow;
-            complianceCase.Comments = model.Comments;
-
-            await _complianceCaseRepository.UpdateAsync(
-                complianceCase,
-                cancellationToken);
-
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            await _auditService.LogAsync(
-                AuditAction.ResponseReceived,
-                AuditEntity.ComplianceCase,
-                complianceCase.Id,
-                $"Response received ({model.Outcome}).",
-                _currentUser.UserId,
-                cancellationToken);
-
-            await _auditService.LogAsync(
-                AuditAction.CaseClosed,
-                AuditEntity.ComplianceCase,
-                complianceCase.Id,
-                "Compliance case closed.",
-                _currentUser.UserId,
-                cancellationToken);
+            return content
+                .Replace(
+                    "{TenderNumber}",
+                    model.Tender.TenderNumber ?? string.Empty)
+                .Replace(
+                    "{TenderTitle}",
+                    model.Tender.Title ?? string.Empty)
+                .Replace(
+                    "{EmployerName}",
+                    model.Tender.Employer ?? string.Empty)
+                .Replace(
+                    "{CompanyName}",
+                    model.Tender.Employer ?? string.Empty)
+                .Replace(
+                    "{ResponseDueDate}",
+                    responseDueDate.HasValue
+                        ? responseDueDate.Value.ToString("dd MMMM yyyy")
+                        : string.Empty)
+                .Replace(
+                    "{ClosingDate}",
+                    model.Tender.ClosingDate.ToString("dd MMMM yyyy"))
+                .Replace(
+                    "{AgentName}",
+                    model.Case.Agent ?? string.Empty);
         }
+
     }
 }

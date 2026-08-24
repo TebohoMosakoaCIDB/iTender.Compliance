@@ -33,24 +33,92 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization(options =>
 {
+    // =========================================================
+    // ADMINISTRATION
+    // =========================================================
+    // System administration, configuration and administrative
+    // functions.
     options.AddPolicy("Administration", policy =>
-        policy.RequireRole(Roles.Administrator));
+        policy.RequireRole(
+            Roles.ComplianceAdministrator,
+            Roles.ComplianceManager));
 
+    // =========================================================
+    // CASE ASSIGNMENT
+    // =========================================================
+    // The Compliance Manager leads the Compliance Unit and
+    // therefore controls case assignment.
     options.AddPolicy("CaseAssignment", policy =>
         policy.RequireRole(
-            Roles.Administrator,
-            Roles.Supervisor));
+            Roles.ComplianceManager));
 
+    // =========================================================
+    // CASE MANAGEMENT
+    // =========================================================
+    // Officers work on cases assigned to them.
+    // Managers oversee all cases.
+    // Director has overall oversight.
     options.AddPolicy("CaseManagement", policy =>
         policy.RequireRole(
-            Roles.Administrator,
-            Roles.Supervisor,
-            Roles.ComplianceAgent));
+            Roles.Director,
+            Roles.ComplianceManager,
+            Roles.ComplianceOfficer));
+
+    // =========================================================
+    // COMPLIANCE OVERSIGHT
+    // =========================================================
+    // Director and Manager have management/oversight
+    // responsibilities.
+    options.AddPolicy("ComplianceOversight", policy =>
+        policy.RequireRole(
+            Roles.Director,
+            Roles.ComplianceManager));
+
+    // =========================================================
+    // REPORTING
+    // =========================================================
+    // Officers prepare reports, while management and the
+    // administrative function need access to reporting.
+    options.AddPolicy("Reporting", policy =>
+        policy.RequireRole(
+            Roles.Director,
+            Roles.ComplianceManager,
+            Roles.ComplianceOfficer,
+            Roles.ComplianceAdministrator));
+
+    // =========================================================
+    // ACCOUNT MANAGEMENT
+    // =========================================================
+    // Administrative function manages user accounts.
+    options.AddPolicy("AccountManagement", policy =>
+        policy.RequireRole(
+            Roles.ComplianceAdministrator,
+            Roles.ComplianceManager));
+
+    // =========================================================
+    // CORRESPONDENCE
+    // =========================================================
+    // Compliance Officers draft compliance correspondence and
+    // Contravention Notices.
+    // Compliance Managers provide oversight and quality assurance.
+    // Administrative staff manage document control, filing and
+    // correspondence tracking.
+    options.AddPolicy("Correspondence", policy =>
+        policy.RequireRole(
+            Roles.Director,
+            Roles.ComplianceManager,
+            Roles.ComplianceOfficer,
+            Roles.ComplianceAdministrator));
+
+    options.AddPolicy("CorrespondenceDraft", policy =>
+        policy.RequireRole(
+            Roles.ComplianceManager,
+            Roles.ComplianceOfficer));
 });
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+var connectionString = builder.Configuration.GetConnectionString("SupabaseConnection") ?? throw new InvalidOperationException("Connection string 'SupabaseConnection' not found.");
 builder.Services.AddDbContext<ComplianceDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseNpgsql(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
@@ -99,7 +167,7 @@ using (var scope = app.Services.CreateScope())
 
     var context = services.GetRequiredService<ComplianceDbContext>();
 
-    await context.Database.MigrateAsync();
+    //await context.Database.MigrateAsync();
 
     await IdentitySeeder.SeedAsync(services);
 

@@ -1,0 +1,390 @@
+﻿@page "/profile"
+@using System.Security.Claims
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Services
+@inject IProfileService ProfileService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>My Profile</PageTitle>
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">My Profile</h2>
+            <p class="text-muted mb-0">
+                Manage your personal and contact information.
+            </p>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (_profile == null)
+    {
+        <div class="alert alert-danger">
+            Unable to load your profile.
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+
+            <!-- Profile Summary -->
+            <div class="col-lg-4">
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+
+                        <div class="rounded-circle bg-primary text-white
+                            d-flex align-items-center justify-content-center
+                            mx-auto mb-3"
+                             style="width:100px;height:100px;font-size:36px;">
+
+                            @GetInitials()
+
+                        </div>
+
+                        <h4 class="mb-1">
+                            @_profile.FullName
+                        </h4>
+
+                        <p class="text-muted mb-2">
+                            @_profile.JobTitle
+                        </p>
+
+                        <span class="badge bg-success">
+                            @(_profile.IsActive ? "Active" : "Inactive")
+                        </span>
+
+                        <hr />
+
+                        <div class="text-start">
+
+                            <div class="mb-3">
+                                <small class="text-muted d-block">
+                                    Role
+                                </small>
+
+                                <strong>
+                                    @_profile.Role
+                                </strong>
+                            </div>
+
+                            <div class="mb-3">
+                                <small class="text-muted d-block">
+                                    Department
+                                </small>
+
+                                <strong>
+                                    @_profile.Department
+                                </strong>
+                            </div>
+
+                            <div>
+                                <small class="text-muted d-block">
+                                    Employee Number
+                                </small>
+
+                                <strong>
+                                    @_profile.EmployeeNumber
+                                </strong>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Profile Form -->
+            <div class="col-lg-8">
+
+                <div class="card border-0 shadow-sm">
+
+                    <div class="card-header bg-white border-0 p-4">
+                        <h5 class="mb-1">
+                            Personal Information
+                        </h5>
+
+                        <p class="text-muted mb-0">
+                            Update your personal and employment information.
+                        </p>
+                    </div>
+
+                    <div class="card-body p-4">
+
+                        @if (!string.IsNullOrWhiteSpace(_message))
+                        {
+                            <div class="alert alert-success">
+                                @_message
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(_error))
+                        {
+                            <div class="alert alert-danger">
+                                @_error
+                            </div>
+                        }
+
+                        <EditForm Model="_editModel"
+                                  OnValidSubmit="SaveAsync"
+                                  FormName="MyProfileForm">
+
+                            <DataAnnotationsValidator />
+
+                            <div class="row g-3">
+
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        First Name
+                                    </label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="_editModel.FirstName" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Last Name
+                                    </label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="_editModel.LastName" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Email
+                                    </label>
+
+                                    <input class="form-control"
+                                           value="@_profile.Email"
+                                           disabled />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Phone Number
+                                    </label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="_editModel.PhoneNumber" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Employee Number
+                                    </label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="_editModel.EmployeeNumber" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Department
+                                    </label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="_editModel.Department" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Job Title
+                                    </label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="_editModel.JobTitle" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Role
+                                    </label>
+
+                                    <input class="form-control"
+                                           value="@_profile.Role"
+                                           disabled />
+                                </div>
+
+                            </div>
+
+                            <div class="d-flex justify-content-end mt-4">
+
+                                <button type="submit"
+                                        class="btn btn-sm btn-cidb-submit"
+                                        disabled="@_saving">
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    @if (_saving)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        <span>Saving...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Save Changes</span>
+                                    }
+
+                                </button>
+
+                            </div>
+
+                        </EditForm>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+</div>
+
+@code {
+
+    private ProfileModel? _profile;
+
+    private UpdateMyProfileModel _editModel = new();
+
+    private bool _loading = true;
+    private bool _saving;
+
+    private string? _message;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfileAsync();
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        _loading = true;
+
+        try
+        {
+            var authState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+
+            var principal = authState.User;
+
+            var userIdClaim =
+                principal.FindFirst(
+                    ClaimTypes.NameIdentifier);
+
+            if (userIdClaim == null)
+            {
+                _error = "Unable to determine the current user.";
+                return;
+            }
+
+            if (!Guid.TryParse(
+                    userIdClaim.Value,
+                    out var userId))
+            {
+                _error = "Invalid user identifier.";
+                return;
+            }
+
+            _profile =
+                await ProfileService.GetAsync(userId);
+
+            if (_profile == null)
+            {
+                _error = "Your profile could not be found.";
+                return;
+            }
+
+            _editModel = new UpdateMyProfileModel
+            {
+                FirstName = _profile.FirstName,
+                LastName = _profile.LastName,
+                PhoneNumber = _profile.PhoneNumber,
+                EmployeeNumber = _profile.EmployeeNumber,
+                Department = _profile.Department,
+                JobTitle = _profile.JobTitle
+            };
+        }
+        catch (Exception ex)
+        {
+            _error = "An error occurred while loading your profile.";
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_profile == null)
+            return;
+
+        _saving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var result =
+                await ProfileService.UpdateAsync(
+                    _profile.UserId,
+                    _editModel);
+
+            if (!result)
+            {
+                _error =
+                    "Your profile could not be updated.";
+
+                return;
+            }
+
+            _message =
+                "Your profile has been updated successfully.";
+
+            await LoadProfileAsync();
+        }
+        catch (Exception ex)
+        {
+            _error =
+                "An error occurred while updating your profile.";
+
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private string GetInitials()
+    {
+        if (_profile == null)
+            return "?";
+
+        var first =
+            string.IsNullOrWhiteSpace(_profile.FirstName)
+                ? ""
+                : _profile.FirstName[..1];
+
+        var last =
+            string.IsNullOrWhiteSpace(_profile.LastName)
+                ? ""
+                : _profile.LastName[..1];
+
+        return $"{first}{last}".ToUpperInvariant();
+    }
+}

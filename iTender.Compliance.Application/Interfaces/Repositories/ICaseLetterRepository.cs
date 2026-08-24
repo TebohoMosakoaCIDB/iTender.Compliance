@@ -4,6 +4,8 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface ICaseLetterRepository
     {
+        Task<IEnumerable<CaseLetter>> GetOverdueLettersAsync(CancellationToken cancellationToken = default);
+
         Task<List<CaseLetter>> GetByComplianceCaseIdAsync(
             Guid complianceCaseId,
             CancellationToken cancellationToken = default);

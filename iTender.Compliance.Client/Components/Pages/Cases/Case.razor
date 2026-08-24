@@ -1,22 +1,32 @@
 ﻿@page "/cases/{Id:guid}"
 
+@using iTender.Compliance.Client.Helpers
 @using iTender.Compliance.Application.DTOs
 @using iTender.Compliance.Domain.Enums
 @using iTender.Compliance.Domain.Entities
 @using iTender.Compliance.Application.Interfaces.Repositories
 @using iTender.Compliance.Application.Interfaces.Services
-@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ICorrespondenceService CorrespondenceService
+
 @inject IComplianceCaseRepository Repository
 @inject IAgentRepository AgentRepository
 @inject IComplianceService ComplianceService
-@inject ICorrespondenceService CorrespondenceService
 @inject ICaseNoteRepository CaseNoteRepository
 @inject ISystemSettingService SystemSettingService
 
-@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
+
+@inject IJSRuntime JS
+
+@rendermode InteractiveServer
+
 @attribute [Authorize(Policy = "CaseManagement")]
 
-<PageTitle>Compliance Case</PageTitle>
+<PageTitle>Compliance Cases | CRCIP Monitor</PageTitle>
 
 <h2 class="mb-5">
     <i class="bi bi-folder-check me-2 text-secondary"></i>
@@ -139,55 +149,238 @@ else
 
             <hr />
 
-            @if(Model.Case.Status != "Closed")
+            @if (Model.Case.Status != "Closed")
             {
                 <div class="d-flex flex-wrap gap-2 mb-4">
 
-                    @if (Model.Case.Agent == null)
+                    @* ========================================================= *@
+                    @* ASSIGN AGENT                                              *@
+                    @* ========================================================= *@
+
+                    @if (Model.Case.Agent == null && CanAssignAgent)
                     {
                         <button class="btn btn-sm btn-cidb-submit"
                                 @onclick="OpenAssignAgent">
-                            Assign Agent
-                        </button>
-                    }
 
-                    @if (!Model.Letters.Any() && Model.Case.Agent != null)
-                    {
-                        <button class="btn btn-sm btn-cidb-submit-outline"
-                                @onclick="SendInstructionLetter">
-                            <i class="bi bi-envelope me-1"></i>
-                            Send Instruction Letter
+                            <i class="bi bi-person-plus me-1"></i>
+                            Assign Agent
+
                         </button>
                     }
                     else
                     {
-                        <button class="btn btn-sm btn-cidb-submit-outline"
-                                @onclick="SendReminderLetter">
-                            <i class="bi bi-bell me-1"></i>
-                            Send Reminder
-                        </button>
+                        @* ===================================================== *@
+                        @* CORRESPONDENCE / DOCUMENT LOGIC                      *@
+                        @* Only available once an agent has been assigned.      *@
+                        @* ===================================================== *@
 
-                        <button class="btn btn-sm btn-cidb-submit"
-                                @onclick="OpenCaptureResponse">
-                            <i class="bi bi-check-circle me-1"></i>
-                            Capture Response
-                        </button>
+                        @if (Model.Case.Agent != null && CanManageCorrespondence)
+                        {
+                            if (NextCorrespondence != null)
+                            {
+                                if (NextCorrespondence.CanGenerate)
+                                {
+                                    <button class="btn btn-sm btn-cidb-submit-outline"
+                                            @onclick="GenerateNextCorrespondence">
+
+                                        <i class="bi bi-file-earmark-pdf me-1"></i>
+                                        @NextCorrespondence.Title
+
+                                    </button>
+
+                                    @if (!string.IsNullOrWhiteSpace(
+                                        NextCorrespondence.ResponsePeriodText))
+                                    {
+                                        <small class="text-muted ms-2 align-self-center">
+                                            Response required within
+                                            <strong>
+                                                @NextCorrespondence.ResponsePeriodText
+                                            </strong>
+                                        </small>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="alert alert-warning mb-0">
+                                        <strong>@NextCorrespondence.Title</strong>
+                                        <br />
+                                        @NextCorrespondence.Description
+                                    </div>
+                                }
+                            }
+                            else if (Model.Letters.Any())
+                            {
+                                <button class="btn btn-sm btn-cidb-submit"
+                                        @onclick="OpenCaptureResponse">
+
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    Capture Response
+
+                                </button>
+                            }
+                        }
                     }
                 </div>
             }
-
             else
             {
                 <div class="alert alert-danger">
+
                     This compliance case has been closed and is marked as
                     <strong>@Model.Case.Outcome</strong>.
+
                 </div>
             }
+            
+            <hr />
+
+            <!-- ========================================================== -->
+            <!-- FINDINGS & ACTIONS – IMPROVED CARDS -->
+            <!-- ========================================================== -->
+            <div class="row g-4 mb-4">
+
+                <!-- FINDINGS COLUMN -->
+                <div class="col-md-6">
+                    <h5 class="table-header-brand mb-3">
+                        <i class="bi bi-search me-2"></i>
+                        Compliance Findings
+                    </h5>
+                    @if (Model.Findings.Any())
+                    {
+                        <div class="d-flex flex-column gap-3">
+                            @foreach (var finding in Model.Findings)
+                            {
+                                var statusColor = finding.IsResolved ? "success" : "warning";
+                                var statusText = finding.IsResolved ? "Resolved" : "Open";
+
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-body py-3 px-4">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <div class="d-flex align-items-center gap-2 mb-1">
+                                                    <span class="badge bg-primary">@finding.Stream.ToDisplayName()</span>
+                                                    <span class="badge bg-secondary">@finding.FindingType.ToDisplayName()</span>
+                                                    <span class="badge bg-@statusColor">@statusText</span>
+                                                </div>
+                                                <div class="fw-semibold text-dark">
+                                                    @finding.Description
+                                                </div>
+                                                <div class="mt-1 d-flex flex-wrap gap-3">
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-clock me-1"></i>
+                                                        Identified: @finding.IdentifiedAt.ToString("dd MMM yyyy HH:mm")
+                                                    </small>
+                                                    @if (!string.IsNullOrEmpty(finding.RegulatoryReference))
+                                                    {
+                                                        <small class="text-muted">
+                                                            <i class="bi bi-book me-1"></i>
+                                                            @finding.RegulatoryReference
+                                                        </small>
+                                                    }
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-tag me-1"></i>
+                                                        Status at check: @finding.TenderStatusAtCheck.ToDisplayName()
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <!-- Optional: small status indicator dot -->
+                                            <div class="ms-3">
+                                                <span class="badge rounded-pill bg-@statusColor" style="width:12px;height:12px;display:inline-block;"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-muted">No findings recorded.</div>
+                    }
+                </div>
+
+                <!-- ACTIONS COLUMN -->
+                <div class="col-md-6">
+                    <h5 class="table-header-brand mb-3">
+                        <i class="bi bi-list-task me-2"></i>
+                        Compliance Actions
+                    </h5>
+                    @if (Model.Actions.Any())
+                    {
+                        <div class="d-flex flex-column gap-3">
+                            @foreach (var action in Model.Actions.OrderByDescending(a => a.ActionDate))
+                            {
+                                var statusBg = action.Status switch
+                                {
+                                    ComplianceActionStatus.Pending => "warning",
+                                    ComplianceActionStatus.Completed => "success",
+                                    ComplianceActionStatus.Failed => "danger",
+                                    ComplianceActionStatus.Overdue => "danger",
+                                    _ => "secondary"
+                                };
+                                var statusText = action.Status.ToDisplayName();
+
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-body py-3 px-4">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                                    <span class="fw-semibold text-dark">@action.ActionType.ToDisplayName()</span>
+                                                    <span class="badge bg-@statusBg">@statusText</span>
+                                                    @if (action.ResponseDueDate.HasValue && action.Status != ComplianceActionStatus.Completed)
+                                                    {
+                                                        var due = action.ResponseDueDate.Value;
+                                                        var isOverdue = due < DateTime.UtcNow;
+                                                        <span class="badge @(isOverdue ? "bg-danger" : "bg-secondary")">
+                                                            @(isOverdue ? "Overdue" : "Due") @due.ToString("dd MMM")
+                                                        </span>
+                                                    }
+                                                </div>
+                                                <div class="mt-1 d-flex flex-wrap gap-3">
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-calendar3 me-1"></i>
+                                                        Actioned: @action.ActionDate.ToString("dd MMM yyyy HH:mm")
+                                                    </small>
+                                                    @if (action.ResponseDueDate.HasValue)
+                                                    {
+                                                        <small class="text-muted">
+                                                            <i class="bi bi-hourglass-split me-1"></i>
+                                                            Due: @action.ResponseDueDate.Value.ToString("dd MMM yyyy HH:mm")
+                                                        </small>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(action.Comments))
+                                                    {
+                                                        <small class="text-muted">
+                                                            <i class="bi bi-chat-left-text me-1"></i>
+                                                            @action.Comments
+                                                        </small>
+                                                    }
+                                                </div>
+                                            </div>
+                                            <!-- Status indicator dot -->
+                                            <div class="ms-3">
+                                                <span class="badge rounded-pill bg-@statusBg" style="width:12px;height:12px;display:inline-block;"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-muted">No actions recorded.</div>
+                    }
+                </div>
+
+            </div>
 
             <hr />
 
+            <!-- ========================================================== -->
+            <!-- CORRESPONDENCE HISTORY -->
+            <!-- ========================================================== -->
             <div class="row">
-
                 <div class="col-lg-12">
 
                     <h5 class="table-header-brand mb-3">
@@ -220,43 +413,115 @@ else
                                 {
                                     <tr>
 
-                                        <td>@letter.LetterNumber</td>
-
+                                        <!-- Number -->
                                         <td>
-                                            @(letter.LetterNumber == 1
-                                                ? "Instruction"
-                                                : $"Reminder {letter.LetterNumber - 1}")
+                                            @letter.LetterNumber
                                         </td>
 
+                                        <!-- Correspondence Type -->
                                         <td>
+                                            @switch (letter.Type)
+                                            {
+                                                case LetterType.Instruction:
+                                                    <span class="badge bg-primary">
+                                                        <i class="bi bi-envelope me-1"></i>
+                                                        Instructional Letter
+                                                    </span>
+                                                    break;
 
+                                                case LetterType.ContraventionNotice:
+                                                    <span class="badge bg-danger">
+                                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                                        Contravention Notice
+                                                    </span>
+                                                    break;
+
+                                                case LetterType.Erratum:
+                                                    <span class="badge bg-warning text-dark">
+                                                        <i class="bi bi-pencil-square me-1"></i>
+                                                        Erratum
+                                                    </span>
+                                                    break;
+
+                                                default:
+                                                    <span class="badge bg-secondary">
+                                                        @letter.Type
+                                                    </span>
+                                                    break;
+                                            }
+                                        </td>
+
+                                        <!-- Recipient -->
+                                        <td>
                                             <div class="fw-semibold">
                                                 @letter.RecipientName
                                             </div>
 
-                                            <small class="text-muted">
-                                                @letter.RecipientEmail
-                                            </small>
-
-                                        </td>
-
-                                        <td>@letter.SentOn.ToString("dd MMM yyyy HH:mm")</td>
-
-                                        <td>@letter.ResponseDueOn.ToString("dd MMM yyyy HH:mm")</td>
-
-                                        <td>
-
-                                            @if (letter.RespondedOn.HasValue)
+                                            @if (!string.IsNullOrWhiteSpace(letter.RecipientEmail))
                                             {
-                                                <span class="badge bg-secondary">Responded</span>
-                                            }
-                                            else if (letter.ResponseDueOn < DateTime.UtcNow)
-                                            {
-                                                <span class="badge bg-danger">Overdue</span>
+                                                <small class="text-muted">
+                                                    @letter.RecipientEmail
+                                                </small>
                                             }
                                             else
                                             {
-                                                <span class="badge bg-secondary-subtle text-dark">Awaiting</span>
+                                                <small class="text-muted">
+                                                    No email recorded
+                                                </small>
+                                            }
+                                        </td>
+
+                                        <!-- Sent -->
+                                        <td>
+                                            <div>
+                                                @letter.SentOn.ToString("dd MMM yyyy HH:mm")
+                                            </div>
+                                        </td>
+
+                                        <!-- Due -->
+                                        <td>
+                                            @if (letter.Type == LetterType.Erratum)
+                                            {
+                                                <span class="text-muted">
+                                                    N/A
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                @letter.ResponseDueOn.ToString("dd MMM yyyy HH:mm")
+                                            }
+                                        </td>
+
+                                        <!-- Status -->
+                                        <td>
+
+                                            @if (letter.Type == LetterType.Erratum)
+                                            {
+                                                <span class="badge bg-secondary">
+                                                    <i class="bi bi-check-circle me-1"></i>
+                                                    Issued
+                                                </span>
+                                            }
+                                            else if (letter.RespondedOn.HasValue)
+                                            {
+                                                <span class="badge bg-success">
+                                                    <i class="bi bi-check-circle me-1"></i>
+                                                    Responded
+                                                </span>
+                                            }
+                                            else if (letter.ResponseDueOn < DateTime.UtcNow)
+                                            {
+                                                <span class="badge bg-danger">
+                                                    <i class="bi bi-exclamation-circle me-1"></i>
+                                                    Overdue
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary-subtle text-dark">
+                                                    <i class="bi bi-hourglass-split me-1"></i>
+                                                    Awaiting
+                                                </span>
                                             }
 
                                         </td>
@@ -267,68 +532,89 @@ else
                             else
                             {
                                 <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
 
-                                    <td colspan="6" class="text-center text-muted">
+                                        <i class="bi bi-envelope-paper fs-4 d-block mb-2"></i>
+
                                         No correspondence has been sent.
 
                                     </td>
-
                                 </tr>
                             }
-
                         </tbody>
 
                     </table>
 
-                    <div class="mt-4">
-
-                        <h5 class="table-header-brand mb-3">
-                            <i class="bi bi-journal-text me-2"></i>
-                            Case Notes
-                        </h5>
-
-                        @if (Model.Notes.Any())
-                        {
-                            <div class="timeline">
-
-                                @foreach (var note in Model.Notes.OrderByDescending(x => x.CreatedOn))
-                                {
-                                    <div class="card mb-2">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between">
-                                                <span class="fw-semibold">
-                                                    <i class="bi bi-chat-left-text me-2 text-secondary"></i>
-                                                    Note
-                                                </span>
-
-                                                <small class="text-muted">
-                                                    @note.CreatedOn.ToString("dd MMM yyyy HH:mm")
-                                                </small>
-                                            </div>
-
-                                            <p class="mb-0 mt-2">
-                                                @note.Note
-                                            </p>
-
-                                        </div>
-
-                                    </div>
-                                }
-
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="text-center text-muted">
-                                No notes have been added.
-                            </div>
-                        }
-
-                    </div>
                 </div>
+            </div>
 
+            <hr />
+
+            <!-- ========================================================== -->
+            <!-- CASE NOTES -->
+            <!-- ========================================================== -->
+            <div class="row">
+                <div class="col-lg-12">
+
+                    <h5 class="table-header-brand mb-3">
+                        <i class="bi bi-journal-text me-2"></i>
+                        Case Notes
+                    </h5>
+
+                    @if (Model.Notes.Any())
+                    {
+                        <div class="notes-timeline">
+                            @foreach (var note in Model.Notes.OrderByDescending(x => x.CreatedOn))
+                            {
+                                <div class="note-entry d-flex">
+                                    <!-- Timeline dot + line -->
+                                    <div class="note-line">
+                                        <div class="note-dot"></div>
+                                        @if (note != Model.Notes.Last())
+                                        {
+                                            <div class="note-line-vertical"></div>
+                                        }
+                                    </div>
+
+                                    <!-- Note card -->
+                                    <div class="note-content flex-grow-1 ps-3">
+                                        <div class="card border-0 shadow-sm mb-3 note-card">
+                                            <div class="card-body py-2 px-3">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <span class="fw-semibold text-secondary">
+                                                        <i class="bi bi-person me-1"></i>
+                                                        System
+                                                    </span>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-clock me-1"></i>
+                                                        @note.CreatedOn.ToString("dd MMM yyyy HH:mm")
+                                                    </small>
+                                                </div>
+                                                <p class="mb-0 mt-1 text-dark" style="white-space: pre-line;">
+                                                    @note.Note
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-journal-text fs-4 d-block mb-2"></i>
+                            No notes have been added.
+                        </div>
+                    }
+
+                </div>
             </div>
         </div>
+
+        <!-- ========================================================== -->
+        <!-- RIGHT COLUMN – ACTIVITY TIMELINE -->
+        <!-- ========================================================== -->
         <div class="col-3">
             <div class="col-lg-12">
 
@@ -411,7 +697,10 @@ else
             </div>
         </div>
     </div>
-        
+
+    <!-- ========================================================== -->
+    <!-- ASSIGN AGENT MODAL -->
+    <!-- ========================================================== -->
     @if (ShowAssignAgentModal)
     {
         <div class="modal fade show d-block"
@@ -519,6 +808,9 @@ else
         </div>
     }
 
+    <!-- ========================================================== -->
+    <!-- CAPTURE RESPONSE MODAL -->
+    <!-- ========================================================== -->
     @if (ShowCaptureResponseModal)
     {
         <div class="modal fade show d-block"
@@ -602,8 +894,6 @@ else
                             Cancel
                         </button>
 
-                        <!-- THIS is the Save button -->
-
                         <button class="btn btn-sm btn-cidb-submit"
                                 @onclick="SaveResponse">
 
@@ -622,7 +912,10 @@ else
 }
 
 @code {
+    private bool CanAssignAgent;
+    private bool CanManageCorrespondence;
     private CaptureResponseModel Response = new();
+    private NextCorrespondenceModel? NextCorrespondence;
     public List<CaseNoteModel> Notes { get; set; } = [];
 
     private bool ShowCaptureResponseModal;
@@ -649,7 +942,39 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var authenticationState =
+        await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var user = authenticationState.User;
+
+        CanAssignAgent =
+            (await AuthorizationService.AuthorizeAsync(
+                user,
+                "CaseAssignment")).Succeeded;
+
+        CanManageCorrespondence =
+            (await AuthorizationService.AuthorizeAsync(
+                user,
+                "Correspondence")).Succeeded;
+
+        await RefreshCase();
+
+        if (Model != null)
+        {
+            NextCorrespondence =
+                await ComplianceService.GetNextCorrespondenceAsync(Id);
+        }
+    }
+
+    private async Task RefreshCase()
+    {
         Model = await Repository.GetDetailAsync(Id);
+
+        if (Model != null)
+        {
+            NextCorrespondence =
+                await ComplianceService.GetNextCorrespondenceAsync(Id);
+        }
     }
 
     private async Task OpenAssignAgent()
@@ -689,94 +1014,89 @@ else
             {
                 Id = Guid.NewGuid(),
                 ComplianceCaseId = Model.Id,
-                Comment = $"Agent assigned. Priority: {SelectedPriority}. " +
-                       $"Comment: {AssignmentComments}",
+                Comment = $"Agent assigned. Priority: {SelectedPriority}.{Environment.NewLine}Comment: {AssignmentComments}",
                 CreatedOn = DateTime.UtcNow
             };
-
             await CaseNoteRepository.AddAsync(note);
         }
 
         Model = await Repository.GetDetailAsync(Id);
     }
 
-    private async Task SendInstructionLetter()
+    private async Task GenerateNextCorrespondence()
     {
         if (Model == null)
             return;
 
-        if (string.IsNullOrWhiteSpace(Model.Case.Agent))
-            throw new InvalidOperationException("Please assign an agent before sending the instruction letter.");
-
-        var settings = await SystemSettingService.GetAsync();
-
-        var request = new SendInstructionLetterModel
-        {
-            ComplianceCaseId = Model.Id,
-
-            RecipientName = Model.Tender.Employer,
-            RecipientEmail = Model.Case.Agent,
-
-            TenderNumber = Model.Tender.TenderNumber,
-            TenderTitle = Model.Tender.Title,
-            EmployerName = Model.Tender.Employer,
-            ClosingDate = Model.Tender.ClosingDate,
-            CompanyName = Model.Tender.Employer,
-            ContactPerson = Model.Case.Agent,
-
-            ResponseDueOn = DateTime.UtcNow.AddHours(settings.ResponseDueHours),
-
-            HeaderImagePath = Model.Case.HeaderImagePath,
-            SignatureImagePath = Model.Case.SignatureImagePath,
-            FooterText = Model.Case.FooterText
-        };
-
-        await CorrespondenceService.SendInstructionLetterAsync(request);
-
-        Model = await Repository.GetDetailAsync(Id);
-    }
-
-    private async Task SendReminderLetter()
-    {
-        if (Model == null)
+        // Documents may only be generated once an agent
+        // has been assigned to the compliance case.
+        if (Model.Case.AgentId == null)
             return;
 
-        var latestLetter = Model.Letters
-            .OrderByDescending(x => x.LetterNumber)
-            .FirstOrDefault();
+        if (NextCorrespondence == null)
+            return;
 
-        if (latestLetter == null)
-            throw new InvalidOperationException("No instruction letter exists.");
+        if (!NextCorrespondence.CanGenerate ||
+            !NextCorrespondence.Type.HasValue)
+            return;
 
-        var settings = await SystemSettingService.GetAsync();
+        byte[] pdf;
 
-        var request = new SendReminderLetterModel
+        switch (NextCorrespondence.Type.Value)
         {
-            ComplianceCaseId = Model.Id,
+            case CorrespondenceTemplateType.Erratum:
 
-            CaseLetterId = latestLetter.Id,
+                pdf = await CorrespondenceService
+                    .GenerateErratumAsync(Model.Id);
 
-            RecipientName = latestLetter.RecipientName,
-            RecipientEmail = latestLetter.RecipientEmail,
+                break;
 
-            TenderNumber = Model.Tender.TenderNumber,
-            TenderTitle = Model.Tender.Title,
-            EmployerName = Model.Tender.Employer,
-            ClosingDate = Model.Tender.ClosingDate,
+            case CorrespondenceTemplateType.InstructionalLetter:
 
-            OriginalSentOn = latestLetter.SentOn,
-            ResponseDueOn = DateTime.UtcNow.AddHours(settings.ReminderDelayHours),
+                pdf = await CorrespondenceService
+                    .GenerateInstructionalLetterAsync(Model.Id);
 
-            ReminderNumber = Model.Letters.Count(x => x.LetterNumber > 1),
+                break;
 
-            HeaderImagePath = Model.Case.HeaderImagePath,
-            SignatureImagePath = Model.Case.SignatureImagePath,
-            FooterText = Model.Case.FooterText
+            case CorrespondenceTemplateType.ContraventionNotice:
+
+                pdf = await CorrespondenceService
+                    .GenerateContraventionNoticeAsync(Model.Id);
+
+                break;
+
+            default:
+
+                throw new InvalidOperationException(
+                    "Unsupported correspondence type.");
+        }
+
+        var fileName = NextCorrespondence.Type.Value switch
+        {
+            CorrespondenceTemplateType.InstructionalLetter =>
+                $"InstructionalLetter-{Model.Tender.TenderNumber}.pdf",
+
+            CorrespondenceTemplateType.ContraventionNotice =>
+                $"ContraventionNotice-{Model.Tender.TenderNumber}.pdf",
+
+            CorrespondenceTemplateType.Erratum =>
+                $"Erratum-{Model.Tender.TenderNumber}.pdf",
+
+            _ =>
+                $"Correspondence-{Model.Tender.TenderNumber}.pdf"
         };
 
-        await CorrespondenceService.SendReminderLetterAsync(request);
+        using var stream = new MemoryStream(pdf);
 
-        Model = await Repository.GetDetailAsync(Id);
+        using var streamRef =
+            new DotNetStreamReference(stream);
+
+        await JS.InvokeVoidAsync(
+            "downloadFileFromStream",
+            fileName,
+            streamRef);
+
+        await RefreshCase();
     }
 
     private void OpenCaptureResponse()
@@ -802,7 +1122,7 @@ else
 
     private async Task SaveResponse()
     {
-        await CorrespondenceService.CaptureResponseAsync(Response);
+        //await CorrespondenceService.CaptureResponseAsync(Response);
 
         if (!string.IsNullOrWhiteSpace(Response.Comments))
         {

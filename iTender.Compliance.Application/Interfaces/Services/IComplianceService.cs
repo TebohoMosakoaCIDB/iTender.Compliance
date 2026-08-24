@@ -24,6 +24,8 @@ namespace iTender.Compliance.Application.Interfaces.Services
 
         Task CloseCaseAsync(
             Guid complianceCaseId,
-            CancellationToken cancellationToken = default);        
+            CancellationToken cancellationToken = default);
+
+        Task<NextCorrespondenceModel?> GetNextCorrespondenceAsync(Guid complianceCaseId);
     }
 }

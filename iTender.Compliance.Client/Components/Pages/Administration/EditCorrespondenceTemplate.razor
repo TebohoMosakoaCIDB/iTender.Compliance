@@ -1,0 +1,628 @@
+﻿@page "/correspondence/edit/{Id:guid}"
+
+@rendermode InteractiveServer
+
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+
+@attribute [Authorize(Policy = "Administration")]
+
+@inject ICorrespondenceTemplateService TemplateService
+@inject NavigationManager Navigation
+
+<PageTitle>Templates | CRCIP Monitor</PageTitle>
+
+<div class="container-fluid">
+
+    <!-- ========================================================= -->
+    <!-- HEADER -->
+    <!-- ========================================================= -->
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-pencil-square me-2 text-secondary"></i>
+                Edit Correspondence Template
+            </h2>
+
+            <small class="text-muted">
+                Update and manage the correspondence template.
+            </small>
+        </div>
+
+        <button class="btn btn-cidb-submit-outline"
+                type="button"
+                @onclick="Cancel">
+
+            <i class="bi bi-arrow-left me-2"></i>
+            Back
+        </button>
+
+    </div>
+
+
+    <!-- ========================================================= -->
+    <!-- LOADING -->
+    <!-- ========================================================= -->
+    @if (IsLoading)
+    {
+        <div class="card shadow-sm">
+
+            <div class="card-body text-center py-5">
+
+                <div class="spinner-border text-secondary mb-3"></div>
+
+                <div class="text-muted">
+                    Loading template...
+                </div>
+
+            </div>
+
+        </div>
+    }
+    else if (Template == null)
+    {
+        <div class="alert alert-danger">
+
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+
+            Correspondence template could not be found.
+
+        </div>
+    }
+    else
+    {
+        <!-- ===================================================== -->
+        <!-- ERROR -->
+        <!-- ===================================================== -->
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="alert alert-danger">
+
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+
+                @ErrorMessage
+
+            </div>
+        }
+
+
+        <!-- ===================================================== -->
+        <!-- SUCCESS -->
+        <!-- ===================================================== -->
+        @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+        {
+            <div class="alert alert-success">
+
+                <i class="bi bi-check-circle-fill me-2"></i>
+
+                @SuccessMessage
+
+            </div>
+        }
+
+
+        <!-- ===================================================== -->
+        <!-- FORM -->
+        <!-- ===================================================== -->
+
+        <EditForm Model="Template"
+                  OnValidSubmit="SaveAsync">
+
+            <DataAnnotationsValidator />
+
+            <div class="row g-4">
+
+                <!-- ================================================= -->
+                <!-- TEMPLATE DETAILS -->
+                <!-- ================================================= -->
+
+                <div class="col-lg-8">
+
+                    <div class="card shadow-sm">
+
+                        <div class="card-header bg-white">
+
+                            <strong>
+                                <i class="bi bi-file-earmark-text me-2"></i>
+                                Template Details
+                            </strong>
+
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <!-- NAME -->
+
+                                <div class="col-md-8">
+
+                                    <label class="form-label">
+                                        Template Name
+                                    </label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="Template.Name" />
+
+                                    <ValidationMessage For="@(() => Template.Name)" />
+
+                                </div>
+
+
+                                <!-- TYPE -->
+
+                                <div class="col-md-4">
+
+                                    <label class="form-label">
+                                        Template Type
+                                    </label>
+
+                                    <InputSelect class="form-select"
+                                                 @bind-Value="Template.Type">
+
+                                        @foreach (var type in Enum.GetValues<CorrespondenceTemplateType>())
+                                        {
+                                            <option value="@type">
+                                                @GetTemplateTypeName(type)
+                                            </option>
+                                        }
+
+                                    </InputSelect>
+
+                                </div>
+
+
+                                <!-- STATUS -->
+
+                                <div class="col-md-6">
+
+                                    <label class="form-label">
+                                        Status
+                                    </label>
+
+                                    <InputSelect class="form-select"
+                                                 @bind-Value="Template.Status">
+
+                                        @foreach (var status in Enum.GetValues<CorrespondenceTemplateStatus>())
+                                        {
+                                            <option value="@status">
+                                                @GetStatusName(status)
+                                            </option>
+                                        }
+
+                                    </InputSelect>
+
+                                </div>
+
+
+                                <!-- VERSION -->
+
+                                <div class="col-md-6">
+
+                                    <label class="form-label">
+                                        Version
+                                    </label>
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Template.Version" />
+
+                                </div>
+
+
+                                <!-- SUBJECT -->
+
+                                <div class="col-12">
+
+                                    <label class="form-label">
+                                        Subject
+                                    </label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="Template.Subject" />
+
+                                    <div class="form-text">
+                                        You can use placeholders such as
+                                        <code>{TenderNumber}</code>,
+                                        <code>{CompanyName}</code> and
+                                        <code>{ResponseDueDate}</code>.
+                                    </div>
+
+                                </div>
+
+
+                                <!-- BODY -->
+
+                                <div class="col-12">
+
+                                    <label class="form-label">
+                                        Body
+                                    </label>
+
+                                    <InputTextArea class="form-control"
+                                                   rows="18"
+                                                   @bind-Value="Template.Body" />
+
+                                    <div class="form-text">
+                                        Use the available placeholders when
+                                        generating correspondence.
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- ================================================= -->
+                <!-- TEMPLATE INFORMATION -->
+                <!-- ================================================= -->
+
+                <div class="col-lg-4">
+
+                    <div class="card shadow-sm mb-4">
+
+                        <div class="card-header bg-white">
+
+                            <strong>
+                                <i class="bi bi-info-circle me-2"></i>
+                                Template Information
+                            </strong>
+
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="mb-3">
+
+                                <small class="text-muted d-block">
+                                    Created
+                                </small>
+
+                                <strong>
+                                    @Template.CreatedOn.ToString("dd MMM yyyy HH:mm")
+                                </strong>
+
+                            </div>
+
+
+                            @if (Template.UpdatedOn.HasValue)
+                            {
+                                <div class="mb-3">
+
+                                    <small class="text-muted d-block">
+                                        Last Updated
+                                    </small>
+
+                                    <strong>
+                                        @Template.UpdatedOn.Value.ToString("dd MMM yyyy HH:mm")
+                                    </strong>
+
+                                </div>
+                            }
+
+
+                            <div class="mb-3">
+
+                                <small class="text-muted d-block">
+                                    Created By
+                                </small>
+
+                                <strong>
+                                    @(string.IsNullOrWhiteSpace(Template.CreatedBy)
+                                        ? "-"
+                                        : Template.CreatedBy)
+                                </strong>
+
+                            </div>
+
+
+                            @if (!string.IsNullOrWhiteSpace(Template.ApprovedBy))
+                            {
+                                <div class="mb-3">
+
+                                    <small class="text-muted d-block">
+                                        Approved By
+                                    </small>
+
+                                    <strong>
+                                        @Template.ApprovedBy
+                                    </strong>
+
+                                </div>
+                            }
+
+
+                            @if (Template.ApprovedOn.HasValue)
+                            {
+                                <div>
+
+                                    <small class="text-muted d-block">
+                                        Approved On
+                                    </small>
+
+                                    <strong>
+                                        @Template.ApprovedOn.Value.ToString("dd MMM yyyy HH:mm")
+                                    </strong>
+
+                                </div>
+                            }
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- ================================================= -->
+                    <!-- ACTIVE -->
+                    <!-- ================================================= -->
+
+                    <div class="card shadow-sm">
+
+                        <div class="card-header bg-white">
+
+                            <strong>
+                                <i class="bi bi-toggle-on me-2"></i>
+                                Availability
+                            </strong>
+
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="form-check form-switch">
+
+                                <InputCheckbox class="form-check-input"
+                                               @bind-Value="Template.IsActive" />
+
+                                <label class="form-check-label">
+
+                                    <strong>
+                                        Active Template
+                                    </strong>
+
+                                    <div class="small text-muted">
+                                        Active templates can be used when
+                                        generating correspondence.
+                                    </div>
+
+                                </label>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ===================================================== -->
+            <!-- ACTIONS -->
+            <!-- ===================================================== -->
+
+            <div class="card shadow-sm mt-4">
+
+    <div class="card-body d-flex justify-content-end gap-2">
+
+        <button type="button"
+                            class="btn btn-sm btn-secondary"
+                @onclick="Cancel"
+                disabled="@IsSaving">
+
+            <i class="bi bi-x-circle me-2"></i>
+            Cancel
+
+        </button>
+
+        @if (Template.Status == CorrespondenceTemplateStatus.Draft ||
+             Template.Status == CorrespondenceTemplateStatus.PendingApproval)
+        {
+                        <AuthorizeView Policy="Administration">
+                            <Authorized Context="authContext">
+                    <button type="button"
+                                        class="btn btn-sm btn-cidb-submit-outline"
+                            @onclick="ApproveAsync"
+                            disabled="@IsSaving">
+
+                        <i class="bi bi-check-circle me-2"></i>
+                        Approve
+
+                    </button>
+
+                </Authorized>
+            </AuthorizeView>
+        }
+
+        <button type="submit"
+                            class="btn btn-sm btn-cidb-submit"
+                disabled="@IsSaving">
+
+            @if (IsSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+
+                <span>
+                    Saving...
+                </span>
+            }
+            else
+            {
+                <i class="bi bi-check2 me-2"></i>
+
+                <span>
+                    Save Changes
+                </span>
+            }
+
+        </button>
+
+    </div>
+
+</div>
+
+        </EditForm>
+    }
+
+</div>
+
+
+@code {
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private CorrespondenceTemplateModel? Template;
+
+    private bool IsLoading = true;
+
+    private bool IsSaving;
+
+    private string ErrorMessage = string.Empty;
+
+    private string SuccessMessage = string.Empty;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Template = await TemplateService.GetByIdAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+
+    private async Task SaveAsync()
+    {
+        if (Template == null)
+            return;
+
+        IsSaving = true;
+
+        ErrorMessage = string.Empty;
+        SuccessMessage = string.Empty;
+
+        try
+        {
+            Template.UpdatedOn = DateTime.UtcNow;
+
+            await TemplateService.UpdateAsync(Template);
+
+            SuccessMessage =
+                "Correspondence template updated successfully.";
+
+            await Task.Delay(1000);
+
+            Navigation.NavigateTo(
+                "/correspondence");
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ApproveAsync()
+    {
+        if (Template == null)
+            return;
+
+        IsSaving = true;
+
+        ErrorMessage = string.Empty;
+        SuccessMessage = string.Empty;
+        Template.UpdatedOn = DateTime.UtcNow;
+        Template.IsActive = true;
+
+        try
+        {
+            Template.Status =
+                CorrespondenceTemplateStatus.Approved;
+
+            Template.UpdatedOn = DateTime.UtcNow;
+
+            await TemplateService.UpdateAsync(Template);
+
+            SuccessMessage =
+                "Correspondence template approved successfully.";
+
+            await Task.Delay(1000);
+
+            Navigation.NavigateTo("/correspondence");
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo(
+            "/correspondence");
+    }
+
+
+    private static string GetTemplateTypeName(
+        CorrespondenceTemplateType type)
+    {
+        return type switch
+        {
+            CorrespondenceTemplateType.InstructionalLetter =>
+                "Instructional Letter",
+
+            CorrespondenceTemplateType.ContraventionNotice =>
+                "Contravention Notice",
+
+            _ => type.ToString()
+        };
+    }
+
+
+    private static string GetStatusName(
+        CorrespondenceTemplateStatus status)
+    {
+        return status switch
+        {
+            CorrespondenceTemplateStatus.Draft =>
+                "Draft",
+
+            CorrespondenceTemplateStatus.PendingApproval =>
+                "Pending Approval",
+
+            CorrespondenceTemplateStatus.Approved =>
+                "Approved",
+
+            CorrespondenceTemplateStatus.Retired =>
+                "Retired",
+
+            _ => status.ToString()
+        };
+    }
+}

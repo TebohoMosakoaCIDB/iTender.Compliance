@@ -1,260 +1,950 @@
 ﻿@page "/reports"
-@rendermode InteractiveServer
+@using Microsoft.JSInterop
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Enums
+
+@inject IReportExcelService ReportExcelService
+@inject IReportPdfService ReportPdfService
+@inject IReportService ReportService
+@inject NavigationManager Navigation
 @inject IJSRuntime JS
 
+@rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
-@using iTender.Compliance.Application.Interfaces.Services
+@attribute [Authorize(Policy = "Reporting")]
 
-@attribute [Authorize(Policy = "Administration")]
+<PageTitle>Reports | CRCIP Monitor</PageTitle>
 
-@inject IPdfReportService PdfReportService
+<div class="container-fluid px-4">
 
-<PageTitle>Reports</PageTitle>
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
 
-<div class="mb-4">
+        <div>
+            <h2 class="mb-0">
+                <i class="bi bi-bar-chart-line me-2"></i>
+                Reports
+            </h2>
 
-    <h2 class="mb-1">
-        <i class="bi bi-file-earmark-pdf me-2 text-secondary"></i>
-        Reports
-    </h2>
+            <p class="text-muted mb-0">
+                Monitor tender and compliance case activity
+            </p>
+        </div>
 
-    <small class="text-muted">
-        Generate printable compliance and audit reports.
-    </small>
+        <div>
+            <button class="btn btn-sm btn-cidb-submit me-2"
+                    @onclick="GenerateReport"
+                    disabled="@_isGenerating">
+
+                <i class="bi bi-file-earmark-pdf me-1"></i>
+                Generate PDF
+            </button>
+
+            <button class="btn btn-sm btn-cidb-submit-outline"
+                    @onclick="ExportExcel"
+                    disabled="@_isGenerating">
+
+                <i class="bi bi-file-earmark-excel me-1"></i>
+                Export Excel
+            </button>
+        </div>
+
+    </div>
+
+
+    <!-- Report Type -->
+    <div class="row g-3 mb-3">
+
+        <div class="col-md-3">
+            <div class="card h-100 report-type-card @(_selectedReportType == "Daily" ? "border-cidb" : "")"
+                 @onclick="SelectDailyReport">
+
+                <div class="card-body text-center">
+
+                    <i class="bi bi-calendar-day report-icon"></i>
+
+                    <h6 class="mt-2 mb-1">
+                        Daily Report
+                    </h6>
+
+                    <small class="text-muted">
+                        Today's compliance activity
+                    </small>
+
+                </div>
+            </div>
+        </div>
+
+
+        <div class="col-md-3">
+            <div class="card h-100 report-type-card @(_selectedReportType == "Weekly" ? "border-cidb" : "")"
+                 @onclick="SelectWeeklyReport">
+
+                <div class="card-body text-center">
+
+                    <i class="bi bi-calendar-week report-icon"></i>
+
+                    <h6 class="mt-2 mb-1">
+                        Weekly Summary
+                    </h6>
+
+                    <small class="text-muted">
+                        Last 7 days activity
+                    </small>
+
+                </div>
+            </div>
+        </div>
+
+
+        <div class="col-md-3">
+            <div class="card h-100 report-type-card @(_selectedReportType == "Monthly" ? "border-cidb" : "")"
+                 @onclick="SelectMonthlyReport">
+
+                <div class="card-body text-center">
+
+                    <i class="bi bi-calendar-month report-icon"></i>
+
+                    <h6 class="mt-2 mb-1">
+                        Monthly Report
+                    </h6>
+
+                    <small class="text-muted">
+                        Current month's activity
+                    </small>
+
+                </div>
+            </div>
+        </div>
+
+
+        <div class="col-md-3">
+            <div class="card h-100 report-type-card @(_selectedReportType == "Custom" ? "border-cidb" : "")"
+                 @onclick="SelectCustomReport">
+
+                <div class="card-body text-center">
+
+                    <i class="bi bi-calendar-range report-icon"></i>
+
+                    <h6 class="mt-2 mb-1">
+                        Custom Report
+                    </h6>
+
+                    <small class="text-muted">
+                        Select a date range
+                    </small>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- Date Range -->
+    <div class="card mb-3">
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+
+                    <label class="form-label">
+                        From Date
+                    </label>
+
+                    <input type="date"
+                           class="form-control"
+                           @bind="_fromDate" />
+
+                </div>
+
+
+                <div class="col-md-4">
+
+                    <label class="form-label">
+                        To Date
+                    </label>
+
+                    <input type="date"
+                           class="form-control"
+                           @bind="_toDate" />
+
+                </div>
+
+
+                <div class="col-md-4 d-flex align-items-end">
+
+                    <button class="btn btn-cidb-submit w-100"
+                            @onclick="RefreshReport"
+                            disabled="@_isLoading">
+
+                        <i class="bi bi-arrow-clockwise me-1"></i>
+
+                        Refresh Report
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+
+            <div class="spinner-border text-primary"
+                 role="status">
+
+                <span class="visually-hidden">
+                    Loading...
+                </span>
+
+            </div>
+
+            <p class="mt-2 text-muted">
+                Generating report...
+            </p>
+
+        </div>
+    }
+    else if (_reportSummary == null)
+    {
+        <div class="card">
+
+            <div class="card-body text-center py-5">
+
+                <i class="bi bi-bar-chart-line display-4 text-muted"></i>
+
+                <h5 class="mt-3">
+                    No Report Data
+                </h5>
+
+                <p class="text-muted">
+                    Select a date range and refresh the report.
+                </p>
+
+            </div>
+
+        </div>
+    }
+    else
+    {
+        <!-- ========================= -->
+        <!-- SUMMARY CARDS -->
+        <!-- ========================= -->
+
+        <div class="row g-3 mb-3">
+
+            <!-- Total Tenders -->
+            <div class="col-xl-3 col-md-6">
+
+                <div class="card dashboard-card h-100">
+
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <div>
+                                <div class="text-muted small">
+                                    Total Tenders
+                                </div>
+
+                                <div class="display-6 fw-bold text-primary">
+                                    @_reportSummary.TotalTenders
+                                </div>
+                            </div>
+
+                            <i class="bi bi-file-earmark-text display-5 text-primary opacity-50"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Total Cases -->
+            <div class="col-xl-3 col-md-6">
+
+                <div class="card dashboard-card h-100">
+
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <div>
+                                <div class="text-muted small">
+                                    Compliance Cases
+                                </div>
+
+                                <div class="display-6 fw-bold text-warning">
+                                    @_reportSummary.TotalCases
+                                </div>
+                            </div>
+
+                            <i class="bi bi-folder2-open display-5 text-warning opacity-50"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Non Compliant -->
+            <div class="col-xl-3 col-md-6">
+
+                <div class="card dashboard-card h-100">
+
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <div>
+                                <div class="text-muted small">
+                                    Non-Compliant
+                                </div>
+
+                                <div class="display-6 fw-bold text-danger">
+                                    @_reportSummary.NonCompliant
+                                </div>
+                            </div>
+
+                            <i class="bi bi-exclamation-triangle display-5 text-danger opacity-50"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Compliance Rate -->
+            <div class="col-xl-3 col-md-6">
+
+                <div class="card dashboard-card h-100">
+
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <div>
+                                <div class="text-muted small">
+                                    Compliance Rate
+                                </div>
+
+                                <div class="display-6 fw-bold text-success">
+                                    @_reportSummary.ComplianceRate%
+                                </div>
+                            </div>
+
+                            <i class="bi bi-check-circle display-5 text-success opacity-50"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- ========================= -->
+        <!-- CASE ACTIVITY -->
+        <!-- ========================= -->
+
+        <div class="row g-3 mb-3">
+
+            <div class="col-md-3">
+
+                <div class="card h-100">
+
+                    <div class="card-body text-center">
+
+                        <div class="text-danger display-6 fw-bold">
+                            @_reportSummary.CasesOpened
+                        </div>
+
+                        <div class="text-muted">
+                            Cases Opened
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="card h-100">
+
+                    <div class="card-body text-center">
+
+                        <div class="text-success display-6 fw-bold">
+                            @_reportSummary.CasesClosed
+                        </div>
+
+                        <div class="text-muted">
+                            Cases Closed
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="card h-100">
+
+                    <div class="card-body text-center">
+
+                        <div class="text-warning display-6 fw-bold">
+                            @_reportSummary.CasesInProgress
+                        </div>
+
+                        <div class="text-muted">
+                            In Progress
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="card h-100">
+
+                    <div class="card-body text-center">
+
+                        <div class="text-danger display-6 fw-bold">
+                            @_reportSummary.CasesEscalated
+                        </div>
+
+                        <div class="text-muted">
+                            Escalated
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- ========================= -->
+        <!-- BREAKDOWNS -->
+        <!-- ========================= -->
+
+        <div class="row g-3 mb-3">
+
+            <!-- Case Status -->
+            <div class="col-lg-6">
+
+                <div class="card h-100">
+
+                    <div class="card-header">
+
+                        <h6 class="mb-0">
+                            <i class="bi bi-list-check me-2"></i>
+                            Case Status
+                        </h6>
+
+                    </div>
+
+                    <div class="card-body">
+
+                        @if (_reportSummary.StatusBreakdown.Any())
+                        {
+                            @foreach (var status in _reportSummary.StatusBreakdown)
+                            {
+                                <div class="mb-3">
+
+                                    <div class="d-flex justify-content-between">
+
+                                        <span>
+                                            @status.Status
+                                        </span>
+
+                                        <span class="fw-bold">
+                                            @status.Count
+                                            <span class="text-muted small">
+                                                (@status.Percentage%)
+                                            </span>
+                                        </span>
+
+                                    </div>
+
+                                    <div class="progress"
+                                         style="height: 8px;">
+
+                                        <div class="progress-bar"
+                                             style="width: @status.Percentage%">
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-3">
+                                No case status data available.
+                            </div>
+                        }
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Compliance Outcomes -->
+            <div class="col-lg-6">
+
+                <div class="card h-100">
+
+                    <div class="card-header">
+
+                        <h6 class="mb-0">
+                            <i class="bi bi-clipboard-check me-2"></i>
+                            Compliance Outcomes
+                        </h6>
+
+                    </div>
+
+                    <div class="card-body">
+
+                        @if (_reportSummary.OutcomeBreakdown.Any())
+                        {
+                            @foreach (var outcome in _reportSummary.OutcomeBreakdown)
+                            {
+                                <div class="mb-3">
+
+                                    <div class="d-flex justify-content-between">
+
+                                        <span>
+                                            @outcome.Outcome
+                                        </span>
+
+                                        <span class="fw-bold">
+                                            @outcome.Count
+                                            <span class="text-muted small">
+                                                (@outcome.Percentage%)
+                                            </span>
+                                        </span>
+
+                                    </div>
+
+                                    <div class="progress"
+                                         style="height: 8px;">
+
+                                        <div class="progress-bar"
+                                             style="width: @outcome.Percentage%">
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-3">
+                                No compliance outcome data available.
+                            </div>
+                        }
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- ========================= -->
+        <!-- NON-COMPLIANT TENDERS -->
+        <!-- ========================= -->
+
+        <div class="card mb-3">
+
+            <div class="card-header d-flex justify-content-between align-items-center">
+
+                <h6 class="mb-0">
+                    <i class="bi bi-exclamation-octagon me-2"></i>
+                    Recent Non-Compliant Tenders
+                </h6>
+
+                <span class="badge bg-danger">
+                    @_nonCompliantTenders.Count
+                </span>
+
+            </div>
+
+
+            <div class="card-body p-0">
+
+                @if (_nonCompliantTenders.Any())
+                {
+                    <div class="table-responsive">
+
+                        <table class="table table-hover mb-0">
+
+                            <thead>
+
+                                <tr>
+                                    <th>Tender Number</th>
+                                    <th>Client</th>
+                                    <th>Advertised Date</th>
+                                    <th>Priority</th>
+                                    <th>Case Status</th>
+                                    <th>Outcome</th>
+                                </tr>
+
+                            </thead>
+
+                            <tbody>
+
+                                @foreach (var tender in _nonCompliantTenders)
+                                {
+                                    <tr>
+
+                                        <td>
+                                            <a href="javascript:void(0)"
+                                               @onclick="() => ViewTender(tender.TenderId)"
+                                               class="text-primary fw-semibold">
+
+                                                @tender.TenderNumber
+
+                                            </a>
+                                        </td>
+
+                                        <td>
+                                            @tender.ClientName
+                                        </td>
+
+                                        <td>
+                                            @tender.AdvertisedDate.ToString("yyyy-MM-dd")
+                                        </td>
+
+                                        <td>
+
+                                            <span class="badge @GetPriorityClass(tender.Priority)">
+                                                @tender.Priority
+                                            </span>
+
+                                        </td>
+
+                                        <td>
+                                            @tender.Status
+                                        </td>
+
+                                        <td>
+
+                                            <span class="badge bg-danger">
+                                                @tender.Outcome
+                                            </span>
+
+                                        </td>
+
+                                    </tr>
+                                }
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center text-muted py-5">
+
+                        <i class="bi bi-check-circle display-5 text-success"></i>
+
+                        <p class="mt-2 mb-0">
+                            No non-compliant tenders found for this period.
+                        </p>
+
+                    </div>
+                }
+
+            </div>
+
+        </div>
+
+
+        <!-- ========================= -->
+        <!-- REPORT PERIOD -->
+        <!-- ========================= -->
+
+        <div class="text-muted small mb-4">
+
+            <i class="bi bi-info-circle me-1"></i>
+
+            Report period:
+            <strong>@_fromDate.ToString("yyyy-MM-dd")</strong>
+            to
+            <strong>@_toDate.ToString("yyyy-MM-dd")</strong>
+
+        </div>
+    }
 
 </div>
 
-<div class="row g-4">
 
-    <div class="col-md-6">
+<style>
 
-        <div class="card shadow-sm h-100">
-
-            <div class="card-body">
-
-                <h5>Compliance Summary</h5>
-
-                <p class="text-muted">
-                    Overall compliance statistics and case totals.
-                </p>
-
-                <button class="btn btn-cidb-submit"
-                        @onclick="GenerateComplianceSummary">
-
-                    <i class="bi bi-file-earmark-pdf me-2"></i>
-
-                    Generate PDF
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="col-md-6">
-
-        <div class="card shadow-sm h-100">
-
-            <div class="card-body">
-
-                <h5>Outstanding Cases</h5>
-
-                <p class="text-muted">
-                    Cases still requiring attention.
-                </p>
-
-                <button class="btn btn-cidb-submit"
-                        @onclick="GenerateOutstandingCases">
-
-                    <i class="bi bi-file-earmark-pdf me-2"></i>
-
-                    Generate PDF
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="col-md-6">
-
-        <div class="card shadow-sm h-100">
-
-            <div class="card-body">
-
-                <h5>Agent Performance</h5>
-
-                <p class="text-muted">
-                    Workload and completion statistics by agent.
-                </p>
-
-                <button class="btn btn-cidb-submit"
-                        @onclick="GenerateAgentPerformance">
-
-                    <i class="bi bi-file-earmark-pdf me-2"></i>
-
-                    Generate PDF
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="col-md-6">
-
-        <div class="card shadow-sm h-100">
-
-            <div class="card-body">
-
-                <h5>Synchronization History</h5>
-
-                <p class="text-muted">
-                    Tender synchronization history and statistics.
-                </p>
-
-                <button class="btn btn-cidb-submit"
-                        @onclick="GenerateSynchronizationHistory">
-
-                    <i class="bi bi-file-earmark-pdf me-2"></i>
-
-                    Generate PDF
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="col-md-6">
-
-        <div class="card shadow-sm h-100">
-
-            <div class="card-body">
-
-                <h5>Letter History</h5>
-
-                <p class="text-muted">
-                    Instruction and reminder letters issued.
-                </p>
-
-                <button class="btn btn-cidb-submit"
-                        @onclick="GenerateLetterHistory">
-
-                    <i class="bi bi-file-earmark-pdf me-2"></i>
-
-                    Generate PDF
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="col-md-6">
-
-        <div class="card shadow-sm h-100">
-
-            <div class="card-body">
-
-                <h5>Audit History</h5>
-
-                <p class="text-muted">
-                    Complete audit trail of user activity.
-                </p>
-
-                <button class="btn btn-cidb-submit"
-                        @onclick="GenerateAuditHistory">
-
-                    <i class="bi bi-file-earmark-pdf me-2"></i>
-
-                    Generate PDF
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-@if (!string.IsNullOrWhiteSpace(Message))
-{
-    <div class="alert alert-info mt-4">
-        @Message
-    </div>
-}
-
-@code
-{
-    private string? Message;
-
-    private Task GenerateComplianceSummary()
-    {
-        return DownloadPdf(
-            () => PdfReportService.GenerateComplianceSummaryAsync(),
-            "Compliance Summary.pdf");
+    .report-type-card {
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
 
-    private Task GenerateOutstandingCases()
-    {
-        return DownloadPdf(
-            () => PdfReportService.GenerateOutstandingCasesAsync(),
-            "Outstanding Cases.pdf");
+        .report-type-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+        }
+
+    .border-cidb {
+        border: 2px solid #b3202a !important;
     }
 
-    private Task GenerateAgentPerformance()
-    {
-        return DownloadPdf(
-            () => PdfReportService.GenerateAgentPerformanceAsync(),
-            "Agent Performance.pdf");
+    .report-icon {
+        font-size: 2rem;
+        color: #b3202a;
     }
 
-    private Task GenerateSynchronizationHistory()
+</style>
+
+
+@code {
+
+    private string _selectedReportType = "Daily";
+
+    private DateTime _fromDate = new DateTime(2025, 1, 1);
+
+    private DateTime _toDate = DateTime.Today;
+
+    private bool _isLoading;
+
+    private bool _isGenerating;
+
+    private ReportSummaryModel? _reportSummary;
+
+    private List<ReportTenderModel> _nonCompliantTenders = new();
+
+
+    protected override async Task OnInitializedAsync()
     {
-        return DownloadPdf(
-            () => PdfReportService.GenerateSynchronizationHistoryAsync(),
-            "Synchronization History.pdf");
+        await RefreshReport();
     }
 
-    private Task GenerateLetterHistory()
+
+    private async Task SelectDailyReport()
     {
-        return DownloadPdf(
-            () => PdfReportService.GenerateLetterHistoryAsync(),
-            "Letter History.pdf");
+        _selectedReportType = "Daily";
+
+        _fromDate = DateTime.Today;
+        _toDate = DateTime.Today;
+
+        await RefreshReport();
     }
 
-    private Task GenerateAuditHistory()
+
+    private async Task SelectWeeklyReport()
     {
-        return DownloadPdf(
-            () => PdfReportService.GenerateAuditHistoryAsync(),
-            "Audit History.pdf");
+        _selectedReportType = "Weekly";
+
+        _toDate = DateTime.Today;
+        _fromDate = DateTime.Today.AddDays(-6);
+
+        await RefreshReport();
     }
 
-    private async Task DownloadPdf(
-    Func<Task<byte[]>> generator,
-    string fileName)
+
+    private async Task SelectMonthlyReport()
     {
-        var bytes = await generator();
+        _selectedReportType = "Monthly";
 
-        var base64 = Convert.ToBase64String(bytes);
+        _toDate = DateTime.Today;
+        _fromDate = new DateTime(
+            DateTime.Today.Year,
+            DateTime.Today.Month,
+            1);
 
-        await JS.InvokeVoidAsync(
-            "downloadFile",
-            fileName,
-            "application/pdf",
-            base64);
+        await RefreshReport();
     }
+
+
+    private void SelectCustomReport()
+    {
+        _selectedReportType = "Custom";
+    }
+
+
+    private async Task RefreshReport()
+    {
+        if (_fromDate > _toDate)
+            return;
+
+        _isLoading = true;
+
+        try
+        {
+            // Include the entire "To" day.
+            var fromDate = _fromDate.Date;
+
+            var toDate = _toDate.Date
+                .AddDays(1)
+                .AddTicks(-1);
+
+            _reportSummary =
+                await ReportService.GetReportAsync(
+                    fromDate,
+                    toDate);
+
+            _nonCompliantTenders =
+                await ReportService.GetNonCompliantTendersAsync(
+                    fromDate,
+                    toDate);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+
+    private void ViewTender(Guid tenderId)
+    {
+        Navigation.NavigateTo($"/tenders/{tenderId}");
+    }
+
+
+    private string GetPriorityClass(CasePriority priority)
+    {
+        return priority switch
+        {
+            CasePriority.High => "bg-danger",
+
+            CasePriority.Normal => "bg-warning text-dark",
+
+            CasePriority.Low => "bg-success",
+
+            _ => "bg-secondary"
+        };
+    }
+
+
+    private async Task GenerateReport()
+    {
+        if (_fromDate > _toDate)
+            return;
+
+        _isGenerating = true;
+
+        try
+        {
+            var fromDate = _fromDate.Date;
+
+            var toDate = _toDate.Date
+                .AddDays(1)
+                .AddTicks(-1);
+
+            var fileBytes =
+                await ReportPdfService.GenerateAsync(
+                    fromDate,
+                    toDate);
+
+            var fileName =
+                $"CRCIP_Compliance_Report_{_fromDate:yyyyMMdd}_{_toDate:yyyyMMdd}.pdf";
+
+            using var stream =
+                new MemoryStream(fileBytes);
+
+            using var streamRef =
+                new DotNetStreamReference(stream);
+
+            await JS.InvokeVoidAsync(
+                "downloadFileFromStream",
+                fileName,
+                streamRef);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+
+
+    private async Task ExportExcel()
+    {
+        if (_fromDate > _toDate)
+            return;
+
+        _isGenerating = true;
+
+        try
+        {
+            var fromDate = _fromDate.Date;
+
+            var toDate = _toDate.Date
+                .AddDays(1)
+                .AddTicks(-1);
+
+            var fileBytes =
+                await ReportExcelService.GenerateAsync(
+                    fromDate,
+                    toDate);
+
+            var fileName =
+                $"CRCIP_Compliance_Report_{_fromDate:yyyyMMdd}_{_toDate:yyyyMMdd}.xlsx";
+
+            using var stream =
+                new MemoryStream(fileBytes);
+
+            using var streamRef =
+                new DotNetStreamReference(stream);
+
+            await JS.InvokeVoidAsync(
+                "downloadFileFromStream",
+                fileName,
+                streamRef);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+
 }

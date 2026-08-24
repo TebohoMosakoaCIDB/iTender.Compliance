@@ -76,7 +76,7 @@ public class UserService : IUserService
                 roleResult.Errors.Select(x => x.Description));
         }
 
-        if (model.Role == Roles.ComplianceAgent)
+        if (model.Role == Roles.ComplianceOfficer)
         {
             var agent = new Agent
             {
@@ -143,7 +143,7 @@ public class UserService : IUserService
 
             Agent? agent = null;
 
-            if (roles.Contains(Roles.ComplianceAgent))
+            if (roles.Contains(Roles.ComplianceOfficer))
             {
                 agent = await _agentRepository.GetByUserIdAsync(
                     user.Id,
@@ -203,7 +203,7 @@ public class UserService : IUserService
 
         Agent? agent = null;
 
-        if (roles.Contains(Roles.ComplianceAgent))
+        if (roles.Contains(Roles.ComplianceOfficer))
         {
             agent = await _agentRepository.GetByUserIdAsync(
                 user.Id,

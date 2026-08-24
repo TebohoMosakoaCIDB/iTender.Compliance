@@ -5,23 +5,18 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface ICorrespondenceTemplateRepository
     {
-        Task<List<CorrespondenceTemplateModel>> GetAllAsync(
-            CancellationToken cancellationToken = default);
+        Task<List<CorrespondenceTemplateModel>> GetAllAsync();
 
         Task<CorrespondenceTemplateModel?> GetByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken = default);
+            Guid id);
 
-        Task<CorrespondenceTemplateModel?> GetByTypeAsync(
-            CorrespondenceTemplateType type,
-            CancellationToken cancellationToken = default);
+        Task<CorrespondenceTemplateModel?> GetActiveAsync(
+            CorrespondenceTemplateType type);
 
         Task AddAsync(
-            CorrespondenceTemplateModel template,
-            CancellationToken cancellationToken = default);
+            CorrespondenceTemplateModel template);
 
         Task UpdateAsync(
-            CorrespondenceTemplateModel template,
-            CancellationToken cancellationToken = default);
+            CorrespondenceTemplateModel template);
     }
 }

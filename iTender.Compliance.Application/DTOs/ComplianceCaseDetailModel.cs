@@ -12,5 +12,8 @@
 
         public List<AuditLogModel> Timeline { get; set; } = [];
         public List<CaseNoteModel> Notes { get; set; } = [];
+
+        public List<ComplianceFindingDto> Findings { get; set; } = new();
+        public List<ComplianceActionDto> Actions { get; set; } = new();
     }
 }

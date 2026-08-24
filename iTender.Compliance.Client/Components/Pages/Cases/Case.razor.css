@@ -1,0 +1,59 @@
+/* CSS for Case component */
+/* ── Notes Timeline ── */
+.notes-timeline {
+    position: relative;
+    padding-left: 4px;
+}
+
+.note-entry {
+    display: flex;
+    align-items: flex-start;
+    position: relative;
+    padding-bottom: 0.5rem;
+}
+
+.note-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 24px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.note-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #0d6efd;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #0d6efd;
+    z-index: 1;
+    margin-top: 8px;
+}
+
+.note-line-vertical {
+    width: 2px;
+    background-color: #e9ecef;
+    flex-grow: 1;
+    margin: 4px 0 0 6px;
+}
+
+.note-card {
+    border-left: 4px solid #0d6efd !important;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+    .note-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.08) !important;
+    }
+
+.note-content {
+    padding-left: 8px;
+    width: 100%;
+}
+
+.note-text {
+    white-space: pre-line;
+}

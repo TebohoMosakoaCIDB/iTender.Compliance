@@ -7,124 +7,163 @@ namespace iTender.Compliance.Infrastructure.Persistence.Seeders;
 
 public static class CorrespondenceTemplateSeeder
 {
-    public static async Task SeedAsync(ComplianceDbContext context)
+    public static async Task SeedAsync(
+        ComplianceDbContext context)
     {
-        foreach (var type in Enum.GetValues<CorrespondenceTemplateType>())
+        foreach (var type in new[]
+        {
+            CorrespondenceTemplateType.Erratum,
+            CorrespondenceTemplateType.InstructionalLetter,
+            CorrespondenceTemplateType.ContraventionNotice
+        })
         {
             var exists = await context.CorrespondenceTemplates
-                .AnyAsync(x => x.TemplateType == type);
+                .AnyAsync(x => x.Type == type);
 
             if (exists)
                 continue;
 
-            context.CorrespondenceTemplates.Add(new CorrespondenceTemplateModel
-            {
-                Id = Guid.NewGuid(),
-                Name = GetDefaultName(type),
-                Subject = GetDefaultSubject(type),
-                Body = GetDefaultBody(type),
-                TemplateType = type,
-                IsActive = true,
-                HeaderImagePath = null
-            });
+            context.CorrespondenceTemplates.Add(
+                new CorrespondenceTemplateModel
+                {
+                    Id = Guid.NewGuid(),
+                    Name = GetDefaultName(type),
+                    Type = type,
+                    Status = CorrespondenceTemplateStatus.Approved,
+                    Version = 1,
+                    Subject = GetDefaultSubject(type),
+                    Body = GetDefaultBody(type),
+                    IsActive = true,
+                    CreatedOn = DateTime.UtcNow,
+                    UpdatedOn = null,
+                    CreatedBy = "SYSTEM",
+                    UpdatedBy = null,
+                    ApprovedOn = DateTime.UtcNow,
+                    ApprovedBy = "SYSTEM",
+                    ApprovalComments = "Initial system template."
+                });
         }
 
         await context.SaveChangesAsync();
     }
 
-    private static string GetDefaultName(CorrespondenceTemplateType type)
+
+    private static string GetDefaultName(
+        CorrespondenceTemplateType type)
     {
         return type switch
         {
-            CorrespondenceTemplateType.InstructionLetter => "Instruction Letter",
-            CorrespondenceTemplateType.ReminderLetter => "Reminder Letter",
-            CorrespondenceTemplateType.CaseClosed => "Case Closed",
+            CorrespondenceTemplateType.InstructionalLetter =>
+                "Instruction Letter",
+
+            CorrespondenceTemplateType.ContraventionNotice =>
+                "Contravention Notice",
+
+            CorrespondenceTemplateType.Erratum =>
+                "Erratum Instruction",
+
             _ => type.ToString()
         };
     }
 
-    private static string GetDefaultSubject(CorrespondenceTemplateType type)
+
+    private static string GetDefaultSubject(
+        CorrespondenceTemplateType type)
     {
         return type switch
         {
-            CorrespondenceTemplateType.InstructionLetter =>
-                "Compliance Review Required - Tender {TenderNumber}",
+            CorrespondenceTemplateType.InstructionalLetter =>
+                "Instruction Letter - Compliance Action Required - Tender {TenderNumber}",
 
-            CorrespondenceTemplateType.ReminderLetter =>
-                "Reminder - Outstanding Compliance Response - Tender {TenderNumber}",
+            CorrespondenceTemplateType.ContraventionNotice =>
+                "Contravention Notice - Tender {TenderNumber}",
 
-            CorrespondenceTemplateType.CaseClosed =>
-                "Compliance Case Closed - Tender {TenderNumber}",
+            CorrespondenceTemplateType.Erratum =>
+                "Erratum Instruction - Tender {TenderNumber}",
 
             _ => string.Empty
         };
     }
 
+
     private static string GetDefaultBody(CorrespondenceTemplateType type)
     {
         return type switch
         {
-            CorrespondenceTemplateType.InstructionLetter => """
+            CorrespondenceTemplateType.InstructionalLetter => """
 Dear {CompanyName},
 
-A compliance review has been initiated for the following tender:
+The CIDB has identified a compliance matter relating to the following project:
 
 Tender Number: {TenderNumber}
 Tender Title: {TenderTitle}
 Employer: {EmployerName}
-Closing Date: {ClosingDate}
 
-You are requested to submit the required compliance documentation on or before {ResponseDueDate}.
+You are hereby instructed to address the identified compliance matter and provide the required response within the prescribed period.
 
-The information provided will be used to assess compliance with the applicable CIDB requirements. Failure to respond within the prescribed period may affect the outcome of the compliance review.
-
-Should you require any clarification or assistance, please contact the assigned Compliance Agent.
+Response Due Date: {ResponseDueDate}
 
 Kind regards,
 
 {FooterText}
+
+{Agent_Signature}
 """,
 
-            CorrespondenceTemplateType.ReminderLetter => """
+            CorrespondenceTemplateType.ContraventionNotice => """
 Dear {CompanyName},
 
-This serves as a reminder that we have not yet received your response regarding the compliance review for the following tender.
+NOTICE OF CONTRAVENTION
+
+The CIDB has identified a contravention relating to the following tender/project:
 
 Tender Number: {TenderNumber}
 Tender Title: {TenderTitle}
 Employer: {EmployerName}
 
-Our records indicate that the requested compliance documentation remains outstanding.
+The identified non-compliance requires your attention and corrective action.
 
-Please submit the required information on or before {ResponseDueDate} to allow the compliance review to continue.
+You are required to provide a written response within 14 days of receipt of this notice.
 
-If you have already submitted the requested documentation, kindly disregard this reminder.
+Response Due Date: {ResponseDueDate}
 
-Should you require any clarification or assistance, please contact the assigned Compliance Agent.
+Failure to comply may result in the matter being referred for further enforcement action.
 
 Kind regards,
 
 {FooterText}
+
+{Agent_Signature}
 """,
 
-            CorrespondenceTemplateType.CaseClosed => """
+            CorrespondenceTemplateType.Erratum => """
 Dear {CompanyName},
 
-The compliance review for the following tender has been concluded.
+INSTRUCTION TO CORRECT TENDER ADVERTISEMENT
+
+The CIDB has identified a compliance matter relating to the following tender:
 
 Tender Number: {TenderNumber}
 Tender Title: {TenderTitle}
 Employer: {EmployerName}
 
-The compliance case has now been closed.
+The tender advertisement has been identified as containing a requirement that does not comply with the applicable CIDB requirements.
 
-Thank you for your cooperation throughout the compliance review process.
+As the tender is currently open, you are instructed to correct the tender advertisement by issuing an erratum.
 
-Should you require any further information regarding this matter, please contact the Compliance Department.
+The required correction must be made within 48 hours of receipt of this instruction.
+
+Response Due Date: {ResponseDueDate}
+
+Kindly provide confirmation of the corrective action taken and a copy or evidence of the issued erratum.
+
+Failure to correct the tender within the prescribed period may result in the issuing of a Contravention Notice and referral for further enforcement action.
 
 Kind regards,
 
 {FooterText}
+
+{Agent_Signature}
 """,
 
             _ => string.Empty

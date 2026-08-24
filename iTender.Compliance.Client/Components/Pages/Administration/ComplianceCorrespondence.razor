@@ -1,0 +1,228 @@
+﻿@page "/correspondence"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Application.Common
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Entities
+@using iTender.Compliance.Domain.Enums
+@inject NavigationManager Navigation
+@attribute [Authorize(Policy = "Correspondence")]
+
+<PageTitle>Templates | CRCIP Monitor</PageTitle>
+@inject ICorrespondenceTemplateService TemplateService
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+    <div>
+
+        <h2 class="mb-0">
+            <i class="bi bi-envelope-paper-fill me-2 text-secondary"></i>
+            Correspondence Templates
+        </h2>
+
+        <small class="text-muted">
+            Manage email and PDF templates used by the compliance system.
+        </small>
+
+    </div>
+
+    <AuthorizeView Policy="CorrespondenceDraft">
+        <Authorized>
+            <button class="btn btn-sm btn-cidb-submit"
+                    @onclick="Create">
+
+                <i class="bi bi-plus-circle me-2"></i>
+
+                Draft Template
+
+            </button>
+        </Authorized>
+    </AuthorizeView>
+
+</div>
+
+@if (Templates == null)
+{
+    <div class="text-center py-5">
+
+        <div class="spinner-border text-secondary"></div>
+
+    </div>
+}
+else if (!Templates.Any())
+{
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+
+        <div>
+
+            <i class="bi bi-info-circle-fill me-2"></i>
+
+            No correspondence templates have been created yet.
+
+        </div>
+
+        <button class="btn btn-sm btn-cidb-submit"
+                @onclick="Create">
+
+            <i class="bi bi-plus-circle me-2"></i>
+
+            Create Template
+
+        </button>
+
+    </div>
+}
+else
+{
+    <table class="table table-hover align-middle">
+
+        <thead>
+
+            <tr>
+                <th>Template</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th class="text-end" style="width:120px"></th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            @foreach (var template in Templates)
+            {
+                <tr>
+
+                    <td>
+                        <strong>@template.Name</strong>
+                    </td>
+
+                    <td>
+                        @template.Type
+                    </td>
+
+                    <td>
+
+                        @if (template.IsActive)
+                        {
+                            <span class="badge bg-success">
+                                Active
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">
+                                Inactive
+                            </span>
+                        }
+
+                    </td>
+
+                    <td class="text-end">
+
+                        <div class="d-flex justify-content-end align-items-center gap-2 flex-nowrap">
+
+                            <!-- Everyone with Correspondence access can view -->
+                            <button class="btn btn-sm btn-secondary text-nowrap"
+                                    @onclick="() => View(template.Id)">
+
+                                <i class="bi bi-eye me-1"></i>
+                                View
+
+                            </button>
+
+
+                            <!-- Manager / Administrator can edit -->
+                            <AuthorizeView Roles="@($"{Roles.ComplianceManager},{Roles.ComplianceAdministrator}")">
+
+                                <Authorized Context="authContext">
+
+                                    <button class="btn btn-sm btn-cidb-submit text-nowrap"
+                                            @onclick="() => Edit(template.Id)">
+
+                                        <i class="bi bi-pencil-square me-1"></i>
+                                        Edit
+
+                                    </button>
+
+                                </Authorized>
+
+                            </AuthorizeView>
+
+
+                            <!-- Administration can approve drafts -->
+                            <AuthorizeView Policy="Administration">
+
+                                <Authorized Context="authContext">
+
+                                    @if (!template.IsActive)
+                                    {
+                                        <button class="btn btn-sm btn-cidb-submit-outline text-nowrap"
+                                                @onclick="() => Approve(template.Id)">
+
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            Approve
+
+                                        </button>
+                                    }
+
+                                </Authorized>
+
+                            </AuthorizeView>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+            }
+
+        </tbody>
+
+    </table>
+}
+
+@code
+{
+    private List<CorrespondenceTemplateModel> Templates = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Templates = await TemplateService.GetAllAsync();
+    }
+
+    private void Edit(Guid id)
+    {
+        Navigation.NavigateTo(
+            $"/correspondence/edit/{id}");
+    }
+
+    private void Create()
+    {
+        Navigation.NavigateTo("/correspondence/create");
+    }
+
+    private void View(Guid id)
+    {
+        Navigation.NavigateTo($"/correspondence/view/{id}");
+    }
+
+    private async Task Approve(Guid id)
+    {
+        var template = await TemplateService.GetByIdAsync(id);
+
+        if (template == null)
+            return;
+
+        template.Status =
+            CorrespondenceTemplateStatus.Approved;
+
+        template.IsActive = true;
+
+        template.ApprovedOn = DateTime.UtcNow;
+
+        await TemplateService.UpdateAsync(template);
+
+        Templates = await TemplateService.GetAllAsync();
+    }
+}

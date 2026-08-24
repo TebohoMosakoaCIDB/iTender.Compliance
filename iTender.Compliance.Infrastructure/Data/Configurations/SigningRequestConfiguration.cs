@@ -11,14 +11,7 @@ namespace iTender.Compliance.Infrastructure.Data.Configurations
             builder.ToTable("SigningRequests");
 
             builder.HasKey(x => x.Id);
-
-            builder.Property(x => x.WorkflowId)
-                .HasMaxLength(200);
-
             builder.Property(x => x.DocumentId)
-                .HasMaxLength(200);
-
-            builder.Property(x => x.EnvelopeId)
                 .HasMaxLength(200);
 
             builder.Property(x => x.OriginalDocumentPath)

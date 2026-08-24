@@ -1,9 +1,12 @@
-﻿using iTender.Compliance.Domain.Entities;
+﻿using iTender.Compliance.Application.DTOs;
+using iTender.Compliance.Domain.Entities;
 
 namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface ITenderRepository
     {
+        Task<List<Tender>> GetUnregisteredAwardedTendersAsync(CancellationToken cancellationToken = default);
+
         Task<Tender?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default);
@@ -33,6 +36,14 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 
         Task DeleteAsync(
             Guid id,
+            CancellationToken cancellationToken = default);
+
+        Task<Tender?> GetDetailAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
+        Task<PagedResult<Tender>> SearchAsync(
+            TenderSearchModel search,
             CancellationToken cancellationToken = default);
     }
 }

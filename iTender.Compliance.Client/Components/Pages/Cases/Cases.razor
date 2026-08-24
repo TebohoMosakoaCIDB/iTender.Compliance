@@ -1,5 +1,6 @@
 ﻿@page "/cases"
 @rendermode InteractiveServer
+@using iTender.Compliance.Client.Helpers
 @using iTender.Compliance.Application.DTOs
 @using iTender.Compliance.Application.Interfaces.Repositories
 @using iTender.Compliance.Domain.Entities
@@ -14,6 +15,8 @@
 
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Policy = "CaseManagement")]
+
+<PageTitle>Compliance Cases | CRCIP Monitor</PageTitle>
 
 <div class="mb-4">
 
@@ -223,7 +226,7 @@ else
                 <th>Tender Details</th>
                 <th>Closing Date</th>
                 <th>Status</th>
-                <th>Priority</th>
+                <th>Findings</th>
                 <th>Agent</th>
                 <th style="width:120px;"></th>
             </tr>
@@ -243,8 +246,8 @@ else
             {
                 @foreach (var item in Result.Items)
                 {
+                    var openFindings = item.ComplianceFindings?.Count(f => !f.IsResolved) ?? 0;
                     <tr>
-
                         <td>
                             <div class="fw-semibold">
                                 @(item.Tender?.TenderNumber ?? "-")
@@ -255,9 +258,18 @@ else
                             @(item.Tender?.ClosingDate.ToString("dd MMM yyyy"))
                         </td>
 
-                        <td>@item.Status</td>
+                        <td>@item.Status.ToDisplayName()</td>
 
-                        <td>@item.Priority</td>
+                        <td>
+                            @if (openFindings > 0)
+                            {
+                                <span class="badge bg-danger">@openFindings open</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success">0</span>
+                            }
+                        </td>
 
                         <td>
                             @(item.Agent?.FullName ?? "-")
@@ -274,7 +286,7 @@ else
                                 <button class="btn btn-sm btn-cidb-submit"
                                         @onclick="() => Open(item.Id)">
                                     Open
-                                </button>                                
+                                </button>
                             </div>
                         </td>
                     </tr>
