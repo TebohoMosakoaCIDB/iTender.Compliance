@@ -43,7 +43,7 @@
 
         </div>
 
-        <button class="btn btn-cidb-submit"
+        <button class="btn btn-sm btn-cidb-submit"
                 @onclick="RunSynchronization"
                 disabled="@IsRunning">
 
@@ -383,7 +383,7 @@
 
             </h6>
 
-            <button class="btn btn-sm btn-cidb-submit-outline"
+            <button class="btn btn-sm btn-cidb-submit"
                     @onclick="OpenSynchronizationHistory">
 
                 <i class="bi bi-list-ul me-1"></i>
@@ -480,7 +480,7 @@
 
                                     @if (sync.IsManual)
                                     {
-                                        <span class="badge bg-primary">
+                                        <span class="badge bg-secondary">
                                             <i class="bi bi-person me-1"></i>
                                             Manual
                                         </span>
@@ -606,7 +606,7 @@
 
                                 <td>
 
-                                    <button class="btn btn-sm btn-cidb-submit-outline"
+                                    <button class="btn btn-sm btn-cidb-submit"
                                             title="View synchronization details"
                                             @onclick="() => OpenSynchronization(sync.Id)">
 
@@ -910,7 +910,7 @@
 
             <div class="d-flex justify-content-end mt-4">
 
-                <button class="btn btn-cidb-submit"
+                <button class="btn btn-sm btn-cidb-submit"
                         @onclick="SaveSettings">
 
                     <i class="bi bi-check2 me-2"></i>
@@ -1400,24 +1400,21 @@
         {
             await SettingService.SaveAsync(Settings);
 
-            SuccessMessage =
-                "System settings were saved successfully.";
-
+            SuccessMessage = "System settings saved successfully.";
             ShowSuccessMessage = true;
 
             await InvokeAsync(StateHasChanged);
 
-            await Task.Delay(3000);
+            await Task.Delay(1000);
 
-            ShowSuccessMessage = false;
-
-            await InvokeAsync(StateHasChanged);
+            Navigation.NavigateTo("/administration", forceLoad: true);
         }
         catch (Exception ex)
         {
-            ErrorMessage = ex.Message;
-
+            ErrorMessage = $"Failed to save system settings: {ex.Message}";
             ShowErrorMessage = true;
+
+            await InvokeAsync(StateHasChanged);
         }
     }
 

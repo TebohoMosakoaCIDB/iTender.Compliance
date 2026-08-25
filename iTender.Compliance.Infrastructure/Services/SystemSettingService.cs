@@ -29,7 +29,8 @@ namespace iTender.Compliance.Infrastructure.Services
                 SynchronizationIntervalHours = settings.SynchronizationIntervalHours,
                 MaximumReminders = settings.MaximumReminders,
                 DefaultPageSize = settings.DefaultPageSize,
-                DistributionMethod = settings.DistributionMethod
+                DistributionMethod = settings.DistributionMethod,
+                AutoAssignmentEnabled = settings.AutoAssignmentEnabled,
             };
         }
 

@@ -22,9 +22,16 @@ namespace iTender.Compliance.Infrastructure.Repositories
         public async Task<IEnumerable<ComplianceAction>> GetByCaseIdAsync(Guid caseId, CancellationToken cancellationToken = default)
             => await _dbSet.Where(a => a.ComplianceCaseId == caseId).ToListAsync(cancellationToken);
 
-        public async Task AddAsync(ComplianceAction action, CancellationToken cancellationToken = default)
-            => await _dbSet.AddAsync(action, cancellationToken);
+        public async Task AddAsync(
+    ComplianceAction action,
+    CancellationToken cancellationToken = default)
+        {
+            await _context.ComplianceActions.AddAsync(
+                action,
+                cancellationToken);
 
+            await _context.SaveChangesAsync(cancellationToken);
+        }
         public Task UpdateAsync(ComplianceAction action, CancellationToken cancellationToken = default)
         {
             _dbSet.Update(action);

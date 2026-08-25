@@ -20,6 +20,15 @@
         SyncStarted = 11,
         SyncCompleted = 12,
         SyncFailed = 13,
-        Error = 14
+        Error = 14,
+        EscalatedToAGSA = 15,
+
+        CaseAssigned = 16,
+        InstructionalLetterSent = 17,
+        ContraventionNoticeSent = 18,
+        ExtensionGranted = 19,
+        ObjectionRaised = 20,
+        ExtensionRequested = 21,
+        ErratumNoticeSent = 22
     }
 }

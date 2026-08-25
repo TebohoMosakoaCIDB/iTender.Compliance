@@ -86,6 +86,13 @@ namespace iTender.Compliance.Infrastructure.Services
                 subject,
                 responseDueDate);
 
+            // Create compliance action
+            await CreateComplianceActionAsync(
+                complianceCaseId,
+                templateType,
+                responseDueDate,
+                $"Correspondence generated using the {templateType} template.");
+
             return GeneratePdf(
                 subject,
                 body);
@@ -108,6 +115,49 @@ namespace iTender.Compliance.Infrastructure.Services
                 _ => throw new InvalidOperationException(
                     $"No response period configured for {templateType}.")
             };
+        }
+
+        private async Task CreateComplianceActionAsync(
+    Guid complianceCaseId,
+    CorrespondenceTemplateType templateType,
+    DateTime? responseDueDate,
+    string? comments = null)
+        {
+            var actionType = templateType switch
+            {
+                CorrespondenceTemplateType.InstructionalLetter
+                    => ComplianceActionType.InstructionalLetterSent,
+
+                CorrespondenceTemplateType.ContraventionNotice
+                    => ComplianceActionType.ContraventionNoticeSent,
+
+                CorrespondenceTemplateType.Erratum
+                => ComplianceActionType.ErratumNoticeSent,
+
+                _ => throw new InvalidOperationException(
+                    $"No compliance action type is configured for template type '{templateType}'.")
+            };
+
+            var action = new ComplianceAction
+            {
+                Id = Guid.NewGuid(),
+
+                ComplianceCaseId = complianceCaseId,
+
+                ActionType = actionType,
+
+                Status = ComplianceActionStatus.Completed,
+
+                ActionDate = DateTime.UtcNow,
+
+                ResponseDueDate = responseDueDate,
+
+                CompletedDate = DateTime.UtcNow,
+
+                Comments = comments
+            };
+
+            await _complianceActionRepository.AddAsync(action);
         }
 
         private async Task CreateCorrespondenceRecordsAsync(
@@ -142,23 +192,6 @@ namespace iTender.Compliance.Infrastructure.Services
             };
 
             await _caseLetterRepository.AddAsync(letter);
-
-            var action = new ComplianceAction
-            {
-                Id = Guid.NewGuid(),
-
-                ComplianceCaseId = model.Id,
-
-                ActionDate = now,
-
-                ResponseDueDate = responseDueDate,
-
-                Status = ComplianceActionStatus.Pending,
-
-                Comments = $"Correspondence generated: {templateType}."
-            };
-
-            await _complianceActionRepository.AddAsync(action);
         }
 
         private static byte[] GeneratePdf(

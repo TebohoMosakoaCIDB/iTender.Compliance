@@ -23,6 +23,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IWorkClassificationValidator _classValidator;
         private readonly ILetterNumberGenerator _letterNumberGenerator;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IComplianceCaseWorkflowService _workflowService;
         private readonly ILogger<ComplianceProcessingService> _logger;
 
         public ComplianceProcessingService(
@@ -35,6 +36,7 @@ namespace iTender.Compliance.Infrastructure.Services
             IWorkClassificationValidator classValidator,
             ILetterNumberGenerator letterNumberGenerator,
             IUnitOfWork unitOfWork,
+            IComplianceCaseWorkflowService workflowService,
             ILogger<ComplianceProcessingService> logger)
         {
             _caseRepository = caseRepository;
@@ -47,6 +49,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _letterNumberGenerator = letterNumberGenerator;
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _workflowService = workflowService;
         }
 
         public async Task<Guid?> ProcessTenderAsync(
@@ -182,6 +185,27 @@ namespace iTender.Compliance.Infrastructure.Services
             {
                 finding.ComplianceCaseId = complianceCase.Id;
                 await _findingRepository.AddAsync(finding, cancellationToken);
+            }
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (matchingContract == null)
+            {
+                await _workflowService.IssueInstructionAsync(
+                    complianceCase.Id,
+                    cancellationToken);
+            }
+
+            else if (tenderStatus == TenderStatus.Open)
+            {
+                await _workflowService.IssueErratumAsync(
+                    complianceCase.Id,
+                    cancellationToken);
+            }
+            else
+            {
+                await _workflowService.IssueContraventionNoticeAsync(
+                    complianceCase.Id,
+                    cancellationToken);
             }
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

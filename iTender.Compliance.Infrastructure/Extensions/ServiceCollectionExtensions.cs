@@ -96,7 +96,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IComplianceFollowUpService, ComplianceFollowUpService>();
             services.AddScoped<IRoPComplianceService, RoPComplianceService>();
             services.AddScoped<ICorrespondenceService, CorrespondenceService>();
-
+            services.AddScoped<IComplianceCaseWorkflowService, ComplianceCaseWorkflowService>();
 
 
             services.AddScoped<IProfileService, ProfileService>();

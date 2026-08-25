@@ -2,9 +2,6 @@
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace iTender.Compliance.Infrastructure.Services
 {

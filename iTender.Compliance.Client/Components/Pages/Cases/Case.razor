@@ -258,7 +258,7 @@ else
                                         <div class="d-flex justify-content-between align-items-start">
                                             <div class="flex-grow-1">
                                                 <div class="d-flex align-items-center gap-2 mb-1">
-                                                    <span class="badge bg-primary">@finding.Stream.ToDisplayName()</span>
+                                                    <span class="badge bg-danger">@finding.Stream.ToDisplayName()</span>
                                                     <span class="badge bg-secondary">@finding.FindingType.ToDisplayName()</span>
                                                     <span class="badge bg-@statusColor">@statusText</span>
                                                 </div>
@@ -423,7 +423,7 @@ else
                                             @switch (letter.Type)
                                             {
                                                 case LetterType.Instruction:
-                                                    <span class="badge bg-primary">
+                                                    <span class="badge bg-secondary">
                                                         <i class="bi bi-envelope me-1"></i>
                                                         Instructional Letter
                                                     </span>
@@ -437,7 +437,7 @@ else
                                                     break;
 
                                                 case LetterType.Erratum:
-                                                    <span class="badge bg-warning text-dark">
+                                                    <span class="badge bg-secondary">
                                                         <i class="bi bi-pencil-square me-1"></i>
                                                         Erratum
                                                     </span>
