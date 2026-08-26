@@ -12,6 +12,9 @@ namespace iTender.Compliance.Domain.Entities
         public string PhoneNumber { get; set; } = string.Empty;
         public bool IsActive { get; set; } = true;
 
+        /// <summary>Regulatory Compliance Manager - can approve letters, review objections and extensions.</summary>
+        public bool IsManager { get; set; }
+
         public bool AutoAssignEnabled { get; set; } = true;
         public int MaximumOpenCases { get; set; }
         public int DisplayOrder { get; set; }

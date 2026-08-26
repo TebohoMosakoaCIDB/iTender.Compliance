@@ -2,12 +2,14 @@
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Enums;
+using iTender.Compliance.Infrastructure.Repositories;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
     public class ComplianceService : IComplianceService
     {
         private readonly IComplianceCaseRepository _complianceCaseRepository;
+        private readonly ICaseLetterRepository _caseLetterRepository;
         private readonly INotificationService _notificationService;
         private readonly IAgentRepository _agentRepository;
         private readonly IAuditService _auditService;
@@ -16,6 +18,7 @@ namespace iTender.Compliance.Infrastructure.Services
 
         public ComplianceService(
             IComplianceCaseRepository complianceCaseRepository,
+            ICaseLetterRepository caseLetterRepository,
             IAgentRepository agentRepository,
             IAuditService auditService,
             INotificationService notificationService,
@@ -23,6 +26,7 @@ namespace iTender.Compliance.Infrastructure.Services
             IUnitOfWork unitOfWork)
         {
             _complianceCaseRepository = complianceCaseRepository;
+            _caseLetterRepository = caseLetterRepository;
             _notificationService = notificationService;
             _agentRepository = agentRepository;
             _auditService = auditService;
@@ -189,7 +193,7 @@ namespace iTender.Compliance.Infrastructure.Services
                         {
                             CanGenerate = true,
 
-                            Type = CorrespondenceTemplateType.Erratum,
+                            Type = CorrespondenceTemplateType.InstructionLetter,
 
                             Title = "Issue Erratum Instruction",
 
@@ -235,7 +239,7 @@ namespace iTender.Compliance.Infrastructure.Services
                     return new NextCorrespondenceModel
                     {
                         CanGenerate = true,
-                        Type = CorrespondenceTemplateType.InstructionalLetter,
+                        Type = CorrespondenceTemplateType.InstructionLetter,
                         Title = "Issue Instructional Letter",
                         Description =
                             "The awarded project has not been identified on the Register of Projects. An Instructional Letter must be issued to the client.",
@@ -265,6 +269,68 @@ namespace iTender.Compliance.Infrastructure.Services
             }
 
             return null;
+        }
+
+        public async Task RequestExtensionAsync(
+           RequestExtensionModel model,
+           CancellationToken cancellationToken = default)
+        {
+            if (model.AdditionalDays <= 0)
+                throw new InvalidOperationException("Extension days must be greater than zero.");
+
+            var complianceCase = await _complianceCaseRepository.GetByIdAsync(
+                model.ComplianceCaseId,
+                cancellationToken);
+
+            if (complianceCase == null)
+                throw new InvalidOperationException("Compliance case not found.");
+
+            if (complianceCase.Status == CaseStatus.Closed)
+                throw new InvalidOperationException("Cannot extend a closed case.");
+
+            // Must be requested in writing against the currently outstanding letter.
+            var outstandingLetter = await _complianceCaseRepository.GetLatestOutstandingAsync(
+                complianceCase.Id,
+                cancellationToken);
+
+            if (outstandingLetter == null)
+                throw new InvalidOperationException(
+                    "There is no outstanding letter on this case to extend.");
+
+            var newDueOn = outstandingLetter.ResponseDueOn.AddDays(model.AdditionalDays);
+
+            outstandingLetter.ResponseDueOn = newDueOn;
+            outstandingLetter.ModifiedOn = DateTime.UtcNow;
+
+            await _caseLetterRepository.UpdateAsync(outstandingLetter, cancellationToken);
+
+            complianceCase.ExtensionDays = (complianceCase.ExtensionDays ?? 0) + model.AdditionalDays;
+            complianceCase.ExtendedDueOn = newDueOn;
+            complianceCase.ModifiedOn = DateTime.UtcNow;
+
+            await _complianceCaseRepository.UpdateAsync(complianceCase, cancellationToken);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _auditService.LogAsync(
+                AuditAction.ExtensionApproved,
+                AuditEntity.ComplianceCase,
+                complianceCase.Id,
+                $"Extension of {model.AdditionalDays} day(s) granted. New response due date: {newDueOn:dd MMM yyyy}. Reason: {model.Reason}",
+                _currentUser.UserId,
+                cancellationToken);
+
+            if (complianceCase.AgentId.HasValue)
+            {
+                await _notificationService.NotifyAsync(new CreateNotificationModel
+                {
+                    UserId = complianceCase.AgentId,
+                    Title = "Response Deadline Extended",
+                    Message = $"The response deadline for this case has been extended by {model.AdditionalDays} day(s), now due {newDueOn:dd MMM yyyy}.",
+                    Type = NotificationType.Information,
+                    Url = $"/cases/{complianceCase.Id}"
+                }, cancellationToken);
+            }
         }
     }
 }

@@ -1044,26 +1044,25 @@ else
 
         switch (NextCorrespondence.Type.Value)
         {
-            case CorrespondenceTemplateType.Erratum:
+            // case CorrespondenceTemplateType.AGSAReferral:
 
-                pdf = await CorrespondenceService
-                    .GenerateErratumAsync(Model.Id);
+            //     pdf = await CorrespondenceService
+            //         .Gen(Model.Id);
 
-                break;
+            //     break;
 
-            case CorrespondenceTemplateType.InstructionalLetter:
+            // case CorrespondenceTemplateType.InstructionLetter:
 
-                pdf = await CorrespondenceService
-                    .GenerateInstructionalLetterAsync(Model.Id);
+            //     pdf = await CorrespondenceService.SendInstructionLetterAsync(Model., CancellationToken.None);
 
-                break;
+            //     break;
 
-            case CorrespondenceTemplateType.ContraventionNotice:
+            // case CorrespondenceTemplateType.ContraventionNotice:
 
-                pdf = await CorrespondenceService
-                    .GenerateContraventionNoticeAsync(Model.Id);
+            //     pdf = await CorrespondenceService
+            //         .GenerateContraventionNoticeAsync(Model.Id);
 
-                break;
+            //     break;
 
             default:
 
@@ -1073,13 +1072,13 @@ else
 
         var fileName = NextCorrespondence.Type.Value switch
         {
-            CorrespondenceTemplateType.InstructionalLetter =>
+            CorrespondenceTemplateType.InstructionLetter =>
                 $"InstructionalLetter-{Model.Tender.TenderNumber}.pdf",
 
             CorrespondenceTemplateType.ContraventionNotice =>
                 $"ContraventionNotice-{Model.Tender.TenderNumber}.pdf",
 
-            CorrespondenceTemplateType.Erratum =>
+            CorrespondenceTemplateType.AGSAReferral =>
                 $"Erratum-{Model.Tender.TenderNumber}.pdf",
 
             _ =>

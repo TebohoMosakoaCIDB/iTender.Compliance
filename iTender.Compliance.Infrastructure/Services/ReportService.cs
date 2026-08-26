@@ -60,7 +60,7 @@ public class ReportService : IReportService
 
         var escalated =
             cases.Count(x =>
-                x.Status == CaseStatus.Escalated);
+                x.Status == CaseStatus.ReferredForEnforcement);
 
         var inProgress = cases.Count - closed;
 

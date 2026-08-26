@@ -27,5 +27,9 @@ namespace iTender.Compliance.Application.Interfaces.Services
             CancellationToken cancellationToken = default);
 
         Task<NextCorrespondenceModel?> GetNextCorrespondenceAsync(Guid complianceCaseId);
+
+        Task RequestExtensionAsync(
+            RequestExtensionModel model,
+            CancellationToken cancellationToken = default);
     }
 }

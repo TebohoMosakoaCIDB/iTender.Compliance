@@ -19,6 +19,9 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<List<Agent>> GetActiveAsync(
             CancellationToken cancellationToken = default);
 
+        Task<List<Agent>> GetManagersAsync(
+           CancellationToken cancellationToken = default);
+
         Task AddAsync(
             Agent agent,
             CancellationToken cancellationToken = default);

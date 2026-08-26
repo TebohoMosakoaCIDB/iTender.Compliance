@@ -41,7 +41,7 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             _logger.LogInformation("Processing overdue responses...");
 
-            var overdueLetters = await _letterRepository.GetOverdueLettersAsync(cancellationToken);
+            var overdueLetters = await _letterRepository.GetOutstandingAsync(cancellationToken);
             if (!overdueLetters.Any())
             {
                 _logger.LogInformation("No overdue letters found.");
@@ -61,12 +61,12 @@ namespace iTender.Compliance.Infrastructure.Services
                     caseId, latestLetter.Type, latestLetter.SentOn);
 
                 // Determine action based on current case status (or letter type)
-                if (caseEntity.Status == CaseStatus.AwaitingILResponse)
+                if (caseEntity.Status == CaseStatus.WaitingForResponse)
                 {
                     // No response to IL -> issue CN
                     await IssueContraventionNoticeAsync(caseEntity, cancellationToken);
                 }
-                else if (caseEntity.Status == CaseStatus.AwaitingCNResponse)
+                else if (caseEntity.Status == CaseStatus.WaitingForResponse)
                 {
                     // No response to CN -> escalate to AGSA
                     await EscalateToAGSAAsync(caseEntity.Id, cancellationToken);
@@ -121,7 +121,7 @@ namespace iTender.Compliance.Infrastructure.Services
             await _actionRepository.AddAsync(action, cancellationToken);
 
             // Update case status
-            caseEntity.Status = CaseStatus.AwaitingCNResponse;
+            caseEntity.Status = CaseStatus.WaitingForResponse;
             await _caseRepository.UpdateAsync(caseEntity, cancellationToken);
 
             // Audit log
@@ -154,7 +154,7 @@ namespace iTender.Compliance.Infrastructure.Services
             await _actionRepository.AddAsync(action, cancellationToken);
 
             // Update case
-            caseEntity.Status = CaseStatus.Escalated;
+            caseEntity.Status = CaseStatus.ReferredForEnforcement;
             caseEntity.Outcome = ComplianceOutcome.Escalated;
             await _caseRepository.UpdateAsync(caseEntity, cancellationToken);
 
@@ -247,7 +247,7 @@ namespace iTender.Compliance.Infrastructure.Services
             else
             {
                 // Objection – escalate to manager (UnderReview)
-                caseEntity.Status = CaseStatus.UnderReview;
+                caseEntity.Status = CaseStatus.UnderManagerReview;
                 caseEntity.Outcome = ComplianceOutcome.UnderReview;
                 var objectionAction = new ComplianceAction
                 {

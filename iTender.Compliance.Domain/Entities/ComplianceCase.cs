@@ -14,6 +14,14 @@ namespace iTender.Compliance.Domain.Entities
         public string? Comments { get; set; }
         public DateTime? AssignedOn { get; set; }
 
+        public CaseClosureReason? ClosureReason { get; set; }
+
+        public TenderComplianceTrack Track { get; set; } = TenderComplianceTrack.Open;
+
+        public int? ExtensionDays { get; set; }
+
+        public DateTime? ExtendedDueOn { get; set; }
+
         #region Navigation Properties
         public virtual Tender Tender { get; set; } = null!;
 
@@ -33,6 +41,11 @@ namespace iTender.Compliance.Domain.Entities
 
         public virtual ICollection<ComplianceAction> ComplianceActions { get; set; }
             = new List<ComplianceAction>();
+
+        public virtual AGSAReferral? AGSAReferral { get; set; }
+
+        public virtual ICollection<CaseObjection> Objections { get; set; }
+            = new List<CaseObjection>();
 
         #endregion
     }

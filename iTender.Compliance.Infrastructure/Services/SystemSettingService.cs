@@ -30,7 +30,10 @@ namespace iTender.Compliance.Infrastructure.Services
                 MaximumReminders = settings.MaximumReminders,
                 DefaultPageSize = settings.DefaultPageSize,
                 DistributionMethod = settings.DistributionMethod,
-                AutoAssignmentEnabled = settings.AutoAssignmentEnabled,
+                OpenTenderResponseHours = settings.OpenTenderResponseHours,
+                ClosedTenderResponseDays = settings.ClosedTenderResponseDays,
+                ContraventionNoticeResponseDays = settings.ContraventionNoticeResponseDays,
+                RequireManagerApproval = settings.RequireManagerApproval
             };
         }
 
@@ -45,6 +48,10 @@ namespace iTender.Compliance.Infrastructure.Services
             settings.DefaultPageSize = model.DefaultPageSize;
             settings.AutoAssignmentEnabled = model.AutoAssignmentEnabled;
             settings.DistributionMethod = model.DistributionMethod;
+            settings.OpenTenderResponseHours = model.OpenTenderResponseHours;
+            settings.ClosedTenderResponseDays = model.ClosedTenderResponseDays;
+            settings.ContraventionNoticeResponseDays = model.ContraventionNoticeResponseDays;
+            settings.RequireManagerApproval = model.RequireManagerApproval;
 
             await _repository.UpdateAsync(settings);
 

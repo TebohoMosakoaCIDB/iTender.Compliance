@@ -63,6 +63,14 @@ namespace iTender.Compliance.Infrastructure.Repositories
             return agents;
         }
 
+        public Task<List<Agent>> GetManagersAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Context.Agents
+                .Where(x => x.IsActive && x.IsManager)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<List<AgentLookupModel>> GetLookupAsync(
     CancellationToken cancellationToken = default)
         {

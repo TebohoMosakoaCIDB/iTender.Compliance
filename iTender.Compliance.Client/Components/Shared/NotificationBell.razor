@@ -112,8 +112,8 @@
 
         var userId = Guid.Parse(id.Value);
 
-        Notifications = await NotificationService.GetRecentAsync(userId);
-        UnreadCount = await NotificationService.GetUnreadCountAsync(userId);
+        Notifications = new List<NotificationModel>();//await NotificationService.GetRecentAsync(userId);
+        UnreadCount = 0; // await NotificationService.GetUnreadCountAsync(userId);
 
         StateHasChanged();
     }

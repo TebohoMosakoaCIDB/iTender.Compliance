@@ -12,15 +12,6 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
-        public async Task<IEnumerable<CaseLetter>> GetOverdueLettersAsync(CancellationToken cancellationToken = default)
-        {
-            var now = DateTime.UtcNow;
-            return await Context.CaseLetters
-                .Include(l => l.ComplianceCase)
-                .Where(l => l.ResponseDueOn < now && l.RespondedOn == null)
-                .ToListAsync(cancellationToken);
-        }
-
         public async Task AddAsync(
             CaseLetter letter,
             CancellationToken cancellationToken = default)
@@ -89,6 +80,22 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .Where(x =>
                     !x.RespondedOn.HasValue &&
                     x.ResponseDueOn <= DateTime.UtcNow)
+                .OrderBy(x => x.ResponseDueOn)
+                .ToListAsync(cancellationToken);
+        }
+
+        public Task<List<CaseLetter>> GetOutstandingWithCaseAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Context.CaseLetters
+                .Include(x => x.ComplianceCase)
+                    .ThenInclude(c => c.Tender)
+                .Include(x => x.ComplianceCase)
+                    .ThenInclude(c => c.Agent)
+                .Where(x =>
+                    !x.RespondedOn.HasValue &&
+                    x.ResponseDueOn <= DateTime.UtcNow &&
+                    x.ComplianceCase.Status != Domain.Enums.CaseStatus.Closed)
                 .OrderBy(x => x.ResponseDueOn)
                 .ToListAsync(cancellationToken);
         }

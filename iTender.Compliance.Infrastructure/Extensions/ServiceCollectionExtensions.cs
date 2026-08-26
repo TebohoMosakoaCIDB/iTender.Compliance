@@ -63,6 +63,8 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<ISigningRequestRepository, SigningRequestRepository>();
             services.AddScoped<IComplianceFindingRepository, ComplianceFindingRepository>();
             services.AddScoped<IComplianceActionRepository, ComplianceActionRepository>();
+            services.AddScoped<IAgsaReferralRepository, AgsaReferralRepository>();
+            services.AddScoped<ICaseObjectionRepository, CaseObjectionRepository>();
             services.AddScoped<IReportRepository, ReportRepository>();
 
             //Services
@@ -81,6 +83,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddHostedService<TenderSyncBackgroundService>();
             services.AddHostedService<AutoAssignmentBackgroundService>();
             services.AddHostedService<RoPComplianceBackgroundService>();
+            services.AddHostedService<ComplianceWorkflowBackgroundService>();
 
             services.AddScoped<IAutoAssignmentService, AutoAssignmentService>();
             services.AddScoped<ITenderService, TenderService>();
@@ -95,8 +98,13 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<ILetterNumberGenerator, LetterNumberGenerator>();
             services.AddScoped<IComplianceFollowUpService, ComplianceFollowUpService>();
             services.AddScoped<IRoPComplianceService, RoPComplianceService>();
+            services.AddScoped<IDocumentService, DocumentService>();
+            services.AddScoped<IEscalationService, EscalationService>();
+            services.AddScoped<IEmailService, SmtpEmailService>();
             services.AddScoped<ICorrespondenceService, CorrespondenceService>();
-            services.AddScoped<IComplianceCaseWorkflowService, ComplianceCaseWorkflowService>();
+            services.AddScoped<IObjectionService, ObjectionService>();
+            services.AddScoped<IReminderService, ReminderService>();
+            //services.AddScoped<IObjectionService, ObjectionService>();
 
 
             services.AddScoped<IProfileService, ProfileService>();

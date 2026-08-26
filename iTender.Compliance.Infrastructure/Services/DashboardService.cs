@@ -74,7 +74,7 @@ namespace iTender.Compliance.Infrastructure.Services
                     x.AgentId != null),
 
                 WaitingForResponse = cases.Count(x =>
-                    x.Status == CaseStatus.AwaitingILResponse),
+                    x.Status == CaseStatus.WaitingForResponse),
 
                 Compliant = cases.Count(x =>
                     x.Outcome == ComplianceOutcome.Compliant),
@@ -103,7 +103,7 @@ namespace iTender.Compliance.Infrastructure.Services
                     x.Status == CaseStatus.Assigned),
 
                 Waiting = cases.Count(x =>
-                    x.Status == CaseStatus.AwaitingILResponse),
+                    x.Status == CaseStatus.WaitingForResponse),
 
                 Compliant = cases.Count(x =>
                     x.Outcome == ComplianceOutcome.Compliant),

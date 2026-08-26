@@ -248,7 +248,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
             var now = DateTime.UtcNow;
             return await Context.ComplianceCases
                 .Include(c => c.CaseLetters) // to get the letters
-                .Where(c => (c.Status == CaseStatus.AwaitingILResponse || c.Status == CaseStatus.AwaitingCNResponse)
+                .Where(c => (c.Status == CaseStatus.WaitingForResponse || c.Status == CaseStatus.WaitingForResponse)
                             && c.CaseLetters.Any(l => l.ResponseDueOn < now && l.RespondedOn == null))
                 .ToListAsync(cancellationToken);
         }
@@ -272,7 +272,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .Where(x => x.AgentId != null)
 
                 // Waiting for supplier response
-                .Where(x => x.Status == CaseStatus.AwaitingILResponse)
+                .Where(x => x.Status == CaseStatus.WaitingForResponse)
 
                 // Must have an instruction letter older than X hours
                 .Where(x => x.CaseLetters.Any(l =>

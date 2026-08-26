@@ -23,5 +23,13 @@ namespace iTender.Compliance.Application.DTOs
         public bool AutoAssignmentEnabled { get; set; }
 
         public CaseDistributionMethod DistributionMethod { get; set; }
+
+        public int OpenTenderResponseHours { get; set; } = 48;
+
+        public int ClosedTenderResponseDays { get; set; } = 14;
+
+        public int ContraventionNoticeResponseDays { get; set; } = 14;
+
+        public bool RequireManagerApproval { get; set; } = true;
     }
 }

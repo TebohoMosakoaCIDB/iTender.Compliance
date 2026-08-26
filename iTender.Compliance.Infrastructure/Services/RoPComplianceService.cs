@@ -163,9 +163,9 @@ namespace iTender.Compliance.Infrastructure.Services
             // For RoP, always start with Instructional Letter (48h) regardless of open/closed.
             // Note: In the document, Stream 3 uses IL then CN, similar to open tenders.
             var letterType = LetterType.Instruction;
-            var dueDate = DateTime.UtcNow.AddHours(settings.InstructionalLetterResponseHours);
+            var dueDate = DateTime.UtcNow.AddHours(settings.OpenTenderResponseHours);
             var actionType = ComplianceActionType.InstructionalLetterSent;
-            var newStatus = CaseStatus.AwaitingILResponse;
+            var newStatus = CaseStatus.WaitingForResponse;
 
             // Create action
             var action = new ComplianceAction

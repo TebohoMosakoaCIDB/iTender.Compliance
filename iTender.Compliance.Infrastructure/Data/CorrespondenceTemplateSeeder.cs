@@ -12,8 +12,8 @@ public static class CorrespondenceTemplateSeeder
     {
         foreach (var type in new[]
         {
-            CorrespondenceTemplateType.Erratum,
-            CorrespondenceTemplateType.InstructionalLetter,
+            CorrespondenceTemplateType.AGSAReferral,
+            CorrespondenceTemplateType.InstructionLetter,
             CorrespondenceTemplateType.ContraventionNotice
         })
         {
@@ -53,13 +53,13 @@ public static class CorrespondenceTemplateSeeder
     {
         return type switch
         {
-            CorrespondenceTemplateType.InstructionalLetter =>
+            CorrespondenceTemplateType.InstructionLetter =>
                 "Instruction Letter",
 
             CorrespondenceTemplateType.ContraventionNotice =>
                 "Contravention Notice",
 
-            CorrespondenceTemplateType.Erratum =>
+            CorrespondenceTemplateType.AGSAReferral =>
                 "Erratum Instruction",
 
             _ => type.ToString()
@@ -72,13 +72,13 @@ public static class CorrespondenceTemplateSeeder
     {
         return type switch
         {
-            CorrespondenceTemplateType.InstructionalLetter =>
+            CorrespondenceTemplateType.InstructionLetter =>
                 "Instruction Letter - Compliance Action Required - Tender {TenderNumber}",
 
             CorrespondenceTemplateType.ContraventionNotice =>
                 "Contravention Notice - Tender {TenderNumber}",
 
-            CorrespondenceTemplateType.Erratum =>
+            CorrespondenceTemplateType.AGSAReferral =>
                 "Erratum Instruction - Tender {TenderNumber}",
 
             _ => string.Empty
@@ -90,7 +90,7 @@ public static class CorrespondenceTemplateSeeder
     {
         return type switch
         {
-            CorrespondenceTemplateType.InstructionalLetter => """
+            CorrespondenceTemplateType.InstructionLetter => """
 Dear {CompanyName},
 
 The CIDB has identified a compliance matter relating to the following project:
@@ -136,7 +136,7 @@ Kind regards,
 {Agent_Signature}
 """,
 
-            CorrespondenceTemplateType.Erratum => """
+            CorrespondenceTemplateType.AGSAReferral => """
 Dear {CompanyName},
 
 INSTRUCTION TO CORRECT TENDER ADVERTISEMENT

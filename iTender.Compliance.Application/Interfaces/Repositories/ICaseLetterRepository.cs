@@ -4,8 +4,6 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface ICaseLetterRepository
     {
-        Task<IEnumerable<CaseLetter>> GetOverdueLettersAsync(CancellationToken cancellationToken = default);
-
         Task<List<CaseLetter>> GetByComplianceCaseIdAsync(
             Guid complianceCaseId,
             CancellationToken cancellationToken = default);
@@ -22,6 +20,10 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             CancellationToken cancellationToken = default);
 
         Task<List<CaseLetter>> GetOutstandingAsync(
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Outstanding (no response, past due) letters with the parent case, tender and agent loaded - for escalation processing.</summary>
+        Task<List<CaseLetter>> GetOutstandingWithCaseAsync(
             CancellationToken cancellationToken = default);
 
         Task AddAsync(

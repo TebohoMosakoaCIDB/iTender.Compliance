@@ -172,6 +172,68 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.AGSAReferral", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AgsaResponse")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("AgsaResponseDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ComplianceCaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FilePath")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ReferralDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReferralNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid?>("ReferredByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComplianceCaseId")
+                        .IsUnique();
+
+                    b.ToTable("AGSAReferrals", (string)null);
+                });
+
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.Agent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -214,6 +276,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsManager")
                         .HasColumnType("boolean");
 
                     b.Property<string>("JobTitle")
@@ -404,6 +469,61 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.ToTable("Notes");
                 });
 
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.CaseObjection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CaseLetterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ComplianceCaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Decision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ManagerNotes")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ReceivedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByAgentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReviewedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseLetterId");
+
+                    b.HasIndex("ComplianceCaseId");
+
+                    b.ToTable("CaseObjections", (string)null);
+                });
+
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ComplianceAction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -556,7 +676,7 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
                     b.HasIndex("ComplianceCaseId");
 
-                    b.ToTable("ComplianceFindings");
+                    b.ToTable("ComplianceFinding");
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.CorrespondenceTemplateModel", b =>
@@ -756,6 +876,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<bool>("AutoAssignmentEnabled")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("ClosedTenderResponseDays")
+                        .HasColumnType("integer");
+
                     b.Property<int>("ContraventionNoticeResponseDays")
                         .HasColumnType("integer");
 
@@ -777,15 +900,6 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<bool>("EnableAutomaticReminders")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("InstructionalLetterResponseHours")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("LastContraventionNoticeNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("LastInstructionalLetterNumber")
-                        .HasColumnType("integer");
-
                     b.Property<int>("MaximumReminders")
                         .HasColumnType("integer");
 
@@ -795,6 +909,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<DateTime?>("ModifiedOn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("OpenTenderResponseHours")
+                        .HasColumnType("integer");
+
                     b.Property<int>("ReminderAfterHours")
                         .HasColumnType("integer");
 
@@ -803,6 +920,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
                     b.Property<int>("ReminderDelayHours")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("RequireManagerApproval")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("ResponseDueHours")
                         .HasColumnType("integer");
@@ -1194,6 +1314,17 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.AGSAReferral", b =>
+                {
+                    b.HasOne("iTender.Compliance.Domain.Entities.ComplianceCase", "ComplianceCase")
+                        .WithOne("AGSAReferral")
+                        .HasForeignKey("iTender.Compliance.Domain.Entities.AGSAReferral", "ComplianceCaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ComplianceCase");
+                });
+
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.AuditLog", b =>
                 {
                     b.HasOne("iTender.Compliance.Domain.Entities.ComplianceCase", null)
@@ -1219,6 +1350,25 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .HasForeignKey("ComplianceCaseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ComplianceCase");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.CaseObjection", b =>
+                {
+                    b.HasOne("iTender.Compliance.Domain.Entities.CaseLetter", "CaseLetter")
+                        .WithMany()
+                        .HasForeignKey("CaseLetterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("iTender.Compliance.Domain.Entities.ComplianceCase", "ComplianceCase")
+                        .WithMany("Objections")
+                        .HasForeignKey("ComplianceCaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CaseLetter");
 
                     b.Navigation("ComplianceCase");
                 });
@@ -1308,6 +1458,8 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ComplianceCase", b =>
                 {
+                    b.Navigation("AGSAReferral");
+
                     b.Navigation("AuditLogs");
 
                     b.Navigation("CaseLetters");
@@ -1317,6 +1469,8 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Navigation("ComplianceActions");
 
                     b.Navigation("ComplianceFindings");
+
+                    b.Navigation("Objections");
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.Tender", b =>

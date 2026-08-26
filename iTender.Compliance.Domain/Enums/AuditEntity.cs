@@ -12,6 +12,10 @@
 
         Agent = 5,
 
-        User = 6
+        User = 6,
+
+        AGSAReferral = 7,
+
+        CaseObjection = 8
     }
 }
