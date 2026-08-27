@@ -79,6 +79,19 @@ namespace iTender.Compliance.Infrastructure.Identity
                     user,
                     Roles.ComplianceAdministrator);
             }
+
+            // The seeded account is the bootstrap/test account for the whole
+            // system - give it every role so it isn't locked out of
+            // policy-protected pages (e.g. "CaseManagement" requires
+            // Director/ComplianceManager/ComplianceOfficer, none of which
+            // ComplianceAdministrator alone satisfies).
+            foreach (var role in roles)
+            {
+                if (!await userManager.IsInRoleAsync(user, role))
+                {
+                    await userManager.AddToRoleAsync(user, role);
+                }
+            }
         }
     }
 }

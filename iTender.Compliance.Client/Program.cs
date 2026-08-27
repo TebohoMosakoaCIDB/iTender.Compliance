@@ -116,9 +116,9 @@ builder.Services.AddAuthorization(options =>
             Roles.ComplianceOfficer));
 });
 
-var connectionString = builder.Configuration.GetConnectionString("SupabaseConnection2") ?? throw new InvalidOperationException("Connection string 'SupabaseConnection' not found.");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'SupabaseConnection' not found.");
 builder.Services.AddDbContext<ComplianceDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseSqlServer(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>

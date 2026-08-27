@@ -10,6 +10,10 @@
 
         public string Employer { get; set; } = string.Empty;
 
+        public string? ContactName { get; set; }
+
+        public string? ContactEmail { get; set; }
+
         public DateTime ClosingDate { get; set; }
 
         public string TenderUrl { get; set; } = string.Empty;

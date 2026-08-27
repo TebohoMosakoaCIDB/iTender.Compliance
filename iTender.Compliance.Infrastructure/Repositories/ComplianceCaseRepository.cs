@@ -119,6 +119,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
                         TenderNumber = x.Tender.TenderNumber,
                         Title = x.Tender.Title,
                         Employer = x.Tender.EmployerName,
+                        ContactName = x.Tender.ContactName,
+                        ContactEmail = x.Tender.ContactEmail,
                         ClosingDate = x.Tender.ClosingDate,
                         TenderUrl = x.Tender.TenderUrl
                     },
@@ -148,6 +150,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                         {
                             Id = l.Id,
                             LetterNumber = l.LetterNumber,
+                            Type = l.Type,
                             SentOn = l.SentOn,
                             RecipientName = l.RecipientName,
                             RecipientEmail = l.RecipientEmail,

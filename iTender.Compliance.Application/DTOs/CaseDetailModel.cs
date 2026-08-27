@@ -14,6 +14,8 @@ namespace iTender.Compliance.Application.DTOs
         public string? AgentEmail { get; set; }
         public Guid? AgentId { get; set; }
 
+        public CaseClosureReason? ClosureReason { get; set; }
+
         public DateTime CreatedOn { get; set; }
 
         public DateTime? ClosedOn { get; set; }

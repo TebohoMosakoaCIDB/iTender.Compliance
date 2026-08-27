@@ -17,6 +17,10 @@
 @inject IComplianceService ComplianceService
 @inject ICaseNoteRepository CaseNoteRepository
 @inject ISystemSettingService SystemSettingService
+@inject IObjectionService ObjectionService
+@inject ICaseObjectionRepository CaseObjectionRepository
+@inject IAgsaReferralRepository AgsaReferralRepository
+@inject ICurrentUserService CurrentUserService
 
 @inject IAuthorizationService AuthorizationService
 
@@ -219,6 +223,21 @@ else
                                 </button>
                             }
                         }
+
+                        @if (HasOutstandingLetter && Model.Case.Status != "UnderManagerReview")
+                        {
+                            <button class="btn btn-sm btn-outline-warning"
+                                    @onclick="OpenRecordObjection">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                Record Objection
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="OpenRequestExtension">
+                                <i class="bi bi-calendar-plus me-1"></i>
+                                Request Extension
+                            </button>
+                        }
                     }
                 </div>
             }
@@ -231,7 +250,7 @@ else
 
                 </div>
             }
-            
+
             <hr />
 
             <!-- ========================================================== -->
@@ -550,6 +569,106 @@ else
 
             <hr />
 
+            @if (AgsaReferral != null)
+            {
+                <div class="row mt-4">
+                    <div class="col-lg-12">
+
+                        <h5 class="table-header-brand mb-3">
+                            <i class="bi bi-shield-exclamation me-2"></i>
+                            AGSA Enforcement Referral
+                        </h5>
+
+                        <div class="alert alert-danger">
+                            <div><strong>Reference:</strong> @AgsaReferral.ReferralNumber</div>
+                            <div><strong>Referred:</strong> @AgsaReferral.ReferralDate.ToString("dd MMM yyyy")</div>
+                            <div><strong>Status:</strong> @AgsaReferral.Status</div>
+                            <div><strong>Reason:</strong> @AgsaReferral.Reason</div>
+                        </div>
+
+                    </div>
+                </div>
+            }
+
+            <div class="row mt-4">
+                <div class="col-lg-12">
+
+                    <h5 class="table-header-brand mb-3">
+                        <i class="bi bi-flag me-2"></i>
+                        Objections
+                    </h5>
+
+                    @if (Objections.Any())
+                    {
+                        @foreach (var objection in Objections.OrderByDescending(x => x.ReceivedOn))
+                        {
+                            <div class="card mb-2">
+                                <div class="card-body">
+
+                                    <div class="d-flex justify-content-between align-items-start">
+
+                                        <div>
+                                            <span class="fw-semibold">
+                                                Objection to @objection.CaseLetter.Type
+                                            </span>
+
+                                            <div class="text-muted small">
+                                                Received @objection.ReceivedOn.ToString("dd MMM yyyy")
+                                            </div>
+                                        </div>
+
+                                        @if (objection.Status == ObjectionStatus.Resolved)
+                                        {
+                                            <span class="badge @(objection.Decision == ObjectionDecision.Upheld ? "bg-success" : "bg-secondary")">
+                                                @objection.Decision
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">
+                                                Awaiting Manager Review
+                                            </span>
+                                        }
+
+                                    </div>
+
+                                    <p class="mt-2 mb-1">@objection.Reason</p>
+
+                                    @if (objection.Status == ObjectionStatus.Resolved)
+                                    {
+                                        <div class="text-muted small">
+                                            Decided @objection.ReviewedOn?.ToString("dd MMM yyyy")
+                                            @if (!string.IsNullOrWhiteSpace(objection.ManagerNotes))
+                                            {
+                                                <text> - @objection.ManagerNotes</text>
+                                            }
+                                        </div>
+                                    }
+                                    else if (CurrentAgentIsManager)
+                                    {
+                                        <button class="btn btn-sm btn-cidb-submit mt-2"
+                                                @onclick="() => OpenResolveObjection(objection)">
+                                            Resolve Objection
+                                        </button>
+                                    }
+
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-flag fs-4 d-block mb-2"></i>
+                            No objections have been raised.
+                        </div>
+                    }
+
+                </div>
+            </div>
+
+            <hr />
+
             <!-- ========================================================== -->
             <!-- CASE NOTES -->
             <!-- ========================================================== -->
@@ -609,7 +728,7 @@ else
                     }
 
                 </div>
-            </div>
+            </div>            
         </div>
 
         <!-- ========================================================== -->
@@ -659,6 +778,26 @@ else
 
                                     case AuditAction.CaseClosed:
                                         <i class="bi bi-lock-fill text-secondary"></i>
+                                        break;
+
+                                    case AuditAction.ContraventionNoticeSent:
+                                        <i class="bi bi-exclamation-octagon-fill text-danger"></i>
+                                        break;
+
+                                    case AuditAction.ReferredToEnforcement:
+                                        <i class="bi bi-shield-exclamation text-danger"></i>
+                                        break;
+
+                                    case AuditAction.ObjectionReceived:
+                                        <i class="bi bi-flag-fill text-warning"></i>
+                                        break;
+
+                                    case AuditAction.ObjectionResolved:
+                                        <i class="bi bi-flag text-secondary"></i>
+                                        break;
+
+                                    case AuditAction.ExtensionApproved:
+                                        <i class="bi bi-calendar-plus-fill text-secondary"></i>
                                         break;
 
                                     default:
@@ -909,6 +1048,228 @@ else
 
         </div>
     }
+
+    @if (ShowRecordObjectionModal)
+    {
+        <div class="modal fade show d-block"
+             tabindex="-1"
+             style="background-color:rgba(0,0,0,.5)">
+
+            <div class="modal-dialog">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <h5 class="modal-title">
+                            Record Client Objection
+                        </h5>
+
+                        <button class="btn-close"
+                                @onclick="CloseRecordObjection">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <p class="text-muted">
+                            Recording an objection pauses the response deadline and routes the
+                            case to a Regulatory Compliance Manager for a decision.
+                        </p>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Reason for Objection <span class="text-danger">*</span>
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="4"
+                                           @bind-Value="ObjectionReason" />
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button class="btn btn-sm btn-secondary"
+                                @onclick="CloseRecordObjection">
+                            Cancel
+                        </button>
+
+                        <button class="btn btn-sm btn-cidb-submit"
+                                disabled="@string.IsNullOrWhiteSpace(ObjectionReason)"
+                                @onclick="SaveObjection">
+                            Record Objection
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+
+    @if (ShowResolveObjectionModal && ObjectionToResolve != null)
+    {
+        <div class="modal fade show d-block"
+             tabindex="-1"
+             style="background-color:rgba(0,0,0,.5)">
+
+            <div class="modal-dialog">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <h5 class="modal-title">
+                            Resolve Objection
+                        </h5>
+
+                        <button class="btn-close"
+                                @onclick="CloseResolveObjection">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <p><strong>Objection:</strong> @ObjectionToResolve.Reason</p>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Decision
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="ObjectionDecisionValue">
+
+                                <option value="@ObjectionDecision.Overruled">
+                                    Overrule - case continues through the workflow
+                                </option>
+
+                                <option value="@ObjectionDecision.Upheld">
+                                    Uphold - close the case
+                                </option>
+
+                            </InputSelect>
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Manager Notes
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="ManagerNotes" />
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button class="btn btn-sm btn-secondary"
+                                @onclick="CloseResolveObjection">
+                            Cancel
+                        </button>
+
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="SaveObjectionDecision">
+                            Save Decision
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+
+    @if (ShowExtensionModal)
+    {
+        <div class="modal fade show d-block"
+             tabindex="-1"
+             style="background-color:rgba(0,0,0,.5)">
+
+            <div class="modal-dialog">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <h5 class="modal-title">
+                            Request Response Extension
+                        </h5>
+
+                        <button class="btn-close"
+                                @onclick="CloseRequestExtension">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Additional Days <span class="text-danger">*</span>
+                            </label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="ExtensionDays" />
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Reason <span class="text-danger">*</span>
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="ExtensionReason" />
+
+                            <small class="text-muted">
+                                Extensions must be requested by the client in writing.
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button class="btn btn-sm btn-secondary"
+                                @onclick="CloseRequestExtension">
+                            Cancel
+                        </button>
+
+                        <button class="btn btn-sm btn-cidb-submit"
+                                disabled="@(ExtensionDays <= 0 || string.IsNullOrWhiteSpace(ExtensionReason))"
+                                @onclick="SaveExtension">
+                            Grant Extension
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
 }
 
 @code {
@@ -940,6 +1301,25 @@ else
         Model.Case.Agent != null &&
         !Model.Letters.Any();
 
+    private List<CaseObjection> Objections { get; set; } = [];
+    private AGSAReferral? AgsaReferral { get; set; }
+    private bool CurrentAgentIsManager { get; set; }
+
+    private bool HasOutstandingLetter =>
+        Model != null && Model.Letters.Any(x => !x.RespondedOn.HasValue);
+
+    private bool ShowRecordObjectionModal;
+    private string ObjectionReason = string.Empty;
+
+    private bool ShowResolveObjectionModal;
+    private CaseObjection? ObjectionToResolve;
+    private ObjectionDecision ObjectionDecisionValue = ObjectionDecision.Overruled;
+    private string ManagerNotes = string.Empty;
+
+    private bool ShowExtensionModal;
+    private int ExtensionDays = 1;
+    private string ExtensionReason = string.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         var authenticationState =
@@ -964,6 +1344,20 @@ else
             NextCorrespondence =
                 await ComplianceService.GetNextCorrespondenceAsync(Id);
         }
+
+        await LoadWorkflowExtrasAsync();
+
+        if (CurrentUserService.UserId.HasValue)
+        {
+            var currentAgent = await AgentRepository.GetByUserIdAsync(CurrentUserService.UserId.Value);
+            CurrentAgentIsManager = currentAgent?.IsManager ?? false;
+        }
+    }
+
+    private async Task LoadWorkflowExtrasAsync()
+    {
+        Objections = await CaseObjectionRepository.GetByCaseIdAsync(Id);
+        AgsaReferral = await AgsaReferralRepository.GetByCaseIdAsync(Id);
     }
 
     private async Task RefreshCase()
@@ -1040,60 +1434,57 @@ else
             !NextCorrespondence.Type.HasValue)
             return;
 
-        byte[] pdf;
+        if (string.IsNullOrWhiteSpace(Model.Tender.ContactEmail))
+            throw new InvalidOperationException(
+                "This tender has no client contact email on file - it cannot be notified.");
+
+        var recipientName = Model.Tender.ContactName ?? Model.Tender.Employer;
 
         switch (NextCorrespondence.Type.Value)
         {
-            // case CorrespondenceTemplateType.AGSAReferral:
+            case CorrespondenceTemplateType.InstructionLetter:
 
-            //     pdf = await CorrespondenceService
-            //         .Gen(Model.Id);
+                await CorrespondenceService.SendInstructionLetterAsync(new SendInstructionLetterModel
+                {
+                    ComplianceCaseId = Model.Id,
+                    RecipientName = recipientName,
+                    RecipientEmail = Model.Tender.ContactEmail,
+                    TenderNumber = Model.Tender.TenderNumber,
+                    TenderTitle = Model.Tender.Title,
+                    EmployerName = Model.Tender.Employer,
+                    ClosingDate = Model.Tender.ClosingDate,
+                    CompanyName = Model.Tender.Employer,
+                    ContactPerson = recipientName,
+                    HeaderImagePath = Model.Case.HeaderImagePath,
+                    SignatureImagePath = Model.Case.SignatureImagePath,
+                    FooterText = Model.Case.FooterText,
+                    ResponseDueOn = DateTime.UtcNow.AddHours(NextCorrespondence.ResponseHours)
+                });
 
-            //     break;
+                break;
 
-            // case CorrespondenceTemplateType.InstructionLetter:
+            case CorrespondenceTemplateType.ContraventionNotice:
 
-            //     pdf = await CorrespondenceService.SendInstructionLetterAsync(Model., CancellationToken.None);
+                await CorrespondenceService.SendContraventionNoticeAsync(new SendContraventionNoticeModel
+                {
+                    ComplianceCaseId = Model.Id,
+                    RecipientName = recipientName,
+                    RecipientEmail = Model.Tender.ContactEmail,
+                    TenderNumber = Model.Tender.TenderNumber,
+                    TenderTitle = Model.Tender.Title,
+                    EmployerName = Model.Tender.Employer,
+                    ClosingDate = Model.Tender.ClosingDate,
+                    Reason = NextCorrespondence.Description,
+                    ResponseDueOn = DateTime.UtcNow.AddHours(NextCorrespondence.ResponseHours)
+                });
 
-            //     break;
-
-            // case CorrespondenceTemplateType.ContraventionNotice:
-
-            //     pdf = await CorrespondenceService
-            //         .GenerateContraventionNoticeAsync(Model.Id);
-
-            //     break;
+                break;
 
             default:
 
                 throw new InvalidOperationException(
                     "Unsupported correspondence type.");
         }
-
-        var fileName = NextCorrespondence.Type.Value switch
-        {
-            CorrespondenceTemplateType.InstructionLetter =>
-                $"InstructionalLetter-{Model.Tender.TenderNumber}.pdf",
-
-            CorrespondenceTemplateType.ContraventionNotice =>
-                $"ContraventionNotice-{Model.Tender.TenderNumber}.pdf",
-
-            CorrespondenceTemplateType.AGSAReferral =>
-                $"Erratum-{Model.Tender.TenderNumber}.pdf",
-
-            _ =>
-                $"Correspondence-{Model.Tender.TenderNumber}.pdf"
-        };
-
-        using var stream = new MemoryStream(pdf);
-
-        using var streamRef =
-            new DotNetStreamReference(stream);
-
-        await JS.InvokeVoidAsync(
-            "downloadFileFromStream",
-            fileName,
-            streamRef);
 
         await RefreshCase();
     }
@@ -1139,5 +1530,111 @@ else
         ShowCaptureResponseModal = false;
 
         Model = await Repository.GetDetailAsync(Id);
+    }
+
+    private void OpenRecordObjection()
+    {
+        ObjectionReason = string.Empty;
+        ShowRecordObjectionModal = true;
+    }
+
+    private void CloseRecordObjection()
+    {
+        ShowRecordObjectionModal = false;
+    }
+
+    private async Task SaveObjection()
+    {
+        if (Model == null || string.IsNullOrWhiteSpace(ObjectionReason))
+            return;
+
+        var latestLetter = Model.Letters
+            .OrderByDescending(x => x.LetterNumber)
+            .FirstOrDefault(x => !x.RespondedOn.HasValue);
+
+        if (latestLetter == null)
+            return;
+
+        await ObjectionService.RecordObjectionAsync(new RecordObjectionModel
+        {
+            ComplianceCaseId = Model.Id,
+            CaseLetterId = latestLetter.Id,
+            Reason = ObjectionReason,
+            ReceivedOn = DateTime.UtcNow
+        });
+
+        ShowRecordObjectionModal = false;
+
+        await RefreshCase();
+        await LoadWorkflowExtrasAsync();
+    }
+
+    private void OpenResolveObjection(CaseObjection objection)
+    {
+        ObjectionToResolve = objection;
+        ObjectionDecisionValue = ObjectionDecision.Overruled;
+        ManagerNotes = string.Empty;
+        ShowResolveObjectionModal = true;
+    }
+
+    private void CloseResolveObjection()
+    {
+        ShowResolveObjectionModal = false;
+        ObjectionToResolve = null;
+    }
+
+    private async Task SaveObjectionDecision()
+    {
+        if (ObjectionToResolve == null || !CurrentUserService.UserId.HasValue)
+            return;
+
+        var currentAgent = await AgentRepository.GetByUserIdAsync(CurrentUserService.UserId.Value);
+
+        if (currentAgent == null)
+            return;
+
+        await ObjectionService.ResolveObjectionAsync(
+            new ResolveObjectionModel
+            {
+                ObjectionId = ObjectionToResolve.Id,
+                Decision = ObjectionDecisionValue,
+                ManagerNotes = ManagerNotes
+            },
+            currentAgent.Id);
+
+        ShowResolveObjectionModal = false;
+        ObjectionToResolve = null;
+
+        await RefreshCase();
+        await LoadWorkflowExtrasAsync();
+    }
+
+    private void OpenRequestExtension()
+    {
+        ExtensionDays = 1;
+        ExtensionReason = string.Empty;
+        ShowExtensionModal = true;
+    }
+
+    private void CloseRequestExtension()
+    {
+        ShowExtensionModal = false;
+    }
+
+    private async Task SaveExtension()
+    {
+        if (Model == null || ExtensionDays <= 0 || string.IsNullOrWhiteSpace(ExtensionReason))
+            return;
+
+        await ComplianceService.RequestExtensionAsync(new RequestExtensionModel
+        {
+            ComplianceCaseId = Model.Id,
+            AdditionalDays = ExtensionDays,
+            Reason = ExtensionReason
+        });
+
+        ShowExtensionModal = false;
+
+        await RefreshCase();
     }
 }
