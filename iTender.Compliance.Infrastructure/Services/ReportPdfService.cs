@@ -92,7 +92,7 @@ namespace iTender.Compliance.Infrastructure.Services
 
                                 left.Item()
                                     .PaddingTop(3)
-                                    .Text("Compliance Monitoring")
+                                    .Text("CIDB Regulatory Compliance Intelligence Platform (CRCIP)")
                                     .FontSize(10)
                                     .FontColor("#666666");
                             });

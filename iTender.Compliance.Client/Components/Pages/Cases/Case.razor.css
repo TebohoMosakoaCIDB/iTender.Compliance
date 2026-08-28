@@ -25,9 +25,9 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background-color: #0d6efd;
+    background-color: #b3202a;
     border: 2px solid #fff;
-    box-shadow: 0 0 0 2px #0d6efd;
+    box-shadow: 0 0 0 2px #b3202a;
     z-index: 1;
     margin-top: 8px;
 }
@@ -40,7 +40,7 @@
 }
 
 .note-card {
-    border-left: 4px solid #0d6efd !important;
+    border-left: 4px solid #b3202a !important;
     transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 

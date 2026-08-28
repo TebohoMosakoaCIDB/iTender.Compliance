@@ -27,6 +27,9 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.Configure<SigningHubOptions>(
                 configuration.GetSection(SigningHubOptions.SectionName));
 
+            services.Configure<SmtpOptions>(
+                configuration.GetSection(SmtpOptions.SectionName));
+
             services.AddHttpClient<ISigningHubApiProvider, SigningHubApiProvider>((sp, client) =>
             {
                 var options = sp.GetRequiredService<IOptions<SigningHubOptions>>().Value;
@@ -84,6 +87,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddHostedService<AutoAssignmentBackgroundService>();
             services.AddHostedService<RoPComplianceBackgroundService>();
             services.AddHostedService<ComplianceWorkflowBackgroundService>();
+            services.AddHostedService<SigningApprovalBackgroundService>();
 
             services.AddScoped<IAutoAssignmentService, AutoAssignmentService>();
             services.AddScoped<ITenderService, TenderService>();
@@ -93,6 +97,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<ICorrespondenceTemplateService, CorrespondenceTemplateService>();
             services.AddScoped<ISigningRequestService, SigningRequestService>();
+            services.AddScoped<IDocumentSigningService, DocumentSigningService>();
             services.AddScoped<IComplianceProcessingService, ComplianceProcessingService>();
             services.AddScoped<IWorkClassificationValidator, WorkClassificationValidator>();
             services.AddScoped<ILetterNumberGenerator, LetterNumberGenerator>();
@@ -104,7 +109,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<ICorrespondenceService, CorrespondenceService>();
             services.AddScoped<IObjectionService, ObjectionService>();
             services.AddScoped<IReminderService, ReminderService>();
-            //services.AddScoped<IObjectionService, ObjectionService>();
+            services.AddScoped<IObjectionService, ObjectionService>();
 
 
             services.AddScoped<IProfileService, ProfileService>();

@@ -62,15 +62,50 @@ namespace iTender.Compliance.Infrastructure.Services
                     mail.Attachments.Add(attachment);
                 }
 
-                using var client = new SmtpClient(_options.Host, _options.Port)
+                using var client = new SmtpClient(
+                    _options.Host,
+                    _options.Port)
                 {
                     EnableSsl = _options.EnableSsl,
                     Credentials = string.IsNullOrWhiteSpace(_options.Username)
                         ? CredentialCache.DefaultNetworkCredentials
-                        : new NetworkCredential(_options.Username, _options.Password)
+                        : new NetworkCredential(
+                            _options.Username,
+                            _options.Password)
                 };
 
-                await client.SendMailAsync(mail, cancellationToken);
+                _logger.LogInformation(
+                    "Sending email to {To} using SMTP {Host}:{Port}.",
+                    message.ToAddress,
+                    _options.Host,
+                    _options.Port);
+
+                await client.SendMailAsync(
+                    mail,
+                    cancellationToken);
+
+                _logger.LogInformation(
+                    "Email successfully sent to {To}.",
+                    message.ToAddress);
+            }
+            catch (SmtpException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "SMTP error while sending email to {To}. StatusCode: {StatusCode}",
+                    message.ToAddress,
+                    ex.StatusCode);
+
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Unexpected error while sending email to {To}.",
+                    message.ToAddress);
+
+                throw;
             }
             finally
             {

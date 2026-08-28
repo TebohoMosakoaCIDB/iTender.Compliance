@@ -1,4 +1,7 @@
 ﻿@page "/profile"
+
+@rendermode InteractiveServer
+
 @using System.Security.Claims
 @using iTender.Compliance.Application.DTOs
 @using iTender.Compliance.Application.Interfaces.Services
@@ -149,7 +152,7 @@
                                     </label>
 
                                     <InputText class="form-control"
-                                               @bind-Value="_editModel.FirstName" />
+                                               @bind-Value="@_editModel.FirstName" />
                                 </div>
 
                                 <div class="col-md-6">
@@ -158,7 +161,7 @@
                                     </label>
 
                                     <InputText class="form-control"
-                                               @bind-Value="_editModel.LastName" />
+                                               @bind-Value="@_editModel.LastName" />
                                 </div>
 
                                 <div class="col-md-6">
@@ -177,7 +180,7 @@
                                     </label>
 
                                     <InputText class="form-control"
-                                               @bind-Value="_editModel.PhoneNumber" />
+                                               @bind-Value="@_editModel.PhoneNumber" />
                                 </div>
 
                                 <div class="col-md-6">
@@ -186,7 +189,8 @@
                                     </label>
 
                                     <InputText class="form-control"
-                                               @bind-Value="_editModel.EmployeeNumber" />
+                                               @bind-Value="@_editModel.EmployeeNumber" 
+                                               disabled />
                                 </div>
 
                                 <div class="col-md-6">
@@ -195,7 +199,8 @@
                                     </label>
 
                                     <InputText class="form-control"
-                                               @bind-Value="_editModel.Department" />
+                                               @bind-Value="@_editModel.Department" 
+                                               disabled />
                                 </div>
 
                                 <div class="col-md-6">
@@ -204,7 +209,8 @@
                                     </label>
 
                                     <InputText class="form-control"
-                                               @bind-Value="_editModel.JobTitle" />
+                                               @bind-Value="@_editModel.JobTitle" 
+                                               disabled />
                                 </div>
 
                                 <div class="col-md-6">

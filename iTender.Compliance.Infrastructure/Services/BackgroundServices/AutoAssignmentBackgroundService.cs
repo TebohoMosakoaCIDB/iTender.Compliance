@@ -18,7 +18,7 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
             CancellationToken stoppingToken)
         {
             using var timer =
-                new PeriodicTimer(TimeSpan.FromHours(6));
+                new PeriodicTimer(TimeSpan.FromHours(12));
 
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {

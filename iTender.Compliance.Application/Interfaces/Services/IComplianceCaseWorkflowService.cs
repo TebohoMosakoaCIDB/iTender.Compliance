@@ -1,60 +1,14 @@
-﻿//using iTender.Compliance.Domain.Enums;
+﻿using iTender.Compliance.Domain.Enums;
 
-//namespace iTender.Compliance.Application.Interfaces.Services
-//{
-//    public interface IComplianceCaseWorkflowService
-//    {
-//        Task AssignCaseAsync(
-//            Guid caseId,
-//            Guid agentId,
-//            CancellationToken cancellationToken = default);
-
-//        Task IssueErratumAsync(
-//            Guid caseId,
-//            CancellationToken cancellationToken = default);
-
-//        Task IssueInstructionAsync(
-//            Guid caseId,
-//            CancellationToken cancellationToken = default);
-
-//        Task IssueContraventionNoticeAsync(
-//            Guid caseId,
-//            CancellationToken cancellationToken = default);
-
-//        Task IssueReminderAsync(
-//            Guid caseId,
-//            CancellationToken cancellationToken = default);
-
-//        Task RecordResponseAsync(
-//            Guid caseId,
-//            string? comments = null,
-//            CancellationToken cancellationToken = default);
-
-//        Task RequestExtensionAsync(
-//            Guid caseId,
-//            string? comments = null,
-//            CancellationToken cancellationToken = default);
-
-//        Task GrantExtensionAsync(
-//            Guid caseId,
-//            DateTime newDueDate,
-//            string? comments = null,
-//            CancellationToken cancellationToken = default);
-
-//        Task RaiseObjectionAsync(
-//            Guid caseId,
-//            string? comments = null,
-//            CancellationToken cancellationToken = default);
-
-//        Task EscalateToAGSAAsync(
-//            Guid caseId,
-//            string? comments = null,
-//            CancellationToken cancellationToken = default);
-
-//        Task CloseCaseAsync(
-//            Guid caseId,
-//            ComplianceOutcome outcome,
-//            string? comments = null,
-//            CancellationToken cancellationToken = default);
-//    }
-//}
+namespace iTender.Compliance.Application.Interfaces.Services
+{
+    public interface IComplianceCaseWorkflowService
+    {
+        Task IssueInstructionalLetterAsync(Guid caseId, Guid findingId, CancellationToken ct = default);
+        Task IssueContraventionNoticeAsync(Guid caseId, Guid findingId, CancellationToken ct = default);
+        Task IssueErratumAsync(Guid caseId, Guid findingId, CancellationToken ct = default);
+        Task SubmitForManagerApprovalAsync(Guid actionId, CancellationToken ct = default);
+        Task ApproveCorrespondenceAsync(Guid actionId, string? comments, CancellationToken ct = default);
+        Task RejectCorrespondenceAsync(Guid actionId, string reason, CancellationToken ct = default);
+    }
+}

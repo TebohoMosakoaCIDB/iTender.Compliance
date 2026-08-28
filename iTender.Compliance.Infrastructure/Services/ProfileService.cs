@@ -78,27 +78,29 @@ namespace iTender.Compliance.Infrastructure.Services
 
             var agent = await _dbContext.Agents
                 .FirstOrDefaultAsync(
-                    x => x.UserId == userId,
+                    x => x.Email == user.Email,
                     cancellationToken);
 
-            if (agent == null)
-                return false;
+            if (agent != null)
+            {
+                agent.EmployeeNumber = model.EmployeeNumber.Trim();
+                agent.Department = model.Department.Trim();
+                agent.JobTitle = string.IsNullOrWhiteSpace(model.JobTitle)
+                    ? null
+                    : model.JobTitle.Trim();
+
+                agent.ModifiedOn = DateTime.UtcNow;
+
+                _dbContext.Agents.Update(agent);
+                await _dbContext.SaveChangesAsync();
+            }
 
             // Identity information
             user.FirstName = model.FirstName.Trim();
             user.LastName = model.LastName.Trim();
             user.PhoneNumber = string.IsNullOrWhiteSpace(model.PhoneNumber)
                 ? null
-                : model.PhoneNumber.Trim();
-
-            // CRCIP employee information
-            agent.EmployeeNumber = model.EmployeeNumber.Trim();
-            agent.Department = model.Department.Trim();
-            agent.JobTitle = string.IsNullOrWhiteSpace(model.JobTitle)
-                ? null
-                : model.JobTitle.Trim();
-
-            agent.ModifiedOn = DateTime.UtcNow;
+                : model.PhoneNumber.Trim();            
 
             var result = await _userManager.UpdateAsync(user);
 

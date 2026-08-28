@@ -11,8 +11,12 @@ namespace iTender.Compliance.Infrastructure.Services
     {
         private readonly IComplianceCaseRepository _complianceCaseRepository;
         private readonly ICaseLetterRepository _caseLetterRepository;
+        private readonly IAgentRepository _agentRepository;
+        private readonly ISystemSettingService _systemSettingService;
+        private readonly IDocumentSigningService _documentSigningService;
         private readonly IDocumentService _documentService;
         private readonly IEmailService _emailService;
+        private readonly INotificationService _notificationService;
         private readonly ICurrentUserService _currentUser;
         private readonly IAuditService _auditService;
         private readonly IUnitOfWork _unitOfWork;
@@ -21,8 +25,12 @@ namespace iTender.Compliance.Infrastructure.Services
         public CorrespondenceService(
             IComplianceCaseRepository complianceCaseRepository,
             ICaseLetterRepository caseLetterRepository,
+            IAgentRepository agentRepository,
+            ISystemSettingService systemSettingService,
+            IDocumentSigningService documentSigningService,
             IDocumentService documentService,
             IEmailService emailService,
+            INotificationService notificationService,
             ICurrentUserService currentUser,
             IAuditService auditService,
             IUnitOfWork unitOfWork,
@@ -30,8 +38,12 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             _complianceCaseRepository = complianceCaseRepository;
             _caseLetterRepository = caseLetterRepository;
+            _agentRepository = agentRepository;
+            _systemSettingService = systemSettingService;
+            _documentSigningService = documentSigningService;
             _documentService = documentService;
             _emailService = emailService;
+            _notificationService = notificationService;
             _auditService = auditService;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
@@ -85,8 +97,15 @@ namespace iTender.Compliance.Infrastructure.Services
                 letter,
                 cancellationToken);
 
+            var routedForApproval = await TryRouteForApprovalAsync(
+                letter,
+                cancellationToken);
+
             // Update the case
-            complianceCase.Status = CaseStatus.WaitingForResponse;
+            complianceCase.Status = routedForApproval
+                ? CaseStatus.PendingApproval
+                : CaseStatus.WaitingForResponse;
+
             complianceCase.ModifiedOn = DateTime.UtcNow;
 
             await _complianceCaseRepository.UpdateAsync(
@@ -101,18 +120,23 @@ namespace iTender.Compliance.Infrastructure.Services
                 AuditAction.InstructionLetterSent,
                 AuditEntity.ComplianceCase,
                 complianceCase.Id,
-                $"Instruction letter sent to {model.RecipientName}.",
+                routedForApproval
+                    ? $"Instruction letter generated for {model.RecipientName} and sent for Manager approval."
+                    : $"Instruction letter sent to {model.RecipientName}.",
                 _currentUser.UserId,
                 cancellationToken);
 
-            await DeliverAsync(
-                letter,
-                model.RecipientName,
-                model.RecipientEmail,
-                "Instruction Letter",
-                $"Please find attached an Instruction Letter regarding tender {model.TenderNumber}. " +
-                $"A response is required by {model.ResponseDueOn:dd MMM yyyy}.",
-                cancellationToken);
+            if (!routedForApproval)
+            {
+                await DeliverAsync(
+                    letter,
+                    model.RecipientName,
+                    "kevin.mokoenazaya@gmail.com"/*model.RecipientEmail*/,
+                    "Instruction Letter",
+                    $"Please find attached an Instruction Letter regarding tender {model.TenderNumber}. " +
+                    $"A response is required by {model.ResponseDueOn:dd MMM yyyy}.",
+                    cancellationToken);
+            }
         }
 
         public async Task SendReminderLetterAsync(SendReminderLetterModel model, CancellationToken cancellationToken = default)
@@ -238,7 +262,14 @@ namespace iTender.Compliance.Infrastructure.Services
                 letter,
                 cancellationToken);
 
-            complianceCase.Status = CaseStatus.ContraventionNoticeIssued;
+            var routedForApproval = await TryRouteForApprovalAsync(
+                letter,
+                cancellationToken);
+
+            complianceCase.Status = routedForApproval
+                ? CaseStatus.PendingApproval
+                : CaseStatus.ContraventionNoticeIssued;
+
             complianceCase.ModifiedOn = DateTime.UtcNow;
 
             await _complianceCaseRepository.UpdateAsync(
@@ -252,19 +283,24 @@ namespace iTender.Compliance.Infrastructure.Services
                 AuditAction.ContraventionNoticeSent,
                 AuditEntity.ComplianceCase,
                 complianceCase.Id,
-                $"Contravention Notice sent to {model.RecipientName}. Reason: {model.Reason}.",
+                routedForApproval
+                    ? $"Contravention Notice generated for {model.RecipientName} and sent for Manager approval. Reason: {model.Reason}."
+                    : $"Contravention Notice sent to {model.RecipientName}. Reason: {model.Reason}.",
                 _currentUser.UserId,
                 cancellationToken);
 
-            await DeliverAsync(
-                letter,
-                model.RecipientName,
-                model.RecipientEmail,
-                "Contravention Notice",
-                $"Please find attached a formal Contravention Notice regarding tender {model.TenderNumber}. " +
-                $"A response is required by {model.ResponseDueOn:dd MMM yyyy}. Failure to respond may result in " +
-                "referral for enforcement action.",
-                cancellationToken);
+            if (!routedForApproval)
+            {
+                await DeliverAsync(
+                    letter,
+                    model.RecipientName,
+                    model.RecipientEmail,
+                    "Contravention Notice",
+                    $"Please find attached a formal Contravention Notice regarding tender {model.TenderNumber}. " +
+                    $"A response is required by {model.ResponseDueOn:dd MMM yyyy}. Failure to respond may result in " +
+                    "referral for enforcement action.",
+                    cancellationToken);
+            }
 
             return letter.Id;
         }
@@ -358,6 +394,179 @@ namespace iTender.Compliance.Infrastructure.Services
                 "Compliance case closed.",
                 _currentUser.UserId,
                 cancellationToken);
+        }
+
+        /// <summary>Routes a generated letter to the active Manager for sign-off via SigningHub if
+        /// RequireManagerApproval is on and a Manager exists. Falls back to immediate delivery (returns
+        /// false) if approval isn't required, no Manager is configured, or SigningHub is unreachable -
+        /// a compliance deadline should never be silently blocked by a third-party outage.</summary>
+        private async Task<bool> TryRouteForApprovalAsync(
+            CaseLetter letter,
+            CancellationToken cancellationToken)
+        {
+            var settings = await _systemSettingService.GetAsync();
+
+            if (!settings.RequireManagerApproval)
+                return false;
+
+            var managers = await _agentRepository.GetManagersAsync(cancellationToken);
+            var manager = managers.FirstOrDefault();
+
+            if (manager == null)
+            {
+                _logger.LogWarning(
+                    "RequireManagerApproval is enabled but no active Manager is configured. " +
+                    "Sending case letter {CaseLetterId} without approval.",
+                    letter.Id);
+
+                return false;
+            }
+
+            try
+            {
+                await _documentSigningService.RequestApprovalAsync(
+                    letter,
+                    manager,
+                    cancellationToken);
+
+                await _auditService.LogAsync(
+                    AuditAction.ApprovalRequested,
+                    AuditEntity.CaseLetter,
+                    letter.Id,
+                    $"Sent to {manager.FullName} for approval via SigningHub.",
+                    _currentUser.UserId,
+                    cancellationToken);
+
+                if (manager.UserId != Guid.Empty)
+                {
+                    await _notificationService.NotifyAsync(new CreateNotificationModel
+                    {
+                        UserId = manager.UserId,
+                        Title = "Letter Awaiting Your Approval",
+                        Message = $"A {letter.Type} for {letter.RecipientName} is awaiting your sign-off in SigningHub.",
+                        Type = NotificationType.Information
+                    }, cancellationToken);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to route case letter {CaseLetterId} to SigningHub for approval; sending directly instead.",
+                    letter.Id);
+
+                await _auditService.LogAsync(
+                    AuditAction.Error,
+                    AuditEntity.CaseLetter,
+                    letter.Id,
+                    $"Approval routing failed, letter sent without sign-off: {ex.Message}",
+                    _currentUser.UserId,
+                    cancellationToken);
+
+                return false;
+            }
+        }
+
+        public async Task CompleteApprovedLetterAsync(
+            Guid caseLetterId,
+            CancellationToken cancellationToken = default)
+        {
+            var letter = await _caseLetterRepository.GetByIdAsync(
+                caseLetterId,
+                cancellationToken);
+
+            if (letter == null)
+                return;
+
+            var complianceCase = await _complianceCaseRepository.GetByIdAsync(
+                letter.ComplianceCaseId,
+                cancellationToken);
+
+            if (complianceCase == null)
+                return;
+
+            complianceCase.Status = letter.Type == LetterType.ContraventionNotice
+                ? CaseStatus.ContraventionNoticeIssued
+                : CaseStatus.WaitingForResponse;
+
+            complianceCase.ModifiedOn = DateTime.UtcNow;
+
+            await _complianceCaseRepository.UpdateAsync(
+                complianceCase,
+                cancellationToken);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _auditService.LogAsync(
+                AuditAction.ApprovalGranted,
+                AuditEntity.CaseLetter,
+                letter.Id,
+                "Manager approved the letter via SigningHub.",
+                cancellationToken: cancellationToken);
+
+            await DeliverAsync(
+                letter,
+                letter.RecipientName,
+                letter.RecipientEmail,
+                letter.Type.ToString(),
+                $"Please find attached the {letter.Type} regarding this compliance matter. " +
+                $"A response is required by {letter.ResponseDueOn:dd MMM yyyy}.",
+                cancellationToken);
+        }
+
+        public async Task HandleRejectedLetterAsync(
+            Guid caseLetterId,
+            string reason,
+            CancellationToken cancellationToken = default)
+        {
+            var letter = await _caseLetterRepository.GetByIdAsync(
+                caseLetterId,
+                cancellationToken);
+
+            if (letter == null)
+                return;
+
+            var complianceCase = await _complianceCaseRepository.GetByIdAsync(
+                letter.ComplianceCaseId,
+                cancellationToken);
+
+            if (complianceCase == null)
+                return;
+
+            // The letter was never sent - route the case back to the officer
+            // rather than leaving it stuck awaiting an approval that failed.
+            complianceCase.Status = complianceCase.AgentId.HasValue
+                ? CaseStatus.Assigned
+                : CaseStatus.New;
+
+            complianceCase.ModifiedOn = DateTime.UtcNow;
+
+            await _complianceCaseRepository.UpdateAsync(
+                complianceCase,
+                cancellationToken);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _auditService.LogAsync(
+                AuditAction.ApprovalRejected,
+                AuditEntity.CaseLetter,
+                letter.Id,
+                $"Manager rejected the {letter.Type} via SigningHub: {reason}",
+                cancellationToken: cancellationToken);
+
+            if (complianceCase.AgentId.HasValue)
+            {
+                await _notificationService.NotifyAsync(new CreateNotificationModel
+                {
+                    UserId = complianceCase.AgentId,
+                    Title = "Letter Rejected by Manager",
+                    Message = $"The {letter.Type} for this case was rejected: {reason}",
+                    Type = NotificationType.Warning,
+                    Url = $"/cases/{complianceCase.Id}"
+                }, cancellationToken);
+            }
         }
 
         /// <summary>

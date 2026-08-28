@@ -60,7 +60,7 @@ public static class CorrespondenceTemplateSeeder
                 "Contravention Notice",
 
             CorrespondenceTemplateType.AGSAReferral =>
-                "Erratum Instruction",
+                "AGSA Referral Instruction",
 
             _ => type.ToString()
         };
@@ -79,7 +79,7 @@ public static class CorrespondenceTemplateSeeder
                 "Contravention Notice - Tender {TenderNumber}",
 
             CorrespondenceTemplateType.AGSAReferral =>
-                "Erratum Instruction - Tender {TenderNumber}",
+                "AGSA Referral Instruction - Tender {TenderNumber}",
 
             _ => string.Empty
         };
@@ -155,7 +155,7 @@ The required correction must be made within 48 hours of receipt of this instruct
 
 Response Due Date: {ResponseDueDate}
 
-Kindly provide confirmation of the corrective action taken and a copy or evidence of the issued erratum.
+Kindly provide confirmation of the corrective action taken and a copy or evidence of the issued AGSA Referral.
 
 Failure to correct the tender within the prescribed period may result in the issuing of a Contravention Notice and referral for further enforcement action.
 

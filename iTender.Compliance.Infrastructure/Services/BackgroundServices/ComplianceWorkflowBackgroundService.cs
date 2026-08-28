@@ -30,7 +30,7 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
             // Give the host a moment to finish starting up before the first pass.
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
             }
             catch (TaskCanceledException)
             {

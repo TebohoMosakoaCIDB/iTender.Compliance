@@ -26,16 +26,16 @@
         </div>
         <AuthorizeView Context="authContext">
             <Authorized>
-
-                <div class="nav-item px-3 mb-4">
-                    <div class="d-flex align-items-center">
-
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link"
+                             href="profile"
+                             Match="NavLinkMatch.All">
                         <div class="me-2">
                             <i class="bi bi-person-circle fs-3 text-danger"></i>
                         </div>
 
-                        <div>
-                            <div class="fw-semibold text-danger">
+                        <div style="line-height: 1.1;">
+                            <div class="fw-semibold text-danger" >
                                 @authContext.User.Identity?.Name
                             </div>
 
@@ -43,8 +43,7 @@
                                 @authContext.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
                             </small>
                         </div>
-
-                    </div>
+                    </NavLink>
                 </div>
 
                 <!-- Dashboard -->
@@ -122,14 +121,6 @@
                         </NavLink>
                     </div>
                 </AuthorizeView>
-
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link"
-                             href="profile">
-                        <span class="bi bi-person-fill-nav-menu"></span>
-                        My Profile
-                    </NavLink>
-                </div>
 
                 <!-- Logout -->
                 <div class="nav-item px-3">
