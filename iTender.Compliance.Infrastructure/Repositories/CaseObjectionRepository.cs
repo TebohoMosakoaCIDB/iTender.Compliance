@@ -29,6 +29,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
             return Context.CaseObjections
                 .Where(x => x.ComplianceCaseId == complianceCaseId)
+                .Include(x => x.ComplianceCase)
+                .Include(x => x.CaseLetter)
                 .OrderByDescending(x => x.ReceivedOn)
                 .ToListAsync(cancellationToken);
         }

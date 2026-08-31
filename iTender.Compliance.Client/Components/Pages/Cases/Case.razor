@@ -224,7 +224,7 @@ else
 
                         @if (HasOutstandingLetter && Model.Case.Status != "UnderManagerReview")
                         {
-                            <button class="btn btn-sm btn-secondary"
+                            <button class="btn btn-sm btn-outline-warning"
                                     @onclick="OpenRecordObjection">
                                 <i class="bi bi-exclamation-triangle me-1"></i>
                                 Record Objection
@@ -678,7 +678,7 @@ else
 
                                         @if (objection.Status == ObjectionStatus.Resolved)
                                         {
-                                            <span class="badge @(objection.Decision == ObjectionDecision.Upheld ? "bg-success" : "bg-secondary")">
+                                            <span class="badge @(objection.Decision == ObjectionDecision.Upheld ? "bg-danger" : "bg-secondary")">
                                                 @objection.Decision
                                             </span>
                                         }
@@ -1507,7 +1507,16 @@ else
 
     private async Task SaveResponse()
     {
-        //await CorrespondenceService.CaptureResponseAsync(Response);
+        Response.ComplianceCaseId = Model.Id;
+
+        var outstandingLetter = Model.Letters
+            .OrderByDescending(x => x.LetterNumber)
+            .FirstOrDefault(x => !x.RespondedOn.HasValue);
+
+        if (outstandingLetter != null)
+            Response.CaseLetterId = outstandingLetter.Id;
+
+        await CorrespondenceService.CaptureResponseAsync(Response);
 
         if (!string.IsNullOrWhiteSpace(Response.Comments))
         {

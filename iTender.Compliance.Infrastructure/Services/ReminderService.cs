@@ -34,18 +34,20 @@ namespace iTender.Compliance.Infrastructure.Services
             _logger = logger;
         }
 
-        public async Task ProcessRemindersAsync(
+        public async Task<int> ProcessRemindersAsync(
             CancellationToken cancellationToken = default)
         {
             var settings = await _systemSettingService.GetAsync();
 
             if (!settings.EnableAutomaticReminders)
-                return;
+                return 0;
 
             var cases = await _complianceCaseRepository
                 .GetCasesAwaitingReminderAsync(
                     settings.ReminderAfterHours,
                     cancellationToken);
+
+            var sentCount = 0;
 
             foreach (var complianceCase in cases)
             {
@@ -86,6 +88,8 @@ namespace iTender.Compliance.Infrastructure.Services
                         ResponseDueOn = instructionLetter.ResponseDueOn,
                         ReminderNumber = 1
                     }, cancellationToken);
+
+                    sentCount++;
                 }
                 catch (Exception ex)
                 {
@@ -105,6 +109,8 @@ namespace iTender.Compliance.Infrastructure.Services
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return sentCount;
         }
     }
 }

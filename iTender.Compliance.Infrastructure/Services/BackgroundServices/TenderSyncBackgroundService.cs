@@ -32,18 +32,21 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
 
                     var syncService = scope.ServiceProvider
                         .GetRequiredService<ISynchronizationService>();
-                    var followUpService = scope.ServiceProvider
-                        .GetRequiredService<IComplianceFollowUpService>();
 
                     // 1. Run tender synchronization
                     _logger.LogInformation("Starting scheduled tender synchronization");
                     await syncService.SynchronizeAsync(false, stoppingToken);
                     _logger.LogInformation("Scheduled tender synchronization completed");
 
-                    // 2. Process overdue responses (follow‑up)
-                    _logger.LogInformation("Starting overdue response processing");
-                    await followUpService.ProcessOverdueResponsesAsync(stoppingToken);
-                    _logger.LogInformation("Overdue response processing completed");
+                    // NOTE: overdue-response follow-up (IL -> CN -> AGSA) is handled by
+                    // EscalationService via ComplianceWorkflowBackgroundService instead of
+                    // IComplianceFollowUpService here. That path actually generates and emails
+                    // the Contravention Notice/AGSA referral and respects the SigningHub
+                    // approval gate; this one only wrote bare DB records with no document or
+                    // delivery, and its CaseStatus check for the AGSA branch never matched
+                    // (both branches tested WaitingForResponse), so it would have kept
+                    // re-issuing empty Contravention Notices instead of ever escalating.
+                    // Fix that bug (or retire IComplianceFollowUpService) before re-enabling.
                 }
                 catch (Exception ex)
                 {

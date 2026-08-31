@@ -131,7 +131,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 await DeliverAsync(
                     letter,
                     model.RecipientName,
-                    "kevin.mokoenazaya@gmail.com"/*model.RecipientEmail*/,
+                    model.RecipientEmail,
                     "Instruction Letter",
                     $"Please find attached an Instruction Letter regarding tender {model.TenderNumber}. " +
                     $"A response is required by {model.ResponseDueOn:dd MMM yyyy}.",
@@ -369,9 +369,9 @@ namespace iTender.Compliance.Infrastructure.Services
             complianceCase.ClosedDate = model.RespondedOn;
             complianceCase.ModifiedOn = DateTime.UtcNow;
             complianceCase.Comments = model.Comments;
-            //complianceCase.Clo0 = model.Outcome == ComplianceOutcome.Compliant
-            //    ? CaseClosureReason.ClientComplied
-            //    : complianceCase.;
+            complianceCase.ClosureReason = model.Outcome == ComplianceOutcome.Compliant
+                ? CaseClosureReason.ClientComplied
+                : null;
 
             await _complianceCaseRepository.UpdateAsync(
                 complianceCase,

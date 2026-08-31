@@ -430,8 +430,7 @@ else
                             </label>
 
                             <div>
-                                @Model.TenderSync.StartedOn
-                                .ToString("dd MMM yyyy HH:mm")
+                                @Model.TenderSync.StartedOn.ToString("dd MMM yyyy HH:mm")
                             </div>
 
                         </div>
@@ -522,7 +521,7 @@ else
 
 
         <!-- SYNC LOG -->
-        @if (Model.TenderSync?.Logs.Any() == true)
+        @* @if (Model.TenderSync?.Logs.Any() == true)
         {
             <div class="card shadow-sm mb-4">
 
@@ -584,7 +583,7 @@ else
 
             </div>
         }
-
+ *@
     </div>
 }
 

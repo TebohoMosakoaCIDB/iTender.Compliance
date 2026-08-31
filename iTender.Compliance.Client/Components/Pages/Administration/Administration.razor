@@ -16,6 +16,10 @@
 @inject ISystemSettingService SettingService
 @inject ITenderSyncLogRepository LogRepository
 @inject ITenderSyncRepository TenderSyncRepository
+@inject IReminderService ReminderService
+@inject IEscalationService EscalationService
+@inject IDocumentSigningService DocumentSigningService
+@inject ICorrespondenceService CorrespondenceService
 @inject NavigationManager Navigation
 
 <PageTitle>Administration | CRCIP Monitor</PageTitle>
@@ -306,8 +310,8 @@
                     <div class="d-flex align-items-center">
 
                         <div class="status-icon @(Settings.AutoAssignmentEnabled
-                                                        ? "bg-success-subtle text-success"
-                                                        : "bg-secondary-subtle text-secondary")">
+                                                                                    ? "bg-success-subtle text-success"
+                                                                                    : "bg-secondary-subtle text-secondary")">
 
                             <i class="bi bi-person-check"></i>
 
@@ -668,191 +672,103 @@
 
         <div class="card-body">
 
-            <!-- CASE MANAGEMENT -->
+            @if (!_settingsLoaded || _settingsEditContext == null)
+            {
+                <div class="text-center text-muted py-5">
 
-            <div class="settings-section">
+                    <div class="spinner-border" role="status"></div>
 
-                <div class="settings-section-title">
-
-                    <i class="bi bi-folder2-open me-2"></i>
-
-                    Case Management
-
-                </div>
-
-                <div class="row g-3">
-                    <div class="col-lg-4 col-md-6">
-
-                        <label class="form-label">
-                            Response Due
-                        </label>
-
-                        <div class="input-group">
-
-                            <InputNumber class="form-control"
-                                         @bind-Value="Settings.ResponseDueHours" />
-
-                            <span class="input-group-text">
-                                Hours
-                            </span>
-
-                        </div>
-
-                        <div class="form-text">
-                            Time allowed for a client response.
-                        </div>
-
-                    </div>
-
-                    <div class="col-lg-4 col-md-6">
-
-                        <label class="form-label">
-                            Reminder Delay
-                        </label>
-
-                        <div class="input-group">
-
-                            <InputNumber class="form-control"
-                                         @bind-Value="Settings.ReminderDelayHours" />
-
-                            <span class="input-group-text">
-                                Hours
-                            </span>
-
-                        </div>
-
-                        <div class="form-text">
-                            Time between response reminders.
-                        </div>
-
-                    </div>
-
-                    <div class="col-lg-4 col-md-6">
-
-                        <label class="form-label">
-                            Maximum Reminders
-                        </label>
-
-                        <InputNumber class="form-control"
-                                     @bind-Value="Settings.MaximumReminders" />
-
-                        <div class="form-text">
-                            Maximum number of reminders sent for a case.
-                        </div>
-
-                    </div>
-                </div>
-
-            </div>
-
-
-            <hr class="my-4" />
-
-
-            <!-- SYNCHRONIZATION -->
-
-            <div class="settings-section">
-
-                <div class="settings-section-title">
-
-                    <i class="bi bi-arrow-repeat me-2"></i>
-
-                    Synchronization
+                    <p class="mt-3 mb-0">
+                        Loading settings...
+                    </p>
 
                 </div>
+            }
+            else
+            {
 
-                <div class="row g-3">
+                <CascadingValue Value="_settingsEditContext">
 
-                    <div class="col-lg-4 col-md-6">
+                    <!-- CASE MANAGEMENT -->
 
-                        <label class="form-label">
-                            Synchronization Interval
-                        </label>
+                    <div class="settings-section">
 
-                        <div class="input-group">
+                        <div class="settings-section-title">
 
-                            <InputNumber class="form-control"
-                                         @bind-Value="Settings.SynchronizationIntervalHours" />
+                            <i class="bi bi-folder2-open me-2"></i>
 
-                            <span class="input-group-text">
-                                Hours
-                            </span>
+                            Response Deadlines
 
                         </div>
 
-                        <div class="form-text">
-                            Frequency of scheduled tender synchronization.
-                        </div>
+                        <div class="row g-3">
 
-                    </div>
+                            <div class="col-lg-4 col-md-6">
 
-                </div>
-
-            </div>
-
-
-            <hr class="my-4" />
-
-
-            <!-- CASE ASSIGNMENT -->
-
-            <div class="settings-section">
-
-                <div class="settings-section-title">
-
-                    <i class="bi bi-people me-2"></i>
-
-                    Case Assignment
-
-                </div>
-
-                <div class="row g-3">
-
-                    <div class="col-lg-4 col-md-6">
-
-                        <label class="form-label">
-                            Distribution Method
-                        </label>
-
-                        <InputSelect class="form-select"
-                                     @bind-Value="Settings.DistributionMethod">
-
-                            @foreach (var method in Enum.GetValues<CaseDistributionMethod>())
-                            {
-                                <option value="@method">
-                                    @method
-                                </option>
-                            }
-
-                        </InputSelect>
-
-                        <div class="form-text">
-                            @GetDistributionMethodDescription(
-                                Settings.DistributionMethod)
-                        </div>
-
-                    </div>
-
-
-                    <div class="col-lg-4 col-md-6 d-flex align-items-center">
-
-                        <div>
-
-                            <div class="form-check form-switch">
-
-                                <InputCheckbox class="form-check-input"
-                                               @bind-Value="Settings.AutoAssignmentEnabled" />
-
-                                <label class="form-check-label fw-semibold">
-                                    Automatic Assignment
+                                <label class="form-label">
+                                    Open Tender Response
                                 </label>
 
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.OpenTenderResponseHours" />
+
+                                    <span class="input-group-text">
+                                        Hours
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    Time allowed for a client to respond to an Instruction Letter on an open tender. Framework default: 48 hours.
+                                </div>
+
                             </div>
 
-                            <div class="form-text ms-5">
+                            <div class="col-lg-4 col-md-6">
 
-                                Automatically assign newly created cases
-                                to eligible compliance officers.
+                                <label class="form-label">
+                                    Closed Tender Response
+                                </label>
+
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.ClosedTenderResponseDays" />
+
+                                    <span class="input-group-text">
+                                        Days
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    Time allowed when a Contravention Notice is issued directly on a closed tender. Framework default: 14 days.
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    Contravention Notice Response
+                                </label>
+
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.ContraventionNoticeResponseDays" />
+
+                                    <span class="input-group-text">
+                                        Days
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    Time allowed to respond once a Contravention Notice has been issued, including IL escalations. Framework default: 14 days.
+                                </div>
 
                             </div>
 
@@ -860,62 +776,312 @@
 
                     </div>
 
-                </div>
 
-            </div>
-
-
-            <hr class="my-4" />
+                    <hr class="my-4" />
 
 
-            <!-- PAGINATION -->
+                    <!-- REMINDERS & ESCALATION -->
 
-            <div class="settings-section">
+                    <div class="settings-section">
 
-                <div class="settings-section-title">
+                        <div class="settings-section-title">
 
-                    <i class="bi bi-list-ol me-2"></i>
+                            <i class="bi bi-bell me-2"></i>
 
-                    Pagination
+                            Reminders &amp; Escalation
 
-                </div>
+                        </div>
 
-                <div class="row g-3">
+                        <div class="row g-3">
 
-                    <div class="col-lg-4 col-md-6">
+                            <div class="col-lg-4 col-md-6">
 
-                        <label class="form-label">
-                            Default Page Size
-                        </label>
+                                <div class="form-check form-switch mt-4">
 
-                        <InputNumber class="form-control"
-                                     @bind-Value="Settings.DefaultPageSize" />
+                                    <InputCheckbox class="form-check-input"
+                                                   @bind-Value="Settings.EnableAutomaticReminders" />
 
-                        <div class="form-text">
-                            Number of records displayed per page by default.
+                                    <label class="form-check-label">
+                                        Send Automatic Reminders
+                                    </label>
+
+                                </div>
+
+                                <div class="form-text">
+                                    Whether the system automatically sends a reminder letter before a deadline is escalated.
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    Reminder Sent After
+                                </label>
+
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.ReminderAfterHours" />
+
+                                    <span class="input-group-text">
+                                        Hours
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    How long after the Instruction Letter is sent before a reminder goes out.
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    Automation Check Interval
+                                </label>
+
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.ReminderCheckIntervalMinutes" />
+
+                                    <span class="input-group-text">
+                                        Minutes
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    How often the background job checks for reminders to send and cases to escalate. Takes effect on the next check, not immediately.
+                                </div>
+
+                            </div>
+
                         </div>
 
                     </div>
 
-                </div>
 
-            </div>
+                    <hr class="my-4" />
 
 
-            <!-- SAVE -->
+                    <!-- APPROVAL WORKFLOW -->
 
-            <div class="d-flex justify-content-end mt-4">
+                    <div class="settings-section">
 
-                <button class="btn btn-sm btn-cidb-submit"
-                        @onclick="SaveSettings">
+                        <div class="settings-section-title">
 
-                    <i class="bi bi-check2 me-2"></i>
+                            <i class="bi bi-patch-check me-2"></i>
 
-                    Save Settings
+                            Approval Workflow
 
-                </button>
+                        </div>
 
-            </div>
+                        <div class="row g-3">
+
+                            <div class="col-lg-6">
+
+                                <div class="form-check form-switch mt-1">
+
+                                    <InputCheckbox class="form-check-input"
+                                                   @bind-Value="Settings.RequireManagerApproval" />
+
+                                    <label class="form-check-label">
+                                        Require Manager Approval Before Sending
+                                    </label>
+
+                                </div>
+
+                                <div class="form-text">
+                                    When on, Instruction Letters and Contravention Notices are routed to a Manager
+                                    for e-signature via SigningHub before they are emailed to the client. Requires at
+                                    least one Agent flagged as Manager, and SigningHub to be configured - otherwise
+                                    letters fall back to sending immediately and a warning is logged.
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-4" />
+
+
+                    <!-- SYNCHRONIZATION -->
+
+                    <div class="settings-section">
+
+                        <div class="settings-section-title">
+
+                            <i class="bi bi-arrow-repeat me-2"></i>
+
+                            Synchronization
+
+                        </div>
+
+                        <div class="row g-3">
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    Synchronization Interval
+                                </label>
+
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.SynchronizationIntervalHours" />
+
+                                    <span class="input-group-text">
+                                        Hours
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    Frequency of scheduled tender synchronization.
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-4" />
+
+
+                    <!-- CASE ASSIGNMENT -->
+
+                    <div class="settings-section">
+
+                        <div class="settings-section-title">
+
+                            <i class="bi bi-people me-2"></i>
+
+                            Case Assignment
+
+                        </div>
+
+                        <div class="row g-3">
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    Distribution Method
+                                </label>
+
+                                <InputSelect class="form-select"
+                                             @bind-Value="Settings.DistributionMethod">
+
+                                    @foreach (var method in Enum.GetValues<CaseDistributionMethod>())
+                                    {
+                                        <option value="@method">
+                                            @method
+                                        </option>
+                                    }
+
+                                </InputSelect>
+
+                                <div class="form-text">
+                                    @GetDistributionMethodDescription(
+                                        Settings.DistributionMethod)
+                                </div>
+
+                            </div>
+
+
+                            <div class="col-lg-4 col-md-6 d-flex align-items-center">
+
+                                <div>
+
+                                    <div class="form-check form-switch">
+
+                                        <InputCheckbox class="form-check-input"
+                                                       @bind-Value="Settings.AutoAssignmentEnabled" />
+
+                                        <label class="form-check-label fw-semibold">
+                                            Automatic Assignment
+                                        </label>
+
+                                    </div>
+
+                                    <div class="form-text ms-5">
+
+                                        Automatically assign newly created cases
+                                        to eligible compliance officers.
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-4" />
+
+
+                    <!-- PAGINATION -->
+
+                    <div class="settings-section">
+
+                        <div class="settings-section-title">
+
+                            <i class="bi bi-list-ol me-2"></i>
+
+                            Pagination
+
+                        </div>
+
+                        <div class="row g-3">
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    Default Page Size
+                                </label>
+
+                                <InputNumber class="form-control"
+                                             @bind-Value="Settings.DefaultPageSize" />
+
+                                <div class="form-text">
+                                    Number of records displayed per page by default.
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- SAVE -->
+
+                    <div class="d-flex justify-content-end mt-4">
+
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="SaveSettings">
+
+                            <i class="bi bi-check2 me-2"></i>
+
+                            Save Settings
+
+                        </button>
+
+                    </div>
+
+                </CascadingValue>
+
+            }
 
         </div>
 
@@ -1312,6 +1478,10 @@
 
     private SystemSettingModel Settings = new();
 
+    private EditContext? _settingsEditContext;
+
+    private bool _settingsLoaded;
+
     private SyncReportModel Model = new();
 
     private PagedResult<TenderSync>? Synchronizations;
@@ -1339,6 +1509,9 @@
 
         Settings =
             await SettingService.GetAsync();
+
+        _settingsEditContext = new EditContext(Settings);
+        _settingsLoaded = true;
     }
 
 
