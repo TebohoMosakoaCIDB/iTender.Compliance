@@ -23,6 +23,20 @@ namespace iTender.Compliance.Infrastructure.Providers
             _options = options.Value;
         }
 
+        /// <summary>SigningHub returns a JSON error body describing exactly what was wrong with the
+        /// request (invalid field, unsupported value for this tenant, etc.) - EnsureSuccessStatusCode()
+        /// alone discards that, leaving only "400 Bad Request" to debug from. Always read and surface it.</summary>
+        private static async Task EnsureSuccessAsync(HttpResponseMessage response, string operation)
+        {
+            if (response.IsSuccessStatusCode)
+                return;
+
+            var body = await response.Content.ReadAsStringAsync();
+
+            throw new InvalidOperationException(
+                $"SigningHub {operation} failed with {(int)response.StatusCode} {response.StatusCode}: {body}");
+        }
+
         public async Task<SigningHubTokenResponse> AuthenticateAsync()
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "authenticate");
@@ -78,7 +92,7 @@ namespace iTender.Compliance.Infrastructure.Providers
 
             var response = await _httpClient.SendAsync(request);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "add signer");
         }
 
         public async Task<SigningStatusModel> GetStatusAsync(string accessToken, int packageId)
@@ -95,7 +109,7 @@ namespace iTender.Compliance.Infrastructure.Providers
 
             var response = await _httpClient.SendAsync(request);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "get status");
 
             var result = await response.Content.ReadFromJsonAsync<SigningStatusModel>();
 
@@ -119,7 +133,7 @@ namespace iTender.Compliance.Infrastructure.Providers
 
             var response = await _httpClient.SendAsync(request);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "download signed document");
 
             var result = await response.Content
                 .ReadFromJsonAsync<DownloadDocumentResponse>();
@@ -157,7 +171,7 @@ namespace iTender.Compliance.Infrastructure.Providers
 
             var response = await _httpClient.SendAsync(request);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "upload document");
 
             var result = await response.Content.ReadFromJsonAsync<UploadDocumentResponse>();
 
@@ -181,7 +195,7 @@ namespace iTender.Compliance.Infrastructure.Providers
 
             var response = await _httpClient.SendAsync(request);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "create package");
 
             var result = await response.Content
                 .ReadFromJsonAsync<CreatePackageResponse>();
@@ -208,7 +222,7 @@ namespace iTender.Compliance.Infrastructure.Providers
 
             var response = await _httpClient.SendAsync(request);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "place signature field");
         }
 
         public async Task SharePackageAsync(string accessToken, int packageId)
@@ -227,7 +241,7 @@ namespace iTender.Compliance.Infrastructure.Providers
 
             var response = await _httpClient.SendAsync(request);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "share package");
         }
 
         public Task<string> GenerateIntegrationLinkAsync(string accessToken, int packageId, string email)

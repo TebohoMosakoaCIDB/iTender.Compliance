@@ -103,11 +103,15 @@ You are hereby instructed to address the identified compliance matter and provid
 
 Response Due Date: {ResponseDueDate}
 
-Kind regards,
-
 {FooterText}
 
-{Agent_Signature}
+Prepared by:
+{AgentName}
+Compliance Officer
+
+Approved by:
+{Manager_Signature}
+Regulatory Compliance Manager
 """,
 
             CorrespondenceTemplateType.ContraventionNotice => """
@@ -133,7 +137,12 @@ Kind regards,
 
 {FooterText}
 
-{Agent_Signature}
+Prepared by:
+{AgentName}
+Compliance Officer
+
+Approved by:
+{Manager_Signature}
 """,
 
             CorrespondenceTemplateType.AGSAReferral => """
@@ -163,7 +172,12 @@ Kind regards,
 
 {FooterText}
 
-{Agent_Signature}
+Prepared by:
+{AgentName}
+Compliance Officer
+
+Approved by:
+{Manager_Signature}
 """,
 
             _ => string.Empty

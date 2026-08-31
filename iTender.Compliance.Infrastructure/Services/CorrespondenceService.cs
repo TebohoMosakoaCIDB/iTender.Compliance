@@ -97,6 +97,11 @@ namespace iTender.Compliance.Infrastructure.Services
                 letter,
                 cancellationToken);
 
+            // Persist the letter before anything downstream (e.g. SigningRequestService)
+            // needs to look it up by Id - a fresh DB query won't see an unsaved entity.
+            await _unitOfWork.SaveChangesAsync(
+                cancellationToken);
+
             var routedForApproval = await TryRouteForApprovalAsync(
                 letter,
                 cancellationToken);
@@ -260,6 +265,11 @@ namespace iTender.Compliance.Infrastructure.Services
 
             await _caseLetterRepository.AddAsync(
                 letter,
+                cancellationToken);
+
+            // Persist the letter before anything downstream (e.g. SigningRequestService)
+            // needs to look it up by Id - a fresh DB query won't see an unsaved entity.
+            await _unitOfWork.SaveChangesAsync(
                 cancellationToken);
 
             var routedForApproval = await TryRouteForApprovalAsync(

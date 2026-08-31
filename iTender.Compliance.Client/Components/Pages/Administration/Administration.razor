@@ -112,6 +112,102 @@
     }
 
 
+    <!-- ========================================================= -->
+    <!-- MANUAL AUTOMATION TRIGGERS (testing) -->
+    <!-- ========================================================= -->
+    <div class="card mt-4 mb-4">
+
+        <div class="card-header">
+
+            <i class="bi bi-lightning-charge me-2"></i>
+            Automation - Manual Triggers
+
+        </div>
+
+        <div class="card-body">
+
+            <p class="text-muted">
+                These run the same background passes on demand, so you don't have to wait for the
+                scheduled interval while testing. Safe to run repeatedly - each pass only acts on
+                cases that are actually due.
+            </p>
+
+            <div class="d-flex flex-wrap gap-3">
+
+                <div>
+
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            disabled="@_runningReminders"
+                            @onclick="RunRemindersNow">
+
+                        @if (_runningReminders)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-bell me-2"></i>
+                        }
+                        Run Reminders Now
+
+                    </button>
+
+                </div>
+
+                <div>
+
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            disabled="@_runningEscalation"
+                            @onclick="RunEscalationNow">
+
+                        @if (_runningEscalation)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-arrow-up-circle me-2"></i>
+                        }
+                        Run Escalation Now
+
+                    </button>
+
+                </div>
+
+                <div>
+
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            disabled="@_runningSigningPoll"
+                            @onclick="RunSigningPollNow">
+
+                        @if (_runningSigningPoll)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-pen me-2"></i>
+                        }
+                        Run SigningHub Poll Now
+
+                    </button>
+
+                </div>
+
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_triggerResultMessage))
+            {
+                <div class="alert @(_triggerResultIsError ? "alert-danger" : "alert-success") mt-3 mb-0">
+                    @_triggerResultMessage
+                </div>
+            }
+
+        </div>
+
+    </div>
+
+
     <!-- ===================================================== -->
     <!-- SYNCHRONIZATION SUMMARY -->
     <!-- ===================================================== -->
@@ -310,8 +406,8 @@
                     <div class="d-flex align-items-center">
 
                         <div class="status-icon @(Settings.AutoAssignmentEnabled
-                                                                                    ? "bg-success-subtle text-success"
-                                                                                    : "bg-secondary-subtle text-secondary")">
+                                                                                                                ? "bg-success-subtle text-success"
+                                                                                                                : "bg-secondary-subtle text-secondary")">
 
                             <i class="bi bi-person-check"></i>
 
@@ -1085,9 +1181,11 @@
 
         </div>
 
-    </div>
+    </div>   
 
 </div>
+
+
 
 
 <!-- ========================================================= -->
@@ -1463,6 +1561,103 @@
 
 
 @code {
+    private bool _runningReminders;
+    private bool _runningEscalation;
+    private bool _runningSigningPoll;
+    private string? _triggerResultMessage;
+    private bool _triggerResultIsError;
+
+    private async Task RunRemindersNow()
+    {
+        _runningReminders = true;
+        _triggerResultMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var count = await ReminderService.ProcessRemindersAsync();
+
+            _triggerResultIsError = false;
+            _triggerResultMessage = count == 0
+                ? "Reminders pass complete - nothing was due."
+                : $"Reminders pass complete - {count} reminder letter(s) sent.";
+        }
+        catch (Exception ex)
+        {
+            _triggerResultIsError = true;
+            _triggerResultMessage = $"Reminders pass failed: {ex.Message}";
+        }
+        finally
+        {
+            _runningReminders = false;
+        }
+    }
+
+    private async Task RunEscalationNow()
+    {
+        _runningEscalation = true;
+        _triggerResultMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var toCn = await EscalationService.EscalateOverdueInstructionLettersAsync();
+            var toAgsa = await EscalationService.EscalateOverdueContraventionNoticesAsync();
+
+            _triggerResultIsError = false;
+            _triggerResultMessage =
+                $"Escalation pass complete - {toCn} case(s) escalated to a Contravention Notice, " +
+                $"{toAgsa} case(s) referred for enforcement (AGSA).";
+        }
+        catch (Exception ex)
+        {
+            _triggerResultIsError = true;
+            _triggerResultMessage = $"Escalation pass failed: {ex.Message}";
+        }
+        finally
+        {
+            _runningEscalation = false;
+        }
+    }
+
+    private async Task RunSigningPollNow()
+    {
+        _runningSigningPoll = true;
+        _triggerResultMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await DocumentSigningService.PollAndCompleteAsync();
+
+            foreach (var caseLetterId in result.CompletedCaseLetterIds)
+            {
+                await CorrespondenceService.CompleteApprovedLetterAsync(caseLetterId);
+            }
+
+            foreach (var rejected in result.RejectedLetters)
+            {
+                await CorrespondenceService.HandleRejectedLetterAsync(
+                    rejected.CaseLetterId,
+                    rejected.Reason);
+            }
+
+            _triggerResultIsError = false;
+            _triggerResultMessage =
+                $"SigningHub poll complete - {result.CompletedCaseLetterIds.Count} letter(s) signed and delivered, " +
+                $"{result.RejectedLetters.Count} rejected.";
+        }
+        catch (Exception ex)
+        {
+            _triggerResultIsError = true;
+            _triggerResultMessage = $"SigningHub poll failed: {ex.Message}";
+        }
+        finally
+        {
+            _runningSigningPoll = false;
+        }
+    }
+
 
     private bool ShowSyncDetailModal;
 
@@ -1534,7 +1729,7 @@
                     DateTime.UtcNow);
 
             SuccessMessage =
-                "Tender synchronization completed successfully.";
+                "Tender synchronization completed.";
 
             ShowSuccessMessage = true;
         }
