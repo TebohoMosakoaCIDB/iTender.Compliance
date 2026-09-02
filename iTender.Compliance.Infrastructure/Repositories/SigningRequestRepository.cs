@@ -65,5 +65,18 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .OrderBy(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
+
+        public async Task<List<SigningRequest>> GetRecentWithDetailsAsync(
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            return await Context.SigningRequests
+                .Include(x => x.CaseLetter)
+                    .ThenInclude(l => l.ComplianceCase)
+                        .ThenInclude(c => c.Tender)
+                .OrderByDescending(x => x.CreatedOn)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+        }
     }
 }

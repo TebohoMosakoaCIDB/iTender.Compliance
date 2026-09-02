@@ -1,33 +1,43 @@
 ﻿using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
+using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
+    /// <summary>
+    /// Sends one reminder for whichever letter (Instruction or Contravention Notice) is currently
+    /// outstanding on a case, once the CIDB finalized "day 7" working-day mark is reached - as
+    /// long as that letter isn't already overdue (EscalationService owns that) and hasn't already
+    /// had a reminder sent for it specifically.
+    /// </summary>
     public class ReminderService : IReminderService
     {
-        private readonly IComplianceCaseRepository _complianceCaseRepository;
+        private readonly ICaseLetterRepository _caseLetterRepository;
         private readonly ICorrespondenceService _correspondenceService;
         private readonly ISystemSettingService _systemSettingService;
+        private readonly IWorkingDayCalculator _workingDayCalculator;
         private readonly IAuditService _auditService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUser;
         private readonly ILogger<ReminderService> _logger;
 
         public ReminderService(
-            IComplianceCaseRepository complianceCaseRepository,
+            ICaseLetterRepository caseLetterRepository,
             ICorrespondenceService correspondenceService,
             ISystemSettingService systemSettingService,
+            IWorkingDayCalculator workingDayCalculator,
             IAuditService auditService,
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUser,
             ILogger<ReminderService> logger)
         {
-            _complianceCaseRepository = complianceCaseRepository;
+            _caseLetterRepository = caseLetterRepository;
             _correspondenceService = correspondenceService;
             _systemSettingService = systemSettingService;
+            _workingDayCalculator = workingDayCalculator;
             _auditService = auditService;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
@@ -42,50 +52,59 @@ namespace iTender.Compliance.Infrastructure.Services
             if (!settings.EnableAutomaticReminders)
                 return 0;
 
-            var cases = await _complianceCaseRepository
-                .GetCasesAwaitingReminderAsync(
-                    settings.ReminderAfterHours,
+            var active = await _caseLetterRepository.GetActiveWithCaseAsync(cancellationToken);
+
+            // Outstanding IL or CN letters, one per case (the latest), that:
+            //  - are not yet overdue (that's escalation's job)
+            //  - haven't already had a reminder sent specifically for them
+            var now = DateTime.UtcNow;
+
+            var eligible = active
+                .Where(l => l.Type == LetterType.Instruction || l.Type == LetterType.ContraventionNotice)
+                .GroupBy(l => l.ComplianceCaseId)
+                .Select(g => g.OrderByDescending(x => x.LetterNumber).First())
+                .Where(l => l.ResponseDueOn > now)
+                .Where(l => !l.ComplianceCase.CaseLetters.Any(
+                    other => other.Type == LetterType.Reminder && other.CreatedOn > l.CreatedOn))
+                .ToList();
+
+            // Working-day math needs to check the holiday calendar, so it can't run inside
+            // the LINQ predicate above - filter the (already much smaller) eligible set here.
+            var candidates = new List<CaseLetter>();
+
+            foreach (var letter in eligible)
+            {
+                var reminderDueOn = await _workingDayCalculator.AddWorkingDaysAsync(
+                    letter.SentOn,
+                    settings.ReminderAfterWorkingDays,
                     cancellationToken);
+
+                if (reminderDueOn <= now)
+                    candidates.Add(letter);
+            }
 
             var sentCount = 0;
 
-            foreach (var complianceCase in cases)
+            foreach (var letter in candidates)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 try
                 {
-                    // The instruction letter still outstanding on this case -
-                    // GetCasesAwaitingReminderAsync guarantees exactly this exists.
-                    var instructionLetter = complianceCase.CaseLetters
-                        .Where(l => l.Type == LetterType.Instruction)
-                        .OrderByDescending(l => l.LetterNumber)
-                        .FirstOrDefault();
-
-                    if (instructionLetter == null)
-                    {
-                        _logger.LogWarning(
-                            "Case {ComplianceCaseId} was selected for a reminder but has no Instruction letter.",
-                            complianceCase.Id);
-
-                        continue;
-                    }
-
-                    var recipientName = instructionLetter.RecipientName;
-                    var recipientEmail = instructionLetter.RecipientEmail;
+                    var complianceCase = letter.ComplianceCase;
 
                     await _correspondenceService.SendReminderLetterAsync(new SendReminderLetterModel
                     {
                         ComplianceCaseId = complianceCase.Id,
-                        CaseLetterId = instructionLetter.Id,
-                        RecipientName = recipientName,
-                        RecipientEmail = recipientEmail,
+                        CaseLetterId = letter.Id,
+                        RecipientName = letter.RecipientName,
+                        RecipientEmail = letter.RecipientEmail,
                         TenderNumber = complianceCase.Tender.TenderNumber,
                         TenderTitle = complianceCase.Tender.Title,
                         EmployerName = complianceCase.Tender.EmployerName,
                         ClosingDate = complianceCase.Tender.ClosingDate,
-                        OriginalSentOn = instructionLetter.SentOn,
-                        ResponseDueOn = instructionLetter.ResponseDueOn,
+                        OriginalSentOn = letter.SentOn,
+                        ResponseDueOn = letter.ResponseDueOn,
                         ReminderNumber = 1
                     }, cancellationToken);
 
@@ -96,12 +115,12 @@ namespace iTender.Compliance.Infrastructure.Services
                     _logger.LogError(
                         ex,
                         "Failed to generate reminder letter for case {ComplianceCaseId}.",
-                        complianceCase.Id);
+                        letter.ComplianceCaseId);
 
                     await _auditService.LogAsync(
                         AuditAction.Error,
                         AuditEntity.ComplianceCase,
-                        complianceCase.Id,
+                        letter.ComplianceCaseId,
                         $"Failed to generate reminder letter. {ex.Message}",
                         _currentUser.UserId,
                         cancellationToken);

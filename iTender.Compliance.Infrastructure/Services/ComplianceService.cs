@@ -179,11 +179,11 @@ namespace iTender.Compliance.Infrastructure.Services
 
             var settings = await _systemSettingService.GetAsync();
 
-            var ilDueOn = _workingDayCalculator.AddWorkingDays(
+            var ilDueOn = await _workingDayCalculator.AddWorkingDaysAsync(
                 DateTime.UtcNow,
                 settings.InstructionLetterResponseWorkingDays);
 
-            var cnDueOn = _workingDayCalculator.AddWorkingDays(
+            var cnDueOn = await _workingDayCalculator.AddWorkingDaysAsync(
                 DateTime.UtcNow,
                 settings.ContraventionNoticeResponseDays);
 

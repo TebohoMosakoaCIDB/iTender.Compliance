@@ -178,9 +178,10 @@ namespace iTender.Compliance.Infrastructure.Services
             // Note: In the document, Stream 3 uses IL then CN, similar to open tenders.
             // CIDB finalized rule: 2 WORKING days, not a flat 48-hour clock.
             var letterType = LetterType.Instruction;
-            var dueDate = _workingDayCalculator.AddWorkingDays(
+            var dueDate = await _workingDayCalculator.AddWorkingDaysAsync(
                 DateTime.UtcNow,
-                settings.InstructionLetterResponseWorkingDays);
+                settings.InstructionLetterResponseWorkingDays,
+                cancellationToken);
             var actionType = ComplianceActionType.InstructionalLetterSent;
             var newStatus = CaseStatus.WaitingForResponse;
 

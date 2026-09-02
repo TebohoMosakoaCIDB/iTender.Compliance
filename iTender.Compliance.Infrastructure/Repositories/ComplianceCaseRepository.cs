@@ -295,5 +295,16 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
             return await Context.ComplianceCases.FirstOrDefaultAsync(c => c.TenderId == tenderId, cancellationToken);
         }
+
+        public async Task<List<ComplianceCase>> GetOpenCasesAssignedBeforeAsync(
+            DateTime cutoff,
+            CancellationToken cancellationToken = default)
+        {
+            return await Context.ComplianceCases
+                .Include(x => x.Tender)
+                .Where(x => x.Status != CaseStatus.Closed && x.Status != CaseStatus.ReferredForEnforcement)
+                .Where(x => x.AssignedOn != null && x.AssignedOn <= cutoff)
+                .ToListAsync(cancellationToken);
+        }
     }
 }

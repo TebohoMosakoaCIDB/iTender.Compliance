@@ -37,5 +37,11 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             CancellationToken cancellationToken = default);
 
         Task<ComplianceCase?> GetByTenderIdAsync(Guid tenderId, CancellationToken cancellationToken = default);
+
+        /// <summary>Open (not Closed/ReferredForEnforcement) cases assigned to a Compliance Officer on or before
+        /// the given date - used for the 30-day absolute AGSA-referral safety net, independent of the IL/CN cycle.</summary>
+        Task<List<ComplianceCase>> GetOpenCasesAssignedBeforeAsync(
+            DateTime cutoff,
+            CancellationToken cancellationToken = default);
     }
 }

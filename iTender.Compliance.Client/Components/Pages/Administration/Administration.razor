@@ -399,8 +399,8 @@
                     <div class="d-flex align-items-center">
 
                         <div class="status-icon @(Settings.AutoAssignmentEnabled
-                                                                                                                ? "bg-success-subtle text-success"
-                                                                                                                : "bg-secondary-subtle text-secondary")">
+                                                                                                                                            ? "bg-success-subtle text-success"
+                                                                                                                                            : "bg-secondary-subtle text-secondary")">
 
                             <i class="bi bi-person-check"></i>
 
@@ -791,22 +791,22 @@
                             <div class="col-lg-4 col-md-6">
 
                                 <label class="form-label">
-                                    Open Tender Response
+                                    Instruction Letter Response
                                 </label>
 
                                 <div class="input-group">
 
                                     <InputNumber class="form-control"
-                                                 @bind-Value="Settings.OpenTenderResponseHours" />
+                                                 @bind-Value="Settings.InstructionLetterResponseWorkingDays" />
 
                                     <span class="input-group-text">
-                                        Hours
+                                        Working Days
                                     </span>
 
                                 </div>
 
                                 <div class="form-text">
-                                    Time allowed for a client to respond to an Instruction Letter on an open tender. Framework default: 48 hours.
+                                    Time allowed for a client to respond to an Instruction Letter on an open tender. CIDB finalized rule: 2 working days.
                                 </div>
 
                             </div>
@@ -846,13 +846,137 @@
                                                  @bind-Value="Settings.ContraventionNoticeResponseDays" />
 
                                     <span class="input-group-text">
+                                        Working Days
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    Time allowed to respond once a Contravention Notice has been issued, including IL escalations. CIDB finalized rule: 14 working days.
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-4" />
+
+
+                    <!-- AGSA REFERRAL & ROP TIMING -->
+
+                    <div class="settings-section">
+
+                        <div class="settings-section-title">
+
+                            <i class="bi bi-shield-exclamation me-2"></i>
+
+                            AGSA Referral &amp; RoP Timing
+
+                        </div>
+
+                        <div class="row g-3">
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    AGSA Referral Deadline
+                                </label>
+
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.AgsaReferralDeadlineDays" />
+
+                                    <span class="input-group-text">
                                         Days
                                     </span>
 
                                 </div>
 
                                 <div class="form-text">
-                                    Time allowed to respond once a Contravention Notice has been issued, including IL escalations. Framework default: 14 days.
+                                    Absolute deadline from CO allocation, independent of the IL/CN cycle - anything still open past this is referred for
+                                    enforcement automatically. CIDB finalized rule: 30 days.
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    RoP Check Window
+                                </label>
+
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.RopCheckAfterDays" />
+
+                                    <span class="input-group-text">
+                                        Days
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    Days after a tender's closing date before RoP registration is checked at all, to allow the procurement/award process
+                                    to complete. CIDB finalized rule: 90 days.
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    RoP Registration Grace
+                                </label>
+
+                                <div class="input-group">
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="Settings.RopRegistrationGraceDays" />
+
+                                    <span class="input-group-text">
+                                        Days
+                                    </span>
+
+                                </div>
+
+                                <div class="form-text">
+                                    Further grace period after the RoP check window before an unregistered award becomes a compliance matter. CIDB
+                                    finalized rule: 21 days (111 days after closing in total).
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-6">
+
+                                <label class="form-label">
+                                    AGSA Referral Email
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="Settings.AgsaReferralEmail" />
+
+                                <div class="form-text">
+                                    Recipient for the enforcement referral document.
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-6">
+
+                                <label class="form-label">
+                                    CIDB Enforcement Unit Email (CC)
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="Settings.EnforcementUnitEmail" />
+
+                                <div class="form-text">
+                                    CC'd on every referral sent to AGSA.
                                 </div>
 
                             </div>
@@ -907,16 +1031,16 @@
                                 <div class="input-group">
 
                                     <InputNumber class="form-control"
-                                                 @bind-Value="Settings.ReminderAfterHours" />
+                                                 @bind-Value="Settings.ReminderAfterWorkingDays" />
 
                                     <span class="input-group-text">
-                                        Hours
+                                        Working Days
                                     </span>
 
                                 </div>
 
                                 <div class="form-text">
-                                    How long after the Instruction Letter is sent before a reminder goes out.
+                                    Working days into whichever letter (IL or CN) is currently outstanding before a reminder goes out. CIDB finalized rule: day 7.
                                 </div>
 
                             </div>
@@ -1170,7 +1294,7 @@
 
         </div>
 
-    </div>   
+    </div>
 </div>
 
 <!-- ========================================================= -->
@@ -1587,11 +1711,13 @@
         {
             var toCn = await EscalationService.EscalateOverdueInstructionLettersAsync();
             var toAgsa = await EscalationService.EscalateOverdueContraventionNoticesAsync();
+            var toAgsaStale = await EscalationService.EscalateStaleCasesToAgsaAsync();
 
             _triggerResultIsError = false;
             _triggerResultMessage =
                 $"Escalation pass complete - {toCn} case(s) escalated to a Contravention Notice, " +
-                $"{toAgsa} case(s) referred for enforcement (AGSA).";
+                $"{toAgsa} case(s) referred for enforcement after an overdue CN, " +
+                $"{toAgsaStale} case(s) referred on the 30-day absolute deadline.";
         }
         catch (Exception ex)
         {

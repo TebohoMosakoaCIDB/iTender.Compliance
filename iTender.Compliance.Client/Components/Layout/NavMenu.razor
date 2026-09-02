@@ -35,7 +35,7 @@
                         </div>
 
                         <div style="line-height: 1.1;">
-                            <div class="fw-semibold text-danger" >
+                            <div class="fw-semibold text-danger">
                                 @authContext.User.Identity?.Name
                             </div>
 
@@ -104,6 +104,23 @@
                             <span class="bi bi-envelope-paper-fill-nav-menu"></span>
 
                             Templates
+
+                        </NavLink>
+
+                    </div>
+                </AuthorizeView>
+
+
+                <!-- Approvals -->
+                <AuthorizeView Policy="ComplianceOversight">
+                    <div class="nav-item px-3">
+
+                        <NavLink class="nav-link"
+                                 href="approvals">
+
+                            <span class="bi bi-patch-check-fill-nav-menu"></span>
+
+                            Approvals
 
                         </NavLink>
 

@@ -59,6 +59,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IAuditLogRepository, AuditLogRepository>();
             services.AddScoped<IAgentRepository, AgentRepository>();
             services.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
+            services.AddScoped<IPublicHolidayRepository, PublicHolidayRepository>();
             services.AddScoped<ICaseNoteRepository, CaseNoteRepository>();
             services.AddScoped<ITenderSyncLogRepository, TenderSyncLogRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
@@ -105,6 +106,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IRoPComplianceService, RoPComplianceService>();
             services.AddScoped<IDocumentService, DocumentService>();
             services.AddScoped<IEscalationService, EscalationService>();
+            services.AddScoped<IWorkingDayCalculator, WorkingDayCalculator>();
             services.AddScoped<IEmailService, SmtpEmailService>();
             services.AddScoped<ICorrespondenceService, CorrespondenceService>();
             services.AddScoped<IObjectionService, ObjectionService>();

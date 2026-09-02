@@ -3,7 +3,7 @@ using iTender.Compliance.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
- 
+
 namespace iTender.Compliance.Infrastructure.Data
 {
     public class ComplianceDbContext
@@ -42,6 +42,8 @@ namespace iTender.Compliance.Infrastructure.Data
         public DbSet<AGSAReferral> AGSAReferrals => Set<AGSAReferral>();
 
         public DbSet<CaseObjection> CaseObjections => Set<CaseObjection>();
+
+        public DbSet<PublicHoliday> PublicHolidays => Set<PublicHoliday>();
 
         public DbSet<ComplianceAction> ComplianceActions => Set<ComplianceAction>();
 

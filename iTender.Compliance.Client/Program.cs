@@ -25,10 +25,10 @@ builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
 builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultScheme = IdentityConstants.ApplicationScheme;
-        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-    })
+{
+    options.DefaultScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+})
     .AddIdentityCookies();
 
 builder.Services.AddAuthorization(options =>
@@ -174,6 +174,8 @@ using (var scope = app.Services.CreateScope())
     await AgentSeeder.SeedAsync(services);
 
     await CorrespondenceTemplateSeeder.SeedAsync(context);
+
+    await PublicHolidaySeeder.SeedAsync(context);
 }
 
 app.MapHub<NotificationHub>("/hubs/notifications");

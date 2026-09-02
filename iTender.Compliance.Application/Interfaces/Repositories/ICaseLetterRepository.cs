@@ -26,6 +26,11 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<List<CaseLetter>> GetOutstandingWithCaseAsync(
             CancellationToken cancellationToken = default);
 
+        /// <summary>All outstanding (no response yet) letters regardless of due date, with the parent case,
+        /// tender and agent loaded - for reminder processing, which needs to act before a letter is overdue.</summary>
+        Task<List<CaseLetter>> GetActiveWithCaseAsync(
+            CancellationToken cancellationToken = default);
+
         Task AddAsync(
             CaseLetter letter,
             CancellationToken cancellationToken = default);

@@ -99,5 +99,21 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .OrderBy(x => x.ResponseDueOn)
                 .ToListAsync(cancellationToken);
         }
+
+        public Task<List<CaseLetter>> GetActiveWithCaseAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Context.CaseLetters
+                .Include(x => x.ComplianceCase)
+                    .ThenInclude(c => c.Tender)
+                .Include(x => x.ComplianceCase)
+                    .ThenInclude(c => c.Agent)
+                .Include(x => x.ComplianceCase)
+                    .ThenInclude(c => c.CaseLetters)
+                .Where(x =>
+                    !x.RespondedOn.HasValue &&
+                    x.ComplianceCase.Status != Domain.Enums.CaseStatus.Closed)
+                .ToListAsync(cancellationToken);
+        }
     }
 }

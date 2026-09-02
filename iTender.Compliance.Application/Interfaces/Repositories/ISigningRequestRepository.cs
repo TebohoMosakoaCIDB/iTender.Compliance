@@ -22,5 +22,11 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 
         Task<List<SigningRequest>> GetPendingAsync(
             CancellationToken cancellationToken = default);
+
+        /// <summary>Most recent signing requests of any status, with the case letter, compliance
+        /// case and tender loaded - for the Manager-facing Approvals page.</summary>
+        Task<List<SigningRequest>> GetRecentWithDetailsAsync(
+            int take,
+            CancellationToken cancellationToken = default);
     }
 }

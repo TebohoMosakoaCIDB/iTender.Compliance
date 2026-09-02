@@ -2,6 +2,9 @@
 {
     public interface IWorkingDayCalculator
     {
-        DateTime AddWorkingDays(DateTime start, int workingDays);
+        Task<DateTime> AddWorkingDaysAsync(
+             DateTime start,
+             int workingDays,
+             CancellationToken cancellationToken = default);
     }
 }
