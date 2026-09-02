@@ -1,10 +1,12 @@
 ﻿using iTender.Application.DTOs;
+using iTender.Compliance.Application.Filters;
 using iTender.Compliance.Application.Interfaces;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Scrapers;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
+using iTender.Compliance.Infrastructure.Mappers;
 using Microsoft.Extensions.Configuration;
 
 namespace iTender.Compliance.Infrastructure.Services
@@ -25,7 +27,9 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IAutoAssignmentService _autoAssignmentService;
         private readonly ISystemSettingRepository _systemSettingRepository;
         private readonly IComplianceProcessingService _complianceProcessingService;
-
+        private readonly IEtendersClient _etendersClient;
+        private readonly EtendersConstructionFilter _etendersConstructionFilter;
+        private readonly EtendersTenderMapper _etendersTenderMapper;
         public SynchronizationService(
             IEnumerable<IScraperService> scrapers,
             IDataverseService dataverseService,
@@ -40,7 +44,10 @@ namespace iTender.Compliance.Infrastructure.Services
             IConfiguration configuration,
             ITenderDiscoveryAgent openAI,
             IComplianceProcessingService complianceProcessingService,
-            IAutoAssignmentService autoAssignmentService)
+            IAutoAssignmentService autoAssignmentService,
+            IEtendersClient etendersClient,
+            EtendersConstructionFilter etendersConstructionFilter,
+            EtendersTenderMapper etendersTenderMapper)
         {
             _scrapers = scrapers;
             _currentUser = currentUser;
@@ -56,6 +63,9 @@ namespace iTender.Compliance.Infrastructure.Services
             _systemSettingRepository = systemSettingRepository;
             _complianceProcessingService = complianceProcessingService;
             _openAI = openAI;
+            _etendersClient = etendersClient;
+            _etendersConstructionFilter = etendersConstructionFilter;
+            _etendersTenderMapper = etendersTenderMapper;
         }
 
         public async Task SynchronizeAsync(bool isManual, CancellationToken cancellationToken = default)
@@ -104,6 +114,25 @@ namespace iTender.Compliance.Infrastructure.Services
                         "Scraper Completed",
                         $"{scraper.GetType().Name} returned {tenders.Count} tenders.",
                         cancellationToken: cancellationToken);
+                }
+
+                var etendersReleases = await _etendersClient.GetAllReleasesAsync(
+                    DateTime.UtcNow.Date.AddDays(-1),
+                    DateTime.UtcNow.Date,
+                    cancellationToken: cancellationToken);
+               
+                var constructionReleases =
+                    _etendersConstructionFilter.Filter(etendersReleases);
+
+                foreach (var release in constructionReleases)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var tender = _etendersTenderMapper.Map(
+                        release,
+                        sync.Id);
+
+                    scrapedTenders.Add(tender);
                 }
 
                 sync.TotalRetrieved = scrapedTenders.Count;

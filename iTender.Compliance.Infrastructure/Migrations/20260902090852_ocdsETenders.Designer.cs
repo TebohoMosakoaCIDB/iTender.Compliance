@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using iTender.Compliance.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using iTender.Compliance.Infrastructure.Data;
 namespace iTender.Compliance.Infrastructure.Migrations
 {
     [DbContext(typeof(ComplianceDbContext))]
-    partial class ComplianceDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902090852_ocdsETenders")]
+    partial class ocdsETenders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1044,17 +1047,11 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeliveryLocation")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("EmployerName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ExternalId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsConstruction")
@@ -1069,21 +1066,6 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<DateTime?>("ModifiedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Ocid")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ProcurementCategory")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ProcurementMethod")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ProcurementMethodDetails")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Province")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime?>("RoPRegistrationDate")
                         .HasColumnType("datetime2");
 
@@ -1091,19 +1073,10 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("SourceDocumentUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SpecialConditions")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("TenderNumber")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("TenderStatus")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("TenderSyncId")
                         .HasColumnType("uniqueidentifier");

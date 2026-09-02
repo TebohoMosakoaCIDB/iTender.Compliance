@@ -1,10 +1,12 @@
 ﻿using iTender.Compliance.Application.DTOs;
+using iTender.Compliance.Application.Filters;
 using iTender.Compliance.Application.Interfaces;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Scrapers;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Application.Providers;
 using iTender.Compliance.Infrastructure.Data;
+using iTender.Compliance.Infrastructure.Mappers;
 using iTender.Compliance.Infrastructure.Models;
 using iTender.Compliance.Infrastructure.Providers;
 using iTender.Compliance.Infrastructure.Repositories;
@@ -39,6 +41,29 @@ namespace iTender.Compliance.Infrastructure.Extensions
                 client.DefaultRequestHeaders.Accept.Add(
                     new MediaTypeWithQualityHeaderValue("application/json"));
             });
+
+            services.AddScoped<ICategoryMappingService, CategoryMappingService>();
+
+            services.Configure<EtendersOptions>(
+                configuration.GetSection(EtendersOptions.SectionName));
+
+            services.AddHttpClient<IEtendersClient, EtendersClient>((serviceProvider, client) =>
+            {
+                var options = serviceProvider
+                    .GetRequiredService<IOptions<EtendersOptions>>()
+                    .Value;
+
+                client.BaseAddress = new Uri(options.BaseUrl);
+
+                client.Timeout = TimeSpan.FromSeconds(60);
+            });
+
+            services.AddScoped<EtendersConstructionFilter>();
+            services.AddScoped<EtendersTenderMapper>();
+
+            services.AddScoped<
+                    ITenderDiscoveryAgent,
+                    TenderDiscoveryAgent>();
 
             QuestPDF.Settings.License = LicenseType.Evaluation;
             services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -128,12 +153,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.Configure<OpenAIOptions>(configuration.GetSection("OpenAI"));
             services.AddHttpClient<ETenderApiScraper>();
             services.AddScoped<IScraperService, ETenderApiScraper>();
-            services.AddScoped<ICategoryMappingService, CategoryMappingService>();
-
-            services.AddScoped<
-                    ITenderDiscoveryAgent,
-                    TenderDiscoveryAgent>();
-
+            
             return services;
         }
     }
