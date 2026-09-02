@@ -64,5 +64,16 @@
         public TenderSyncDetailModel? TenderSync { get; set; }
 
         public Guid? ComplianceCaseId { get; set; }
+
+        public string? ExternalId { get; set; }
+        public string? Ocid { get; set; }
+        public string? ProcurementCategory { get; set; }
+        public string? Province { get; set; }
+        public string? DeliveryLocation { get; set; }
+        public string? ProcurementMethod { get; set; }
+        public string? ProcurementMethodDetails { get; set; }
+        public string? TenderStatus { get; set; }
+        public string? SpecialConditions { get; set; }
+        public string? SourceDocumentUrl { get; set; }
     }
 }

@@ -127,18 +127,42 @@ namespace iTender.Compliance.Infrastructure.Services
 
                 TenderUrl = tender.TenderUrl,
 
+                // eTenders information
+                ExternalId = tender.ExternalId,
+
+                Ocid = tender.Ocid,
+
+                ProcurementCategory = tender.ProcurementCategory,
+
+                Province = tender.Province,
+
+                DeliveryLocation = tender.DeliveryLocation,
+
+                ProcurementMethod = tender.ProcurementMethod,
+
+                ProcurementMethodDetails = tender.ProcurementMethodDetails,
+
+                TenderStatus = tender.TenderStatus,
+
+                SpecialConditions = tender.SpecialConditions,
+
+                SourceDocumentUrl = tender.SourceDocumentUrl,
+
+                // Construction / CIDB
                 TenderSyncId = tender.TenderSyncId,
 
                 IsConstruction = tender.IsConstruction,
 
                 ClassOfWorks = tender.ClassOfWorks,
 
+                // Award
                 AwardedDate = tender.AwardedDate,
 
                 AwardValue = tender.AwardValue,
 
                 WinningContractor = tender.WinningContractor,
 
+                // RoP
                 IsRegisteredOnRoP = tender.IsRegisteredOnRoP,
 
                 RoPRegistrationDate = tender.RoPRegistrationDate,
@@ -146,6 +170,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 ComplianceCaseId =
                     tender.ComplianceCase?.Id,
 
+                // Synchronisation
                 TenderSync = tender.TenderSync == null
                     ? null
                     : new TenderSyncDetailModel
@@ -199,11 +224,10 @@ namespace iTender.Compliance.Infrastructure.Services
 
                                 TenderNumber =
                                     x.TenderNumber
-
                             })
                             .ToList()
                     }
-            };
+            };                
         }
 
         public async Task<TenderDto?> GetByIdAsync(
