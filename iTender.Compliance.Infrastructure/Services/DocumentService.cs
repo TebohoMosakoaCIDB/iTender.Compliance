@@ -348,7 +348,10 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Replace("{ClosingDate}", model.ClosingDate.ToString("dd MMM yyyy"))
                 .Replace("{ResponseDueDate}", model.ResponseDueOn.ToString("dd MMM yyyy"))
                 .Replace("{AgentName}", user)
+                .Replace("{FooterText}", model.FooterText ?? string.Empty)
                 .Replace("{CurrentDate}", DateTime.Now.ToString("dd MMM yyyy"));
+            // {Manager_Signature} is intentionally left unreplaced - it is the literal
+            // anchor text SigningHub's autoplace API searches the PDF for.
         }
 
         private static string ReplacePlaceholdersContravention(string template, SendContraventionNoticeModel model, string user)
@@ -363,7 +366,9 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Replace("{ResponseDueDate}", model.ResponseDueOn.ToString("dd MMM yyyy"))
                 .Replace("{Reason}", model.Reason)
                 .Replace("{AgentName}", user)
+                .Replace("{FooterText}", model.FooterText ?? string.Empty)
                 .Replace("{CurrentDate}", DateTime.Now.ToString("dd MMM yyyy"));
+            // {Manager_Signature} is intentionally left unreplaced - see above.
         }
 
         private static string ReplacePlaceholdersReminder(string template, SendReminderLetterModel model, string user)

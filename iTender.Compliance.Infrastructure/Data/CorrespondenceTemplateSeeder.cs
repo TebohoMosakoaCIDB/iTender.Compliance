@@ -106,11 +106,15 @@ Response Due Date: {ResponseDueDate}
 {FooterText}
 
 Prepared by:
+
 {AgentName}
+
 Compliance Officer
 
 Approved by:
+
 {Manager_Signature}
+
 Regulatory Compliance Manager
 """,
 
@@ -133,16 +137,19 @@ Response Due Date: {ResponseDueDate}
 
 Failure to comply may result in the matter being referred for further enforcement action.
 
-Kind regards,
-
 {FooterText}
 
 Prepared by:
+
 {AgentName}
+
 Compliance Officer
 
 Approved by:
+
 {Manager_Signature}
+
+Regulatory Compliance Manager
 """,
 
             CorrespondenceTemplateType.AGSAReferral => """
@@ -168,16 +175,19 @@ Kindly provide confirmation of the corrective action taken and a copy or evidenc
 
 Failure to correct the tender within the prescribed period may result in the issuing of a Contravention Notice and referral for further enforcement action.
 
-Kind regards,
-
 {FooterText}
 
 Prepared by:
+
 {AgentName}
+
 Compliance Officer
 
 Approved by:
+
 {Manager_Signature}
+
+Regulatory Compliance Manager
 """,
 
             _ => string.Empty

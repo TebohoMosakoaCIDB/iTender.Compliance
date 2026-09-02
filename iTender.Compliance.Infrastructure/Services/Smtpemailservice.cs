@@ -48,6 +48,9 @@ namespace iTender.Compliance.Infrastructure.Services
                 message.ToAddress,
                 string.IsNullOrWhiteSpace(message.ToName) ? message.ToAddress : message.ToName));
 
+            if (!string.IsNullOrWhiteSpace(message.CcAddress))
+                mail.CC.Add(new MailAddress(message.CcAddress));
+
             var attachments = new List<Attachment>();
 
             try

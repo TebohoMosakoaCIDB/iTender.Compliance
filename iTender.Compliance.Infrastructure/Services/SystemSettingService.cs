@@ -30,9 +30,15 @@ namespace iTender.Compliance.Infrastructure.Services
                 MaximumReminders = settings.MaximumReminders,
                 DefaultPageSize = settings.DefaultPageSize,
                 DistributionMethod = settings.DistributionMethod,
-                OpenTenderResponseHours = settings.OpenTenderResponseHours,
                 ClosedTenderResponseDays = settings.ClosedTenderResponseDays,
                 ContraventionNoticeResponseDays = settings.ContraventionNoticeResponseDays,
+                InstructionLetterResponseWorkingDays = settings.InstructionLetterResponseWorkingDays,
+                ReminderAfterWorkingDays = settings.ReminderAfterWorkingDays,
+                AgsaReferralDeadlineDays = settings.AgsaReferralDeadlineDays,
+                RopCheckAfterDays = settings.RopCheckAfterDays,
+                RopRegistrationGraceDays = settings.RopRegistrationGraceDays,
+                AgsaReferralEmail = settings.AgsaReferralEmail,
+                EnforcementUnitEmail = settings.EnforcementUnitEmail,
                 RequireManagerApproval = settings.RequireManagerApproval
             };
         }
@@ -48,9 +54,15 @@ namespace iTender.Compliance.Infrastructure.Services
             settings.DefaultPageSize = model.DefaultPageSize;
             settings.AutoAssignmentEnabled = model.AutoAssignmentEnabled;
             settings.DistributionMethod = model.DistributionMethod;
-            settings.OpenTenderResponseHours = model.OpenTenderResponseHours;
             settings.ClosedTenderResponseDays = model.ClosedTenderResponseDays;
             settings.ContraventionNoticeResponseDays = model.ContraventionNoticeResponseDays;
+            settings.InstructionLetterResponseWorkingDays = model.InstructionLetterResponseWorkingDays;
+            settings.ReminderAfterWorkingDays = model.ReminderAfterWorkingDays;
+            settings.AgsaReferralDeadlineDays = model.AgsaReferralDeadlineDays;
+            settings.RopCheckAfterDays = model.RopCheckAfterDays;
+            settings.RopRegistrationGraceDays = model.RopRegistrationGraceDays;
+            settings.AgsaReferralEmail = model.AgsaReferralEmail;
+            settings.EnforcementUnitEmail = model.EnforcementUnitEmail;
             settings.RequireManagerApproval = model.RequireManagerApproval;
 
             await _repository.UpdateAsync(settings);

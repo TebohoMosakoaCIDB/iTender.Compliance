@@ -15,6 +15,8 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IAuditService _auditService;
         private readonly ICurrentUserService _currentUser;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISystemSettingService _systemSettingService;
+        private readonly IWorkingDayCalculator _workingDayCalculator;
 
         public ComplianceService(
             IComplianceCaseRepository complianceCaseRepository,
@@ -23,7 +25,9 @@ namespace iTender.Compliance.Infrastructure.Services
             IAuditService auditService,
             INotificationService notificationService,
             ICurrentUserService currentUser,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            ISystemSettingService systemSettingService,
+            IWorkingDayCalculator workingDayCalculator)
         {
             _complianceCaseRepository = complianceCaseRepository;
             _caseLetterRepository = caseLetterRepository;
@@ -32,6 +36,8 @@ namespace iTender.Compliance.Infrastructure.Services
             _auditService = auditService;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
+            _systemSettingService = systemSettingService;
+            _workingDayCalculator = workingDayCalculator;
         }
 
         public async Task AssignAgentAsync(
@@ -171,6 +177,16 @@ namespace iTender.Compliance.Infrastructure.Services
             if (!model.Findings.Any(f => !f.IsResolved))
                 return null;
 
+            var settings = await _systemSettingService.GetAsync();
+
+            var ilDueOn = _workingDayCalculator.AddWorkingDays(
+                DateTime.UtcNow,
+                settings.InstructionLetterResponseWorkingDays);
+
+            var cnDueOn = _workingDayCalculator.AddWorkingDays(
+                DateTime.UtcNow,
+                settings.ContraventionNoticeResponseDays);
+
             var latestLetter = model.Letters
                 .OrderByDescending(x => x.LetterNumber)
                 .FirstOrDefault();
@@ -198,11 +214,12 @@ namespace iTender.Compliance.Infrastructure.Services
                             Title = "Issue Erratum Instruction",
 
                             Description =
-                                "The tender is still open. The client must correct the non-compliance by issuing an erratum within 48 hours.",
+                                $"The tender is still open. The client must correct the non-compliance by issuing an erratum within {settings.InstructionLetterResponseWorkingDays} working days.",
 
-                            ResponseHours = 48,
+                            ResponseHours = settings.InstructionLetterResponseWorkingDays * 24,
+                            ResponseDueOn = ilDueOn,
 
-                            ResponsePeriodText = "48 hours"
+                            ResponsePeriodText = $"{settings.InstructionLetterResponseWorkingDays} working days"
                         };
                     }
                 }
@@ -220,9 +237,10 @@ namespace iTender.Compliance.Infrastructure.Services
                         Description =
                             "The tender is closed and the identified non-compliance requires a Contravention Notice.",
 
-                        ResponseHours = 14 * 24,
+                        ResponseHours = settings.ContraventionNoticeResponseDays * 24,
+                        ResponseDueOn = cnDueOn,
 
-                        ResponsePeriodText = "14 days"
+                        ResponsePeriodText = $"{settings.ContraventionNoticeResponseDays} working days"
                     };
                 }
             }
@@ -242,9 +260,10 @@ namespace iTender.Compliance.Infrastructure.Services
                         Type = CorrespondenceTemplateType.InstructionLetter,
                         Title = "Issue Instructional Letter",
                         Description =
-                            "The awarded project has not been identified on the Register of Projects. An Instructional Letter must be issued to the client.",
-                        ResponseHours = 48,
-                        ResponsePeriodText = "48 hours"
+                            $"The awarded project has not been identified on the Register of Projects. An Instructional Letter must be issued to the client within {settings.InstructionLetterResponseWorkingDays} working days.",
+                        ResponseHours = settings.InstructionLetterResponseWorkingDays * 24,
+                        ResponseDueOn = ilDueOn,
+                        ResponsePeriodText = $"{settings.InstructionLetterResponseWorkingDays} working days"
                     };
                 }
 
@@ -262,8 +281,9 @@ namespace iTender.Compliance.Infrastructure.Services
                         Title = "Issue Contravention Notice",
                         Description =
                             "The client has not complied with the Instructional Letter. A Contravention Notice may now be issued.",
-                        ResponseHours = 14 * 24,
-                        ResponsePeriodText = "14 days"
+                        ResponseHours = settings.ContraventionNoticeResponseDays * 24,
+                        ResponseDueOn = cnDueOn,
+                        ResponsePeriodText = $"{settings.ContraventionNoticeResponseDays} working days"
                     };
                 }
             }

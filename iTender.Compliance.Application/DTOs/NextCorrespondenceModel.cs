@@ -14,6 +14,8 @@ namespace iTender.Compliance.Application.DTOs
 
         public int ResponseHours { get; set; }
 
+        public DateTime ResponseDueOn { get; set; }
+
         public string ResponsePeriodText { get; set; } = string.Empty;
     }
 }

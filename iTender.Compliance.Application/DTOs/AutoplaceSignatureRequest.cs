@@ -5,7 +5,7 @@ namespace iTender.Compliance.Application.DTOs
     public class AutoplaceSignatureRequest
     {
         [JsonPropertyName("search_text")]
-        public string SearchText { get; set; } = "{Agent_Signature}";
+        public string SearchText { get; set; } = "{Manager_Signature}";
 
         [JsonPropertyName("placement")]
         public string Placement { get; set; } = "TOP";

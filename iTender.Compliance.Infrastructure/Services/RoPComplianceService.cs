@@ -14,6 +14,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IComplianceActionRepository _actionRepository;
         private readonly ICaseLetterRepository _letterRepository;
         private readonly ISystemSettingRepository _settingRepository;
+        private readonly IWorkingDayCalculator _workingDayCalculator;
         private readonly IAuditService _auditService;
         private readonly ILetterNumberGenerator _letterNumberGenerator;
         private readonly IUnitOfWork _unitOfWork;
@@ -26,6 +27,7 @@ namespace iTender.Compliance.Infrastructure.Services
             IComplianceActionRepository actionRepository,
             ICaseLetterRepository letterRepository,
             ISystemSettingRepository settingRepository,
+            IWorkingDayCalculator workingDayCalculator,
             IAuditService auditService,
             ILetterNumberGenerator letterNumberGenerator,
             IUnitOfWork unitOfWork,
@@ -37,6 +39,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _actionRepository = actionRepository;
             _letterRepository = letterRepository;
             _settingRepository = settingRepository;
+            _workingDayCalculator = workingDayCalculator;
             _auditService = auditService;
             _letterNumberGenerator = letterNumberGenerator;
             _unitOfWork = unitOfWork;
@@ -47,8 +50,19 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             _logger.LogInformation("Starting RoP compliance check for unregistered awards.");
 
-            // 1. Get all tenders that have been awarded but not registered on RoP.
-            var tenders = await _tenderRepository.GetUnregisteredAwardedTendersAsync(cancellationToken);
+            var settings = await _settingRepository.GetAsync(cancellationToken);
+            if (settings == null)
+                throw new InvalidOperationException("System settings not found.");
+
+            // CIDB finalized rule: 90 days from tender closing allows the procurement/award process
+            // to complete, then a further 21-day RoP registration grace period - so a tender only
+            // becomes a compliance matter 111 days after it closed, not the moment it's detected.
+            var minimumDaysSinceClosing = settings.RopCheckAfterDays + settings.RopRegistrationGraceDays;
+
+            // 1. Get all tenders that have been awarded but not registered on RoP, past the grace window.
+            var tenders = await _tenderRepository.GetUnregisteredAwardedTendersAsync(
+                minimumDaysSinceClosing,
+                cancellationToken);
             if (!tenders.Any())
             {
                 _logger.LogInformation("No unregistered awarded tenders found.");
@@ -160,10 +174,13 @@ namespace iTender.Compliance.Infrastructure.Services
             if (settings == null)
                 throw new InvalidOperationException("System settings not found.");
 
-            // For RoP, always start with Instructional Letter (48h) regardless of open/closed.
+            // For RoP, always start with Instructional Letter regardless of open/closed.
             // Note: In the document, Stream 3 uses IL then CN, similar to open tenders.
+            // CIDB finalized rule: 2 WORKING days, not a flat 48-hour clock.
             var letterType = LetterType.Instruction;
-            var dueDate = DateTime.UtcNow.AddHours(settings.OpenTenderResponseHours);
+            var dueDate = _workingDayCalculator.AddWorkingDays(
+                DateTime.UtcNow,
+                settings.InstructionLetterResponseWorkingDays);
             var actionType = ComplianceActionType.InstructionalLetterSent;
             var newStatus = CaseStatus.WaitingForResponse;
 

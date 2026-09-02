@@ -16,10 +16,15 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
-        public async Task<List<Tender>> GetUnregisteredAwardedTendersAsync(CancellationToken cancellationToken = default)
+        public async Task<List<Tender>> GetUnregisteredAwardedTendersAsync(
+            int minimumDaysSinceClosing,
+            CancellationToken cancellationToken = default)
         {
+            var cutoff = DateTime.UtcNow.AddDays(-minimumDaysSinceClosing);
+
             return await Context.Tenders
                 .Where(t => t.AwardedDate != null && !t.IsRegisteredOnRoP)
+                .Where(t => t.ClosingDate <= cutoff)
                 .ToListAsync(cancellationToken);
         }
 

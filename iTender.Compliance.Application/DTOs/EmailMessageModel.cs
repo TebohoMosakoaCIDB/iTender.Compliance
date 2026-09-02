@@ -6,6 +6,8 @@
 
         public string? ToName { get; set; }
 
+        public string? CcAddress { get; set; }
+
         public string Subject { get; set; } = string.Empty;
 
         /// <summary>HTML body.</summary>

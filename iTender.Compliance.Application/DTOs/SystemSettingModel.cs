@@ -30,6 +30,20 @@ namespace iTender.Compliance.Application.DTOs
 
         public int ContraventionNoticeResponseDays { get; set; } = 14;
 
+        public int InstructionLetterResponseWorkingDays { get; set; } = 2;
+
+        public int ReminderAfterWorkingDays { get; set; } = 7;
+
+        public int AgsaReferralDeadlineDays { get; set; } = 30;
+
+        public int RopCheckAfterDays { get; set; } = 90;
+
+        public int RopRegistrationGraceDays { get; set; } = 21;
+
+        public string AgsaReferralEmail { get; set; } = "cidbcontraventionnotice@agsa.co.za";
+
+        public string EnforcementUnitEmail { get; set; } = "Yolandam@cidb.org.za";
+
         public bool RequireManagerApproval { get; set; } = true;
     }
 }
