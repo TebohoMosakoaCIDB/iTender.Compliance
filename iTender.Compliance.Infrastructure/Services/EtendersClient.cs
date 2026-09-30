@@ -18,13 +18,28 @@ namespace iTender.Compliance.Infrastructure.Services
             _httpClient = httpClient;
         }
 
-        public async Task<IReadOnlyList<EtendersRelease>> GetAllReleasesAsync(
-    DateTime fromDate,
-    DateTime toDate,
-    int pageSize = 100,
-    CancellationToken cancellationToken = default)
+        /// <summary>Surfaces the actual response body on failure - a bare EnsureSuccessStatusCode()
+        /// leaves nothing to debug from beyond a raw status code (learned that the hard way with
+        /// the SigningHub integration).</summary>
+        private static async Task EnsureSuccessAsync(HttpResponseMessage response, string operation)
         {
-            var allReleases = new List<EtendersRelease>();
+            if (response.IsSuccessStatusCode)
+                return;
+
+            var body = await response.Content.ReadAsStringAsync();
+
+            throw new InvalidOperationException(
+                $"eTenders {operation} failed with {(int)response.StatusCode} {response.StatusCode}: {body}");
+        }
+
+        public async Task<IReadOnlyList<EtendersRelease>> GetAllReleasesAsync(
+            DateTime fromDate,
+            DateTime toDate,
+            int pageSize = 100,
+            CancellationToken cancellationToken = default)
+        {
+            var constructionFilter = new EtendersConstructionFilter();
+            var constructionTenders = new List<EtendersRelease>();
 
             var currentPage = await GetReleasesAsync(
                 fromDate,
@@ -33,11 +48,8 @@ namespace iTender.Compliance.Infrastructure.Services
                 pageSize: pageSize,
                 cancellationToken);
 
-            var constructionFilter = new EtendersConstructionFilter();
-
-            var constructionTenders = constructionFilter.Filter(allReleases).ToList();
-
-            constructionTenders.AddRange(currentPage.Releases);
+            constructionTenders.AddRange(
+                constructionFilter.Filter(currentPage.Releases));
 
             while (!string.IsNullOrWhiteSpace(currentPage.Links?.Next))
             {
@@ -47,7 +59,8 @@ namespace iTender.Compliance.Infrastructure.Services
                     currentPage.Links.Next,
                     cancellationToken);
 
-                constructionTenders.AddRange(currentPage.Releases);
+                constructionTenders.AddRange(
+                    constructionFilter.Filter(currentPage.Releases));
             }
 
             return constructionTenders;
@@ -71,7 +84,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 url,
                 cancellationToken);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "GetReleasesAsync");
 
             var result = await response.Content
                 .ReadFromJsonAsync<EtendersResponse>(
@@ -90,7 +103,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 url,
                 cancellationToken);
 
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, "GetPageAsync");
 
             var result = await response.Content
                 .ReadFromJsonAsync<EtendersResponse>(

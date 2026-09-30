@@ -26,9 +26,9 @@ namespace iTender.Compliance.Infrastructure.Identity
             string[] roles =
             [
                 Roles.Director,
-        Roles.ComplianceManager,
-        Roles.ComplianceOfficer,
-        Roles.ComplianceAdministrator
+                Roles.ComplianceManager,
+                Roles.ComplianceOfficer,
+                Roles.ComplianceAdministrator
             ];
 
             // ---------------------------------------------------------
@@ -118,78 +118,30 @@ namespace iTender.Compliance.Infrastructure.Identity
         // Directors
         new
         {
-            Email = "director1@itender.co.za",
-            FirstName = "Director",
-            LastName = "One",
+            Email = "enochm@cidb.org.za",
+            FirstName = "Enoch",
+            LastName = "Masibi",
             EmployeeNumber = "DIR001",
-            Role = Roles.Director
-        },
-        new
-        {
-            Email = "director2@itender.co.za",
-            FirstName = "Director",
-            LastName = "Two",
-            EmployeeNumber = "DIR002",
-            Role = Roles.Director
-        },
-        new
-        {
-            Email = "director3@itender.co.za",
-            FirstName = "Director",
-            LastName = "Three",
-            EmployeeNumber = "DIR003",
             Role = Roles.Director
         },
 
         // Compliance Managers
         new
         {
-            Email = "manager1@itender.co.za",
-            FirstName = "Compliance",
-            LastName = "Manager One",
+            Email = "marciam@cidb.org.za",
+            FirstName = "Marcia",
+            LastName = "Mashele",
             EmployeeNumber = "MGR001",
-            Role = Roles.ComplianceManager
-        },
-        new
-        {
-            Email = "manager2@itender.co.za",
-            FirstName = "Compliance",
-            LastName = "Manager Two",
-            EmployeeNumber = "MGR002",
-            Role = Roles.ComplianceManager
-        },
-        new
-        {
-            Email = "manager3@itender.co.za",
-            FirstName = "Compliance",
-            LastName = "Manager Three",
-            EmployeeNumber = "MGR003",
             Role = Roles.ComplianceManager
         },
 
         // Compliance Officers
         new
         {
-            Email = "officer1@itender.co.za",
-            FirstName = "Compliance",
-            LastName = "Officer One",
+            Email = "GraceR@cidb.org.za",
+            FirstName = "Grace",
+            LastName = "Rasivhaga",
             EmployeeNumber = "OFF001",
-            Role = Roles.ComplianceOfficer
-        },
-        new
-        {
-            Email = "officer2@itender.co.za",
-            FirstName = "Compliance",
-            LastName = "Officer Two",
-            EmployeeNumber = "OFF002",
-            Role = Roles.ComplianceOfficer
-        },
-        new
-        {
-            Email = "officer3@itender.co.za",
-            FirstName = "Compliance",
-            LastName = "Officer Three",
-            EmployeeNumber = "OFF003",
             Role = Roles.ComplianceOfficer
         }
     };

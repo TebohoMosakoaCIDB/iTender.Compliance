@@ -116,7 +116,7 @@ builder.Services.AddAuthorization(options =>
             Roles.ComplianceOfficer));
 });
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'SupabaseConnection' not found.");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'AzureConnection' not found.");
 builder.Services.AddDbContext<ComplianceDbContext>(options =>
     options.UseSqlServer(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();

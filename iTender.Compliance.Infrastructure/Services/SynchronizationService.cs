@@ -97,24 +97,24 @@ namespace iTender.Compliance.Infrastructure.Services
             {
                 var scrapedTenders = new List<Tender>();
 
-                foreach (var scraper in _scrapers)
-                {
-                    var tenders = await scraper.ScrapeAsync(cancellationToken);
+                //foreach (var scraper in _scrapers)
+                //{
+                //    var tenders = await scraper.ScrapeAsync(cancellationToken);
 
-                    scrapedTenders.AddRange(tenders);
+                //    scrapedTenders.AddRange(tenders);
 
-                    //var clientTenders = await _openAI.FindTendersAsync(
-                    //        new DateTime(2026, 8, 23),
-                    //        DateTime.Now);
+                //    //var clientTenders = await _openAI.FindTendersAsync(
+                //    //        new DateTime(2026, 8, 23),
+                //    //        DateTime.Now);
 
-                    await LogAsync(
-                        sync.Id,
-                        SyncLogType.Information,
-                        SyncLogLevel.Information,
-                        "Scraper Completed",
-                        $"{scraper.GetType().Name} returned {tenders.Count} tenders.",
-                        cancellationToken: cancellationToken);
-                }
+                //    await LogAsync(
+                //        sync.Id,
+                //        SyncLogType.Information,
+                //        SyncLogLevel.Information,
+                //        "Scraper Completed",
+                //        $"{scraper.GetType().Name} returned {tenders.Count} tenders.",
+                //        cancellationToken: cancellationToken);
+                //}
 
                 var etendersReleases = await _etendersClient.GetAllReleasesAsync(
                     DateTime.UtcNow.Date.AddDays(-1),

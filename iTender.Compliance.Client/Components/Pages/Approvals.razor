@@ -1,0 +1,253 @@
+﻿@page "/approvals"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Domain.Entities
+@using iTender.Compliance.Application.Interfaces.Repositories
+@using iTender.Compliance.Application.Interfaces.Services
+
+@attribute [Authorize(Policy = "ComplianceOversight")]
+
+@inject ISigningRequestRepository SigningRequestRepository
+@inject IDocumentSigningService DocumentSigningService
+@inject ICorrespondenceService CorrespondenceService
+@inject NavigationManager Navigation
+
+<PageTitle>Approvals | CRCIP Monitor</PageTitle>
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+            <h2 class="mb-0">Letter Approvals</h2>
+
+            <small class="text-muted">
+                Instruction Letters and Contravention Notices routed to a Manager for
+                e-signature via SigningHub before they are sent to the client.
+            </small>
+        </div>
+
+        <button class="btn btn-cidb-submit-outline"
+                disabled="@_checkingNow"
+                @onclick="CheckStatusNow">
+
+            @if (_checkingNow)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            else
+            {
+                <i class="bi bi-arrow-repeat me-2"></i>
+            }
+            Check SigningHub Now
+
+        </button>
+
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_resultMessage))
+    {
+        <div class="alert @(_resultIsError ? "alert-danger" : "alert-success")">
+            @_resultMessage
+        </div>
+    }
+
+    <div class="card shadow-sm">
+
+        <div class="card-header">
+
+            <div class="btn-group">
+
+                <button class="btn @(Filter == null ? "btn-cidb-submit" : "btn-outline-secondary")"
+                        @onclick="() => ChangeFilter(null)">
+                    All
+                </button>
+
+                <button class="btn @(Filter == true ? "btn-cidb-submit" : "btn-outline-secondary")"
+                        @onclick="() => ChangeFilter(true)">
+                    Pending Only
+                </button>
+
+            </div>
+
+        </div>
+
+        <div class="card-body p-0">
+
+            @if (Requests == null)
+            {
+                <div class="text-center text-muted py-5">
+                    <div class="spinner-border" role="status"></div>
+                </div>
+            }
+            else if (!FilteredRequests.Any())
+            {
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-patch-check fs-2 d-block mb-2"></i>
+                    Nothing to show.
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+
+                    <table class="table table-hover mb-0 align-middle">
+
+                        <thead>
+                            <tr>
+                                <th>Tender</th>
+                                <th>Document</th>
+                                <th>Sent To</th>
+                                <th>Status</th>
+                                <th>Sent</th>
+                                <th>Resolved</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var request in FilteredRequests)
+                            {
+                                <tr>
+                                    <td>
+                                        @if (request.CaseLetter?.ComplianceCase?.Tender != null)
+                                        {
+                                            <div class="fw-semibold">@request.CaseLetter.ComplianceCase.Tender.TenderNumber</div>
+                                            <div class="text-muted small">@request.CaseLetter.ComplianceCase.Tender.Title</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @request.CaseLetter?.Type
+                                    </td>
+                                    <td>
+                                        <div>@request.SignerName</div>
+                                        <div class="text-muted small">@request.SignerEmail</div>
+                                    </td>
+                                    <td>
+                                        @{
+                                            var badgeClass = request.Status switch
+                                            {
+                                                SigningRequestStatus.Signed => "bg-success",
+                                                SigningRequestStatus.Declined => "bg-danger",
+                                                SigningRequestStatus.Failed => "bg-danger",
+                                                SigningRequestStatus.Expired => "bg-secondary",
+                                                SigningRequestStatus.Cancelled => "bg-secondary",
+                                                _ => "bg-warning text-dark"
+                                            };
+                                        }
+                                        <span class="badge @badgeClass">@request.Status</span>
+
+                                        @if (!string.IsNullOrWhiteSpace(request.FailureReason))
+                                        {
+                                            <div class="text-danger small mt-1" style="max-width: 260px;">
+                                                @request.FailureReason
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        @(request.SentOn?.ToString("dd MMM yyyy HH:mm") ?? "-")
+                                    </td>
+                                    <td>
+                                        @(request.SignedOn?.ToString("dd MMM yyyy HH:mm") ?? "-")
+                                    </td>
+                                    <td>
+                                        @if (request.CaseLetter != null)
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary"
+                                                    @onclick="() => NavigateToCase(request.CaseLetter.ComplianceCaseId)">
+                                                View Case
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+
+                    </table>
+
+                </div>
+            }
+
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+    private List<SigningRequest>? Requests;
+    private bool? Filter = true;
+    private bool _checkingNow;
+    private string? _resultMessage;
+    private bool _resultIsError;
+
+    private IEnumerable<SigningRequest> FilteredRequests =>
+        Requests == null
+            ? Enumerable.Empty<SigningRequest>()
+            : Filter == true
+                ? Requests.Where(x =>
+                    x.Status == SigningRequestStatus.Draft ||
+                    x.Status == SigningRequestStatus.Uploaded ||
+                    x.Status == SigningRequestStatus.PendingSignature ||
+                    x.Status == SigningRequestStatus.Viewed)
+                : Requests;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        Requests = await SigningRequestRepository.GetRecentWithDetailsAsync(200);
+    }
+
+    private void ChangeFilter(bool? value)
+    {
+        Filter = value;
+    }
+
+    private void NavigateToCase(Guid complianceCaseId)
+    {
+        Navigation.NavigateTo($"/cases/{complianceCaseId}");
+    }
+
+    private async Task CheckStatusNow()
+    {
+        _checkingNow = true;
+        _resultMessage = null;
+
+        try
+        {
+            var result = await DocumentSigningService.PollAndCompleteAsync();
+
+            foreach (var caseLetterId in result.CompletedCaseLetterIds)
+                await CorrespondenceService.CompleteApprovedLetterAsync(caseLetterId);
+
+            foreach (var rejected in result.RejectedLetters)
+                await CorrespondenceService.HandleRejectedLetterAsync(rejected.CaseLetterId, rejected.Reason);
+
+            _resultIsError = false;
+            _resultMessage =
+                $"{result.CompletedCaseLetterIds.Count} letter(s) signed and delivered, " +
+                $"{result.RejectedLetters.Count} rejected.";
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _resultIsError = true;
+            _resultMessage = $"Check failed: {ex.Message}";
+        }
+        finally
+        {
+            _checkingNow = false;
+        }
+    }
+}

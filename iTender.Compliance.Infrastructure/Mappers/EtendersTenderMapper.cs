@@ -15,10 +15,13 @@ namespace iTender.Compliance.Infrastructure.Mappers
 
             return new Tender
             {
-                TenderNumber = sourceTender.Title ?? sourceTender.Id ?? string.Empty,
+                // Per the OCDS spec, tender.id is the actual reference/tender number and
+                // tender.title is the short descriptive name - these were previously swapped,
+                // which meant TenderNumber showed a long title and Title showed the description.
+                TenderNumber = sourceTender.Id ?? string.Empty,
 
-                Title = sourceTender.Description
-                        ?? sourceTender.Title
+                Title = sourceTender.Title
+                        ?? sourceTender.Description
                         ?? string.Empty,
 
                 Description = sourceTender.Description,

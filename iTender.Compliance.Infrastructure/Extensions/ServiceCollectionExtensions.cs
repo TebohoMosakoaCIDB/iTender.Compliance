@@ -151,9 +151,9 @@ namespace iTender.Compliance.Infrastructure.Extensions
             // HTTP client with named or typed client
             services.Configure<ETenderApiOptions>(configuration.GetSection("ETenderApi"));
             services.Configure<OpenAIOptions>(configuration.GetSection("OpenAI"));
-            services.AddHttpClient<ETenderApiScraper>();
-            services.AddScoped<IScraperService, ETenderApiScraper>();
-            
+            //services.AddHttpClient<ETenderApiScraper>();
+            //services.AddScoped<IScraperService, ETenderApiScraper>();
+
             return services;
         }
     }
