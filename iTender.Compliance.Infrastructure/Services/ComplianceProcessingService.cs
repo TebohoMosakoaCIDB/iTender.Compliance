@@ -1,15 +1,10 @@
 ﻿using iTender.Application.DTOs;
+using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
-using iTender.Compliance.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
@@ -26,11 +21,14 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IWorkClassificationValidator _classValidator;
         private readonly ILetterNumberGenerator _letterNumberGenerator;
         private readonly IUnitOfWork _unitOfWork;
-        //private readonly IComplianceCaseWorkflowService _workflowService;
         private readonly ILogger<ComplianceProcessingService> _logger;
+        private readonly ICorrespondenceService _correspondenceService;
+        private readonly IWorkingDayCalculator _workingDayCalculator;
 
         public ComplianceProcessingService(
             IComplianceCaseRepository caseRepository,
+            ICorrespondenceService correspondenceService,
+            IWorkingDayCalculator workingDayCalculator,
             IComplianceFindingRepository findingRepository,
             IComplianceActionRepository actionRepository,
             ICaseLetterRepository letterRepository,
@@ -39,7 +37,6 @@ namespace iTender.Compliance.Infrastructure.Services
             IWorkClassificationValidator classValidator,
             ILetterNumberGenerator letterNumberGenerator,
             IUnitOfWork unitOfWork,
-            //IComplianceCaseWorkflowService workflowService,
             ILogger<ComplianceProcessingService> logger)
         {
             _caseRepository = caseRepository;
@@ -52,21 +49,24 @@ namespace iTender.Compliance.Infrastructure.Services
             _letterNumberGenerator = letterNumberGenerator;
             _unitOfWork = unitOfWork;
             _logger = logger;
-            //_workflowService = workflowService;
+            _correspondenceService = correspondenceService;
+            _workingDayCalculator = workingDayCalculator;
         }
 
         public async Task<Guid?> ProcessTenderAsync(
-            Tender tender,
-            HashSet<string> iTenderNumbers,
-            List<ContractModel> crmContracts,
-            Guid syncId,
-            Guid? userId,
-            CancellationToken cancellationToken = default)
+                Tender tender,
+                HashSet<string> iTenderNumbers,
+                List<ContractModel> crmContracts,
+                Guid syncId,
+                Guid? userId,
+                CancellationToken cancellationToken = default)
         {
             // 1. Skip if not construction
             if (!tender.IsConstruction)
             {
-                _logger.LogInformation("Tender {TenderNumber} is not construction, skipping compliance processing.", tender.TenderNumber);
+                _logger.LogInformation(
+                    "Tender {TenderNumber} is not construction, skipping compliance processing.",
+                    tender.TenderNumber);
                 return null;
             }
 
@@ -76,25 +76,29 @@ namespace iTender.Compliance.Infrastructure.Services
                 : TenderStatus.Closed;
 
             // 3. Check if a ComplianceCase already exists for this tender
-            var existingCase = await _caseRepository.GetByTenderIdAsync(tender.Id, cancellationToken);
+            var existingCase = await _caseRepository
+                .GetByTenderIdAsync(tender.Id, cancellationToken);
+
             if (existingCase != null)
             {
-                _logger.LogInformation("Compliance case already exists for tender {TenderNumber}, skipping.", tender.TenderNumber);
+                _logger.LogInformation(
+                    "Compliance case already exists for tender {TenderNumber}, skipping.",
+                    tender.TenderNumber);
                 return existingCase.Id;
             }
 
-            // 4. Collect findings (both streams)
+            // 4. Collect findings (Streams 1 and 2 only - Stream 3 is handled by IVerificationService)
             var findings = new List<ComplianceFinding>();
 
             // ---- STREAM 1: Class of Works ----
             // OCDS/eTenders never carries a CIDB-specific class-of-works code directly - only a
             // generic works/goods/services category, already used upstream to filter to construction
-            // tenders in the first place. Previously that meant ClassOfWorks was ALWAYS null here and
-            // EVERY tender hit the "missing" branch below, regardless of actual compliance. Try to
-            // resolve a real class from the advert's own text against CIDB's class list first.
+            // tenders in the first place. Try to resolve a real class from the advert's own text
+            // against CIDB's class list first.
             if (string.IsNullOrWhiteSpace(tender.ClassOfWorks))
             {
-                tender.ClassOfWorks = await _classOfWorksResolver.ResolveAsync(tender, cancellationToken);
+                tender.ClassOfWorks = await _classOfWorksResolver
+                    .ResolveAsync(tender, cancellationToken);
 
                 if (!string.IsNullOrWhiteSpace(tender.ClassOfWorks))
                 {
@@ -156,36 +160,16 @@ namespace iTender.Compliance.Infrastructure.Services
                 });
             }
 
-            // ---- STREAM 3: Award / Contract Registration ----
-
-            var matchingContract = FindMatchingContract(
-                tender,
-                crmContracts);
-
-            if (tender.AwardedDate.HasValue &&
-                tender.AwardValue.HasValue &&
-                matchingContract == null)
-            {
-                findings.Add(new ComplianceFinding
-                {
-                    Stream = ComplianceStream.RopRegistration,
-                    FindingType = ComplianceFindingType.AdvertisementNotOnITender,
-                    Description =
-                        $"Tender '{tender.TenderNumber}' was awarded on " +
-                        $"{tender.AwardedDate:dd MMM yyyy} for " +
-                        $"R{tender.AwardValue:N2}, but no corresponding " +
-                        "contract was found in the CIDB contract register.",
-                    RegulatoryReference = "CIDB Act / Regulations / SFU",
-                    IdentifiedAt = DateTime.UtcNow,
-                    TenderStatusAtCheck = tenderStatus,
-                    IsResolved = false
-                });
-            }
+            // ---- STREAM 3: RoP / Award registration ----
+            // Removed from inline. Handled by IVerificationService below so it can
+            // record VerificationStatus and route failed checks to a CO for review (D03).
 
             // 5. If no findings, return null (no case created)
             if (!findings.Any())
             {
-                _logger.LogInformation("No compliance findings for tender {TenderNumber}.", tender.TenderNumber);
+                _logger.LogInformation(
+                    "No compliance findings for tender {TenderNumber}.",
+                    tender.TenderNumber);
                 return null;
             }
 
@@ -198,6 +182,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 CreatedOn = DateTime.UtcNow,
                 CreatedBy = userId
             };
+
             await _caseRepository.AddAsync(complianceCase, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken); // to get Id
 
@@ -207,41 +192,65 @@ namespace iTender.Compliance.Infrastructure.Services
                 finding.ComplianceCaseId = complianceCase.Id;
                 await _findingRepository.AddAsync(finding, cancellationToken);
             }
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            //if (matchingContract == null)
-            //{
-            //    await _workflowService.IssueInstructionAsync(
-            //        complianceCase.Id,
-            //        cancellationToken);
-            //}
+            
+            // =========================================================
+            // 8b. D07: issue the opening letter for this case
+            // =========================================================
+            var settings = await _settingRepository.GetAsync(cancellationToken);
 
-            //else if (tenderStatus == TenderStatus.Open)
-            //{
-            //    await _workflowService.IssueErratumAsync(
-            //        complianceCase.Id,
-            //        cancellationToken);
-            //}
-            //else
-            //{
-            //    await _workflowService.IssueContraventionNoticeAsync(
-            //        complianceCase.Id,
-            //        cancellationToken);
-            //}
-            //await _unitOfWork.SaveChangesAsync(cancellationToken);
+            var dueOn = await _workingDayCalculator.AddWorkingDaysAsync(
+                DateTime.UtcNow,
+                tenderStatus == TenderStatus.Open
+                    ? settings.InstructionLetterResponseWorkingDays
+                    : settings.ContraventionNoticeResponseDays,
+                cancellationToken);
+
+            if (tenderStatus == TenderStatus.Open)
+            {
+                await _correspondenceService.SendInstructionLetterAsync(new SendInstructionLetterModel
+                {
+                    ComplianceCaseId = complianceCase.Id,
+                    RecipientName = tender.EmployerName,
+                    RecipientEmail = tender.ContactEmail ?? string.Empty,
+                    TenderNumber = tender.TenderNumber,
+                    TenderTitle = tender.Title,
+                    EmployerName = tender.EmployerName,
+                    ClosingDate = tender.ClosingDate,
+                    ResponseDueOn = dueOn
+                }, cancellationToken);
+            }
+            else
+            {
+                await _correspondenceService.SendContraventionNoticeAsync(new SendContraventionNoticeModel
+                {
+                    ComplianceCaseId = complianceCase.Id,
+                    RecipientName = tender.EmployerName,
+                    RecipientEmail = tender.ContactEmail ?? string.Empty,
+                    TenderNumber = tender.TenderNumber,
+                    TenderTitle = tender.Title,
+                    EmployerName = tender.EmployerName,
+                    ClosingDate = tender.ClosingDate,
+                    Reason = "Award not registered on the Register of Projects.",
+                    ResponseDueOn = dueOn
+                }, cancellationToken);
+            }
 
             // 9. Audit log
             await _auditService.LogAsync(
                 AuditAction.Created,
                 AuditEntity.ComplianceCase,
                 complianceCase.Id,
-                $"Compliance case created with {findings.Count} finding(s). " +
-                $"{(tenderStatus == TenderStatus.Open ? "Instructional Letter" : "Contravention Notice")} issued.",
+                $"Compliance case created with {findings.Count} finding(s).",
                 userId,
                 cancellationToken);
 
-            _logger.LogInformation("Compliance case {CaseId} created for tender {TenderNumber}.",
-                complianceCase.Id, tender.TenderNumber);
+            _logger.LogInformation(
+                "Compliance case {CaseId} created for tender {TenderNumber}.",
+                complianceCase.Id,
+                tender.TenderNumber);
 
             return complianceCase.Id;
         }

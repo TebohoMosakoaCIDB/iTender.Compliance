@@ -23,7 +23,9 @@ namespace iTender.Compliance.Infrastructure.Mappers
                 Title = sourceTender.Title
                         ?? sourceTender.Description
                         ?? string.Empty,
-
+                NormalizedTitle = TenderTitleNormalizer.Normalize(sourceTender.Title
+                        ?? sourceTender.Description
+                        ?? string.Empty),
                 Description = sourceTender.Description,
 
                 EmployerName =
@@ -89,5 +91,16 @@ namespace iTender.Compliance.Infrastructure.Mappers
 
             return $"https://www.etenders.gov.za/";
         }
+    }
+
+    public static class TenderTitleNormalizer
+    {
+        public static string Normalize(string? value)
+            => string.IsNullOrWhiteSpace(value)
+                ? string.Empty
+                : new string(
+                    value.ToLowerInvariant()
+                         .Where(char.IsLetterOrDigit)
+                         .ToArray());
     }
 }

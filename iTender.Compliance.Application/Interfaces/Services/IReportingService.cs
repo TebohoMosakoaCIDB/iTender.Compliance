@@ -1,4 +1,5 @@
-﻿using iTender.Compliance.Application.Models.Reports;
+﻿using iTender.Compliance.Application.DTOs;
+using iTender.Compliance.Application.Models.Reports;
 
 namespace iTender.Compliance.Application.Interfaces.Services
 {
@@ -21,5 +22,8 @@ namespace iTender.Compliance.Application.Interfaces.Services
             DateTime from,
             DateTime to,
             CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<LateRopRegistrationModel>> GetLateRopRegistrationsAsync(
+            DateTime from, DateTime to, CancellationToken cancellationToken = default);
     }
 }

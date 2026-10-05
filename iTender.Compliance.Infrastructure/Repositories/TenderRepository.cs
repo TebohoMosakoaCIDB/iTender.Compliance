@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.Spreadsheet;
-using DocumentFormat.OpenXml.Wordprocessing;
+﻿using DocumentFormat.OpenXml.InkML;
 using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
@@ -257,6 +256,50 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 PageNumber = search.PageNumber,
                 PageSize = search.PageSize
             };
+        }
+
+        // Add to TenderRepository
+        public async Task<IReadOnlyList<Tender>> GetByNormalizedTitleAsync(
+            string normalizedTitle,
+            Guid excludeTenderId,
+            CancellationToken cancellationToken = default)
+        {
+            return await Context.Tenders
+                .Where(x => x.Id != excludeTenderId
+                            && x.NormalizedTitle == normalizedTitle)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Tender>> GetByEmployerAndClosingDateAsync(
+            string employerName,
+            DateTime closingDate,
+            Guid excludeTenderId,
+            CancellationToken cancellationToken = default)
+        {
+            var day = closingDate.Date;
+
+            return await Context.Tenders
+                .Where(x => x.Id != excludeTenderId
+                            && x.EmployerName == employerName
+                            && x.ClosingDate.Date == day)
+                .ToListAsync(cancellationToken);
+        }
+
+        // iTender.Compliance.Infrastructure/Repositories/TenderRepository.cs
+        public async Task<IReadOnlyList<Tender>> GetLateRopRegistrationsAsync(
+            DateTime from,
+            DateTime to,
+            int graceDays,
+            CancellationToken cancellationToken = default)
+        {
+            return await Context.Tenders
+                .Where(t => t.IsRegisteredOnRoP
+                         && t.RoPRegistrationDate != null
+                         && t.RoPRegistrationDate > t.ClosingDate.AddDays(graceDays)
+                         && t.RoPRegistrationDate >= from
+                         && t.RoPRegistrationDate <= to)
+                .OrderByDescending(t => t.RoPRegistrationDate)
+                .ToListAsync(cancellationToken);
         }
     }
 }

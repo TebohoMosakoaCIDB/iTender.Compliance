@@ -1,5 +1,7 @@
-﻿using iTender.Compliance.Application.Interfaces.Repositories;
+﻿using DocumentFormat.OpenXml.InkML;
+using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
+using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,6 +37,20 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
             _dbSet.Remove(finding);
             return Task.CompletedTask;
+        }
+
+        public async Task<IReadOnlyList<ComplianceFinding>> GetAwaitingCoReviewAsync(
+    CancellationToken cancellationToken = default)
+        {
+            return await _dbSet
+                .Include(f => f.ComplianceCase)
+                    .ThenInclude(c => c.Tender)
+                .Include(f => f.ComplianceCase)
+                    .ThenInclude(c => c.Agent)
+                .Where(f => f.VerificationStatus == VerificationStatus.AutomatedFailed
+                         && !f.IsResolved)
+                .OrderBy(f => f.IdentifiedAt)
+                .ToListAsync(cancellationToken);
         }
     }
 }

@@ -5,6 +5,7 @@ using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Scrapers;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Application.Providers;
+using iTender.Compliance.Application.Services;
 using iTender.Compliance.Infrastructure.CRM;
 using iTender.Compliance.Infrastructure.Data;
 using iTender.Compliance.Infrastructure.Mappers;
@@ -109,8 +110,12 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IAgsaReferralRepository, AgsaReferralRepository>();
             services.AddScoped<ICaseObjectionRepository, CaseObjectionRepository>();
             services.AddScoped<IReportRepository, ReportRepository>();
+            services.AddScoped<IDuplicateGroupRepository, DuplicateGroupRepository>();
+
 
             //Services
+            services.AddScoped<IDuplicateDetectionService, DuplicateDetectionService>();
+            services.AddScoped<IDuplicateVerificationService, DuplicateVerificationService>();
             services.AddScoped<IAuditService, AuditService>();
             services.AddScoped<IComplianceService, ComplianceService>();
             services.AddScoped<IDashboardService, DashboardService>();
@@ -122,7 +127,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             //services.AddScoped<IDocumentService, DocumentService>();
             services.AddScoped<ISystemSettingService, SystemSettingService>();
             services.AddScoped<ICaseAuthorizationService, CaseAuthorizationService>();
-
+            services.AddScoped<IVerificationService, VerificationService>();
             services.AddHostedService<TenderSyncBackgroundService>();
             services.AddHostedService<AutoAssignmentBackgroundService>();
             services.AddHostedService<RoPComplianceBackgroundService>();
@@ -141,7 +146,6 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IComplianceProcessingService, ComplianceProcessingService>();
             services.AddScoped<IWorkClassificationValidator, WorkClassificationValidator>();
             services.AddScoped<ILetterNumberGenerator, LetterNumberGenerator>();
-            services.AddScoped<IComplianceFollowUpService, ComplianceFollowUpService>();
             services.AddScoped<IRoPComplianceService, RoPComplianceService>();
             services.AddScoped<IDocumentService, DocumentService>();
             services.AddScoped<IEscalationService, EscalationService>();
@@ -151,6 +155,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IObjectionService, ObjectionService>();
             services.AddScoped<IReminderService, ReminderService>();
             services.AddScoped<IClassOfWorksResolver, ClassOfWorksResolver>();
+            services.AddScoped<IAssignmentService, AssignmentService>();
 
             services.AddScoped<IProfileService, ProfileService>();
             services.AddHttpClient("TenderFlow", client =>

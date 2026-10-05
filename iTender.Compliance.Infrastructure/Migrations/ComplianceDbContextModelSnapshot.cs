@@ -685,6 +685,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<int>("TenderStatusAtCheck")
                         .HasColumnType("int");
 
+                    b.Property<int>("VerificationStatus")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ComplianceCaseId");
@@ -762,6 +765,96 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.HasIndex("Type", "Version");
 
                     b.ToTable("CorrespondenceTemplates");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.DuplicateCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<double>("ConfidenceScore")
+                        .HasColumnType("float");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DuplicateGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MatchType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("MatchedOn")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DuplicateGroupId");
+
+                    b.HasIndex("TenderId");
+
+                    b.ToTable("DuplicateCandidates", (string)null);
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.DuplicateGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CoComment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("ConfirmedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ConfirmedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid>("TenderSyncId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TenderSyncId");
+
+                    b.ToTable("DuplicateGroups", (string)null);
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.Notification", b =>
@@ -961,6 +1054,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("InstructionLetterReminderAfterWorkingDays")
+                        .HasColumnType("int");
+
                     b.Property<int>("InstructionLetterResponseWorkingDays")
                         .HasColumnType("int");
 
@@ -998,6 +1094,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("RopRegistrationGraceDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RoundRobinCursor")
                         .HasColumnType("int");
 
                     b.Property<int>("SynchronizationIntervalHours")
@@ -1068,6 +1167,10 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
                     b.Property<DateTime?>("ModifiedOn")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("NormalizedTitle")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Ocid")
                         .HasColumnType("nvarchar(max)");
@@ -1517,6 +1620,36 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Navigation("ComplianceCase");
                 });
 
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.DuplicateCandidate", b =>
+                {
+                    b.HasOne("iTender.Compliance.Domain.Entities.DuplicateGroup", "DuplicateGroup")
+                        .WithMany("Candidates")
+                        .HasForeignKey("DuplicateGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("iTender.Compliance.Domain.Entities.Tender", "Tender")
+                        .WithMany()
+                        .HasForeignKey("TenderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DuplicateGroup");
+
+                    b.Navigation("Tender");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.DuplicateGroup", b =>
+                {
+                    b.HasOne("iTender.Compliance.Domain.Entities.TenderSync", "TenderSync")
+                        .WithMany()
+                        .HasForeignKey("TenderSyncId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("TenderSync");
+                });
+
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.SigningRequest", b =>
                 {
                     b.HasOne("iTender.Compliance.Domain.Entities.CaseLetter", "CaseLetter")
@@ -1575,6 +1708,11 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Navigation("ComplianceFindings");
 
                     b.Navigation("Objections");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.DuplicateGroup", b =>
+                {
+                    b.Navigation("Candidates");
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.Tender", b =>

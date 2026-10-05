@@ -4,6 +4,7 @@
     {
         public string TenderNumber { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
+        public string NormalizedTitle { get; set; } = string.Empty;
         public string? Description { get; set; }
 
         public string EmployerName { get; set; } = string.Empty;

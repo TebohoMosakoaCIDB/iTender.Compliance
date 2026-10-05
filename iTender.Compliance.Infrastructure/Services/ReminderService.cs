@@ -64,8 +64,10 @@ namespace iTender.Compliance.Infrastructure.Services
                 .GroupBy(l => l.ComplianceCaseId)
                 .Select(g => g.OrderByDescending(x => x.LetterNumber).First())
                 .Where(l => l.ResponseDueOn > now)
-                .Where(l => !l.ComplianceCase.CaseLetters.Any(
-                    other => other.Type == LetterType.Reminder && other.CreatedOn > l.CreatedOn))
+                .Where(l =>
+                    l.ComplianceCase.CaseLetters.Count(other =>
+                        other.Type == LetterType.Reminder &&
+                        other.CreatedOn > l.CreatedOn) < settings.MaximumReminders)
                 .ToList();
 
             // Working-day math needs to check the holiday calendar, so it can't run inside
@@ -74,9 +76,13 @@ namespace iTender.Compliance.Infrastructure.Services
 
             foreach (var letter in eligible)
             {
+                var offset = letter.Type == LetterType.Instruction
+                ? settings.InstructionLetterReminderAfterWorkingDays
+                : settings.ReminderAfterWorkingDays;
+
                 var reminderDueOn = await _workingDayCalculator.AddWorkingDaysAsync(
                     letter.SentOn,
-                    settings.ReminderAfterWorkingDays,
+                    offset,
                     cancellationToken);
 
                 if (reminderDueOn <= now)

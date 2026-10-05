@@ -49,5 +49,23 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<PagedResult<Tender>> SearchAsync(
             TenderSearchModel search,
             CancellationToken cancellationToken = default);
+
+        // Add to ITenderRepository
+        Task<IReadOnlyList<Tender>> GetByNormalizedTitleAsync(
+            string normalizedTitle,
+            Guid excludeTenderId,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<Tender>> GetByEmployerAndClosingDateAsync(
+            string employerName,
+            DateTime closingDate,
+            Guid excludeTenderId,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<Tender>> GetLateRopRegistrationsAsync(
+            DateTime from,
+            DateTime to,
+            int graceDays,
+            CancellationToken cancellationToken = default);
     }
 }

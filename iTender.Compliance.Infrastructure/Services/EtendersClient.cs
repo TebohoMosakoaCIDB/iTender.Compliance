@@ -62,17 +62,17 @@ namespace iTender.Compliance.Infrastructure.Services
             constructionTenders.AddRange(
                 constructionFilter.Filter(currentPage.Releases));
 
-            //while (!string.IsNullOrWhiteSpace(currentPage.Links?.Next))
-            //{
-            //    cancellationToken.ThrowIfCancellationRequested();
+            while (!string.IsNullOrWhiteSpace(currentPage.Links?.Next))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            //    currentPage = await GetPageAsync(
-            //        currentPage.Links.Next,
-            //        cancellationToken);
+                currentPage = await GetPageAsync(
+                    currentPage.Links.Next,
+                    cancellationToken);
 
-            //    constructionTenders.AddRange(
-            //        constructionFilter.Filter(currentPage.Releases));
-            //}
+                constructionTenders.AddRange(
+                    constructionFilter.Filter(currentPage.Releases));
+            }
 
             return constructionTenders;
         }

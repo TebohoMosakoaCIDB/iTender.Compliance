@@ -45,5 +45,6 @@ namespace iTender.Compliance.Application.DTOs
         public string EnforcementUnitEmail { get; set; } = "Yolandam@cidb.org.za";
 
         public bool RequireManagerApproval { get; set; } = true;
+        public int InstructionLetterReminderAfterWorkingDays { get; set; } = 1;
     }
 }

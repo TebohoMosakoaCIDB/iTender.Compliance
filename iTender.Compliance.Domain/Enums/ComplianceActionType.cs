@@ -11,6 +11,10 @@
         ExtensionRequested,
         ObjectionRaised,
         EscalatedToAGSA,
-        CaseClosed
+        CaseClosed,
+        VerificationRun,
+        VerificationConfirmed,
+        VerificationOverridden,
+        ManualVerificationPerformed
     }
 }

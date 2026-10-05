@@ -1,10 +1,8 @@
-﻿using DocumentFormat.OpenXml.InkML;
-using iTender.Compliance.Application.DTOs;
+﻿using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Data;
-using iTender.Compliance.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace iTender.Compliance.Infrastructure.Repositories
@@ -245,17 +243,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                     x.Status != CaseStatus.Closed,
                     cancellationToken);
         }
-
-        public async Task<IEnumerable<ComplianceCase>> GetOverdueCasesAsync(CancellationToken cancellationToken = default)
-        {
-            var now = DateTime.UtcNow;
-            return await Context.ComplianceCases
-                .Include(c => c.CaseLetters) // to get the letters
-                .Where(c => (c.Status == CaseStatus.WaitingForResponse || c.Status == CaseStatus.WaitingForResponse)
-                            && c.CaseLetters.Any(l => l.ResponseDueOn < now && l.RespondedOn == null))
-                .ToListAsync(cancellationToken);
-        }
-
+        
         public async Task<List<ComplianceCase>> GetCasesAwaitingReminderAsync(
     int reminderAfterHours,
     CancellationToken cancellationToken = default)
@@ -304,6 +292,26 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .Include(x => x.Tender)
                 .Where(x => x.Status != CaseStatus.Closed && x.Status != CaseStatus.ReferredForEnforcement)
                 .Where(x => x.AssignedOn != null && x.AssignedOn <= cutoff)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<ComplianceCase>> GetContraventionNoticeDueAsync(
+    int withinWorkingDays,
+    CancellationToken cancellationToken = default)
+        {
+            var cutoff = DateTime.UtcNow.AddDays(withinWorkingDays);
+
+            return await Context.ComplianceCases
+                .Include(c => c.Tender)
+                .Include(c => c.CaseLetters)
+                .Where(c => c.Status == CaseStatus.WaitingForResponse
+                         && c.CaseLetters.Any(l =>
+                                (l.Type == LetterType.Instruction || l.Type == LetterType.Reminder)
+                                && l.RespondedOn == null
+                                && l.ResponseDueOn <= cutoff))
+                .OrderBy(c => c.CaseLetters
+                    .Where(l => l.RespondedOn == null)
+                    .Max(l => l.ResponseDueOn))
                 .ToListAsync(cancellationToken);
         }
     }

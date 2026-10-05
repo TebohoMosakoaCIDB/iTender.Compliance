@@ -14,6 +14,10 @@ namespace iTender.Compliance.Infrastructure.Services
     public class SynchronizationService : ISynchronizationService
     {
         private readonly ITenderRepository _tenderRepository;
+        private readonly IAssignmentService _assignmentService;
+        private readonly IVerificationService _verificationService;
+        private readonly IDuplicateGroupRepository _duplicateGroupRepository;
+        private readonly IDuplicateDetectionService _duplicateDetectionService;
         private readonly ITenderSyncRepository _tenderSyncRepository;
         private readonly IComplianceCaseRepository _complianceCaseRepository;
         private readonly IAuditService _auditService;
@@ -32,13 +36,17 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly EtendersTenderMapper _etendersTenderMapper;
         public SynchronizationService(
             IEnumerable<IScraperService> scrapers,
+            IAssignmentService autoAssignment,
+            IVerificationService verificationService,
+            IDuplicateGroupRepository duplicateGroupRepository,
+            IDuplicateDetectionService duplicateDetectionService,
             IDataverseService dataverseService,
             ITenderRepository tenderRepository,
             ITenderSyncRepository tenderSyncRepository,
             IComplianceCaseRepository complianceCaseRepository,
             IAuditService auditService,
             ISystemSettingRepository systemSettingRepository,
-        ICurrentUserService currentUser,
+            ICurrentUserService currentUser,
             ITenderSyncLogRepository syncLogRepository,
             IUnitOfWork unitOfWork,
             IConfiguration configuration,
@@ -51,7 +59,11 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             _scrapers = scrapers;
             _currentUser = currentUser;
+            _assignmentService = autoAssignment;
+            _verificationService = verificationService;
             _tenderRepository = tenderRepository;
+            _duplicateDetectionService = duplicateDetectionService;
+            _duplicateGroupRepository = duplicateGroupRepository;
             _tenderSyncRepository = tenderSyncRepository;
             _complianceCaseRepository = complianceCaseRepository;
             _auditService = auditService;
@@ -197,12 +209,10 @@ namespace iTender.Compliance.Infrastructure.Services
                         continue;
 
                     // -----------------------------------------------------
-                    // Check for duplicate
+                    // Exact duplicate - skip as before
                     // -----------------------------------------------------
                     var existingTender = await _tenderRepository
-                        .GetByTenderNumberAsync(
-                            tender.TenderNumber,
-                            cancellationToken);
+                        .GetByTenderNumberAsync(tender.TenderNumber, cancellationToken);
 
                     if (existingTender != null)
                     {
@@ -222,13 +232,10 @@ namespace iTender.Compliance.Infrastructure.Services
                     // Save tender
                     // -----------------------------------------------------
                     tender.TenderSyncId = sync.Id;
+                    tender.NormalizedTitle = TenderTitleNormalizer.Normalize(tender.Title);
 
-                    await _tenderRepository.AddAsync(
-                        tender,
-                        cancellationToken);
-
-                    await _unitOfWork.SaveChangesAsync(
-                        cancellationToken);
+                    await _tenderRepository.AddAsync(tender, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                     await LogAsync(
                         sync.Id,
@@ -240,22 +247,58 @@ namespace iTender.Compliance.Infrastructure.Services
                         cancellationToken);
 
                     // -----------------------------------------------------
-                    // Process compliance
+                    // D05: Detect potential duplicates and group for CO
+                    // -----------------------------------------------------
+                    var detectedDuplicates = await _duplicateDetectionService
+    .FindPotentialDuplicatesAsync(tender, cancellationToken);
+
+                    if (detectedDuplicates.Count > 0)
+                    {
+                        var candidates = detectedDuplicates
+                            .Append(new DuplicateCandidate
+                            {
+                                Id = Guid.NewGuid(),
+                                TenderId = tender.Id,
+                                MatchType = DuplicateMatchType.NormalizedTitle,
+                                ConfidenceScore = 1.0,
+                                MatchedOn = "Triggering tender"
+                            })
+                            .ToList();
+
+                        var group = new DuplicateGroup
+                        {
+                            Id = Guid.NewGuid(),
+                            TenderSyncId = sync.Id,
+                            Status = DuplicateStatus.PendingCOVerification,
+                            Candidates = candidates
+                        };
+
+                        await _duplicateGroupRepository.AddAsync(group, cancellationToken);
+                        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                        await LogAsync(
+                            sync.Id,
+                            SyncLogType.Duplicate,
+                            SyncLogLevel.Warning,
+                            "Potential Duplicate Detected",
+                            $"Tender was grouped with {candidates.Count - 1} potential duplicate(s) for CO verification.",
+                            tender.TenderNumber,
+                            cancellationToken);
+
+                        continue;
+                    }
+
+                    // -----------------------------------------------------
+                    // Process compliance (unchanged)
                     // -----------------------------------------------------
                     Guid? createdCaseId = null;
 
                     try
                     {
-                        createdCaseId =
-                            await _complianceProcessingService.ProcessTenderAsync(
-                                tender,
-                                crmTenderNumbers,
-                                crmContracts,
-                                sync.Id,
-                                executionUserId,
-                                cancellationToken);
+                        createdCaseId = await _complianceProcessingService.ProcessTenderAsync(
+                            tender, crmTenderNumbers, crmContracts, sync.Id, executionUserId, cancellationToken);
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
                         await LogAsync(
                             sync.Id,
@@ -273,6 +316,59 @@ namespace iTender.Compliance.Infrastructure.Services
                     {
                         nonCompliant++;
                         casesCreated++;
+
+                        var complianceCase = await _complianceCaseRepository
+                            .GetByIdAsync(createdCaseId.Value, cancellationToken);
+
+                        if (complianceCase is not null)
+                        {
+                            // 1. Assign the case
+                            try
+                            {
+                                await _assignmentService.AssignAsync(complianceCase, cancellationToken);
+                            }
+                            catch (Exception ex)
+                            {
+                                await LogAsync(
+                                    sync.Id,
+                                    SyncLogType.Error,
+                                    SyncLogLevel.Error,
+                                    "Assignment Failed",
+                                    "Case was created but could not be assigned. It will need manual review.",
+                                    tender.TenderNumber,
+                                    cancellationToken);
+
+                                sync.ErrorCount++;
+                            }
+
+                            // 2. Run verification AFTER assignment so the CO is known
+                            if (tender.AwardedDate.HasValue && tender.AwardValue.HasValue)
+                            {
+                                try
+                                {
+                                    // Re-fetch so the Agent navigation is populated after AssignAsync
+                                    complianceCase = await _complianceCaseRepository
+                                        .GetByIdAsync(complianceCase.Id, cancellationToken)
+                                        ?? complianceCase;
+
+                                    await _verificationService
+                                        .RunAutomatedVerificationAsync(complianceCase, cancellationToken);
+                                }
+                                catch (Exception ex)
+                                {
+                                    await LogAsync(
+                                        sync.Id,
+                                        SyncLogType.Error,
+                                        SyncLogLevel.Error,
+                                        "Verification Failed",
+                                        "Case was assigned but automated verification could not be completed.",
+                                        tender.TenderNumber,
+                                        cancellationToken);
+
+                                    sync.ErrorCount++;
+                                }
+                            }
+                        }
                     }
                     else
                     {

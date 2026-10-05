@@ -7,8 +7,6 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
     {
         Task<List<ComplianceCase>> GetCasesAwaitingReminderAsync(int reminderAfterHours, CancellationToken cancellationToken = default);
 
-        Task<IEnumerable<ComplianceCase>> GetOverdueCasesAsync(CancellationToken cancellationToken = default);
-
         Task<int> GetOpenCaseCountByAgentAsync(Guid agentId, CancellationToken cancellationToken = default);
 
         Task<ComplianceCase?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
@@ -43,5 +41,9 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<List<ComplianceCase>> GetOpenCasesAssignedBeforeAsync(
             DateTime cutoff,
             CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<ComplianceCase>> GetContraventionNoticeDueAsync(
+    int withinWorkingDays,
+    CancellationToken cancellationToken = default);
     }
 }

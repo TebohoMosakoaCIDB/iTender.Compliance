@@ -1,4 +1,5 @@
-﻿using iTender.Compliance.Application.Interfaces.Repositories;
+﻿using iTender.Compliance.Application.DTOs;
+using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Application.Models.Reports;
 using iTender.Compliance.Domain.Enums;
@@ -8,20 +9,26 @@ namespace iTender.Compliance.Infrastructure.Services
     public class ReportingService : IReportingService
     {
         private readonly IComplianceCaseRepository _complianceCaseRepository;
+        private readonly ITenderRepository _tenderRepository;
         private readonly ITenderSyncRepository _tenderSyncRepository;
         private readonly IAuditLogRepository _auditLogRepository;
+        private readonly ISystemSettingRepository _settingRepository;
         private readonly IAgentRepository _agentRepository;
 
         public ReportingService(
             IComplianceCaseRepository complianceCaseRepository,
             ITenderSyncRepository tenderSyncRepository,
+            ISystemSettingRepository settingRepository,
             IAuditLogRepository auditLogRepository,
+            ITenderRepository tenderRepository,
             IAgentRepository agentRepository)
         {
             _complianceCaseRepository = complianceCaseRepository;
             _tenderSyncRepository = tenderSyncRepository;
             _auditLogRepository = auditLogRepository;
+            _settingRepository = settingRepository;
             _agentRepository = agentRepository;
+            _tenderRepository = tenderRepository;
         }
 
         public async Task<ComplianceReportModel> GetComplianceReportAsync(
@@ -102,5 +109,37 @@ namespace iTender.Compliance.Infrastructure.Services
                 })
                 .ToList();
         }
+
+        public async Task<IReadOnlyList<LateRopRegistrationModel>> GetLateRopRegistrationsAsync(
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default)
+        {
+            var settings = await _settingRepository.GetAsync(cancellationToken);
+            var graceDays = settings?.RopRegistrationGraceDays ?? 21;
+
+            var tenders = await _tenderRepository.GetLateRopRegistrationsAsync(
+                from, to, graceDays, cancellationToken);
+
+            return tenders.Select(t => new LateRopRegistrationModel
+            {
+                TenderId = t.Id,
+                TenderNumber = t.TenderNumber,
+                TenderTitle = t.Title,
+                EmployerName = t.EmployerName,
+                ContactName = t.ContactName,
+                ContactEmail = t.ContactEmail,
+                ClosingDate = t.ClosingDate,
+                AwardedDate = t.AwardedDate ?? default,
+                AwardValue = t.AwardValue,
+                RoPRegistrationDate = t.RoPRegistrationDate ?? default,
+                RegistrationDeadline = t.ClosingDate.AddDays(graceDays),
+                DaysLate = t.RoPRegistrationDate.HasValue
+                    ? Math.Max(0, (t.RoPRegistrationDate.Value.Date
+                                   - t.ClosingDate.AddDays(graceDays).Date).Days)
+                    : 0
+            }).ToList();
+        }
+
     }
 }

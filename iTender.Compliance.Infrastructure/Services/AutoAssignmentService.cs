@@ -47,11 +47,13 @@ namespace iTender.Compliance.Infrastructure.Services
 
         public async Task AssignUnassignedCasesAsync(CancellationToken cancellationToken = default)
         {
-            var settings = await _systemSettingRepository
-                .GetAsync(cancellationToken);
+            var settings = await _systemSettingRepository.GetAsync(cancellationToken);
 
             if (!settings.AutoAssignmentEnabled)
                 return;
+
+            if (settings.DistributionMethod == CaseDistributionMethod.Manual)
+                return; // manual-only mode - cases stay New until a manager assigns them
 
             var cases = await GetUnassignedCasesAsync(cancellationToken);
 
@@ -59,41 +61,45 @@ namespace iTender.Compliance.Infrastructure.Services
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var agent = await SelectAgentAsync(
-                    complianceCase,
-                    settings.DistributionMethod,
-                    cancellationToken);
-
-                if (agent == null)
-                    continue;
-
-                complianceCase.AgentId = agent.Id;
-                complianceCase.AssignedOn = DateTime.UtcNow;
-                complianceCase.Status = CaseStatus.Assigned;
-
-                await _complianceCaseRepository.UpdateAsync(
-                    complianceCase,
-                    cancellationToken);
-
-                await _auditService.LogAsync(
-                    AuditAction.Assigned,
-                    AuditEntity.ComplianceCase,
-                    complianceCase.Id,
-                    $"Case automatically assigned to {agent.FullName}.",
-                    null,
-                    cancellationToken);
-
-                await _notificationService.NotifyAsync(new CreateNotificationModel
+                try
                 {
-                    UserId = agent.UserId,
-                    Title = "New Case Assigned",
-                    Message = $"Tender {complianceCase.Tender.TenderNumber} has been assigned to you.",
-                    Type = NotificationType.Information,
-                    Url = $"/cases/{complianceCase.Id}"
-                });
-            }
+                    var agent = await SelectAgentAsync(
+                        complianceCase,
+                        settings.DistributionMethod,
+                        cancellationToken);
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    if (agent == null)
+                        continue;
+
+                    complianceCase.AgentId = agent.Id;
+                    complianceCase.AssignedOn = DateTime.UtcNow;
+                    complianceCase.Status = CaseStatus.Assigned;
+
+                    await _complianceCaseRepository.UpdateAsync(complianceCase, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                    await _auditService.LogAsync(
+                        AuditAction.Assigned,
+                        AuditEntity.ComplianceCase,
+                        complianceCase.Id,
+                        $"Case automatically assigned to {agent.FullName}.",
+                        null,
+                        cancellationToken);
+
+                    await _notificationService.NotifyAsync(new CreateNotificationModel
+                    {
+                        UserId = agent.UserId,
+                        Title = "New Case Assigned",
+                        Message = $"Tender {complianceCase.Tender.TenderNumber} has been assigned to you.",
+                        Type = NotificationType.Information,
+                        Url = $"/cases/{complianceCase.Id}"
+                    });
+                }
+                catch
+                {
+                    return;
+                }
+            }
         }
 
         public async Task<List<ComplianceCase>> GetUnassignedCasesAsync(CancellationToken cancellationToken = default)

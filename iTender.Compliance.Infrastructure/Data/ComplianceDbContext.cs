@@ -47,6 +47,10 @@ namespace iTender.Compliance.Infrastructure.Data
 
         public DbSet<ComplianceAction> ComplianceActions => Set<ComplianceAction>();
 
+        public DbSet<DuplicateGroup> DuplicateGroups => Set<DuplicateGroup>();
+
+        public DbSet<DuplicateCandidate> DuplicateCandidates => Set<DuplicateCandidate>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

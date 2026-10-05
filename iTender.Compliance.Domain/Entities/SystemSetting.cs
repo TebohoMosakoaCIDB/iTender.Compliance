@@ -24,6 +24,8 @@ namespace iTender.Compliance.Domain.Entities
 
         public CaseDistributionMethod DistributionMethod { get; set; }
 
+        public int RoundRobinCursor { get; set; }
+
         public int DefaultMaximumOpenCases { get; set; }
 
         /// <summary>Response window for open tenders (Instruction Letter / erratum). Framework default: 48 hours.</summary>
@@ -62,5 +64,8 @@ namespace iTender.Compliance.Domain.Entities
 
         /// <summary>Whether letters must be routed to a Manager for sign-off before being sent to the client.</summary>
         public bool RequireManagerApproval { get; set; } = true;
+        /// <summary>How many working days after an Instruction Letter is sent before a reminder is issued.
+        /// Must be less than InstructionLetterResponseWorkingDays so the reminder fires before escalation.</summary>
+        public int InstructionLetterReminderAfterWorkingDays { get; set; } = 1;
     }
 }

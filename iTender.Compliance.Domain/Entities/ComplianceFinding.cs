@@ -9,6 +9,7 @@ namespace iTender.Compliance.Domain.Entities
         public ComplianceStream Stream { get; set; }
 
         public ComplianceFindingType FindingType { get; set; }
+        public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Pending;
 
         public string Description { get; set; } = string.Empty;
 

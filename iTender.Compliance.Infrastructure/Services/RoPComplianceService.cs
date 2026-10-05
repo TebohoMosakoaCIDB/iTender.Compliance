@@ -1,4 +1,5 @@
-﻿using iTender.Compliance.Application.Interfaces.Repositories;
+﻿using iTender.Compliance.Application.DTOs;
+using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
@@ -17,11 +18,13 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IWorkingDayCalculator _workingDayCalculator;
         private readonly IAuditService _auditService;
         private readonly ILetterNumberGenerator _letterNumberGenerator;
+        private readonly ICorrespondenceService _correspondenceService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<RoPComplianceService> _logger;
 
         public RoPComplianceService(
             ITenderRepository tenderRepository,
+            ICorrespondenceService correspondenceService,
             IComplianceCaseRepository caseRepository,
             IComplianceFindingRepository findingRepository,
             IComplianceActionRepository actionRepository,
@@ -41,6 +44,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _settingRepository = settingRepository;
             _workingDayCalculator = workingDayCalculator;
             _auditService = auditService;
+            _correspondenceService = correspondenceService;
             _letterNumberGenerator = letterNumberGenerator;
             _unitOfWork = unitOfWork;
             _logger = logger;
@@ -126,7 +130,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 TenderStatusAtCheck = TenderStatus.Closed, // Awarded means closed
                 IsResolved = false
             };
-            await _findingRepository.AddAsync(finding);
+            await _findingRepository.AddAsync(finding, cancellationToken);
 
             // Initiate letter flow (Instructional Letter first, because RoP uses IL first regardless of open/closed)
             await InitiateRoPCorrespondenceAsync(existingCase, finding, tender, cancellationToken);
@@ -159,7 +163,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 TenderStatusAtCheck = TenderStatus.Closed, // Awarded = closed
                 IsResolved = false
             };
-            await _findingRepository.AddAsync(finding);
+            await _findingRepository.AddAsync(finding, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // Initiate letter flow
@@ -168,68 +172,32 @@ namespace iTender.Compliance.Infrastructure.Services
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        private async Task InitiateRoPCorrespondenceAsync(ComplianceCase complianceCase, ComplianceFinding finding, Tender tender, CancellationToken cancellationToken)
+        private async Task InitiateRoPCorrespondenceAsync(
+    ComplianceCase complianceCase,
+    ComplianceFinding finding,
+    Tender tender,
+    CancellationToken cancellationToken)
         {
             var settings = await _settingRepository.GetAsync(cancellationToken);
-            if (settings == null)
-                throw new InvalidOperationException("System settings not found.");
 
-            // For RoP, always start with Instructional Letter regardless of open/closed.
-            // Note: In the document, Stream 3 uses IL then CN, similar to open tenders.
-            // CIDB finalized rule: 2 WORKING days, not a flat 48-hour clock.
-            var letterType = LetterType.Instruction;
-            var dueDate = await _workingDayCalculator.AddWorkingDaysAsync(
+            var dueOn = await _workingDayCalculator.AddWorkingDaysAsync(
                 DateTime.UtcNow,
                 settings.InstructionLetterResponseWorkingDays,
                 cancellationToken);
-            var actionType = ComplianceActionType.InstructionalLetterSent;
-            var newStatus = CaseStatus.WaitingForResponse;
 
-            // Create action
-            var action = new ComplianceAction
-            {
-                ComplianceCaseId = complianceCase.Id,
-                ActionType = actionType,
-                Status = ComplianceActionStatus.Pending,
-                ActionDate = DateTime.UtcNow,
-                ResponseDueDate = dueDate,
-                Comments = $"Initial RoP Instructional Letter sent.",
-                CreatedOn = DateTime.UtcNow
-            };
-            await _actionRepository.AddAsync(action);
-
-            // Generate letter number
-            int letterNumber = await _letterNumberGenerator.GetNextNumberAsync(letterType);
-
-            // Create letter
-            var letter = new CaseLetter
-            {
-                ComplianceCaseId = complianceCase.Id,
-                Type = letterType,
-                LetterNumber = letterNumber,
-                RecipientName = tender.EmployerName,
-                RecipientEmail = tender.ContactEmail ?? string.Empty,
-                SentOn = DateTime.UtcNow,
-                ResponseDueOn = dueDate,
-                EmailSent = false,
-                FileName = string.Empty,
-                FilePath = string.Empty,
-                ComplianceFindingId = finding.Id,
-                CreatedOn = DateTime.UtcNow
-            };
-            await _letterRepository.AddAsync(letter);
-
-            // Update case status
-            complianceCase.Status = newStatus;
-            await _caseRepository.UpdateAsync(complianceCase);
-
-            // Audit
-            await _auditService.LogAsync(
-                AuditAction.Created,
-                AuditEntity.CaseLetter,
-                letter.Id,
-                $"RoP Instructional Letter #{letterNumber} issued for tender {tender.TenderNumber}. Response due: {dueDate}",
-                null);
+            await _correspondenceService.SendInstructionLetterAsync(
+                new SendInstructionLetterModel
+                {
+                    ComplianceCaseId = complianceCase.Id,
+                    RecipientName = tender.EmployerName,
+                    RecipientEmail = tender.ContactEmail ?? string.Empty,
+                    TenderNumber = tender.TenderNumber,
+                    TenderTitle = tender.Title,
+                    EmployerName = tender.EmployerName,
+                    ClosingDate = tender.ClosingDate,
+                    ResponseDueOn = dueOn
+                },
+                cancellationToken);
         }
     }
 }
