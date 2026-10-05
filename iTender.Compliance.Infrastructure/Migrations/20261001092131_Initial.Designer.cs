@@ -12,8 +12,8 @@ using iTender.Compliance.Infrastructure.Data;
 namespace iTender.Compliance.Infrastructure.Migrations
 {
     [DbContext(typeof(ComplianceDbContext))]
-    [Migration("20260902070216_wednesdayAugust")]
-    partial class wednesdayAugust
+    [Migration("20261001092131_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -810,6 +810,43 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.ToTable("Notifications");
                 });
 
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.PublicHoliday", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsObservedShift")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date")
+                        .IsUnique();
+
+                    b.ToTable("PublicHolidays", (string)null);
+                });
+
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.SigningRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1010,11 +1047,17 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedOn")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DeliveryLocation")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("EmployerName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExternalId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsConstruction")
@@ -1029,6 +1072,21 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<DateTime?>("ModifiedOn")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Ocid")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProcurementCategory")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProcurementMethod")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProcurementMethodDetails")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Province")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("RoPRegistrationDate")
                         .HasColumnType("datetime2");
 
@@ -1036,10 +1094,19 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("SourceDocumentUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SpecialConditions")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("TenderNumber")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("TenderStatus")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("TenderSyncId")
                         .HasColumnType("uniqueidentifier");

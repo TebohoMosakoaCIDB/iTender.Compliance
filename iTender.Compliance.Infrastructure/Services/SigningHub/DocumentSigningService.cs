@@ -16,12 +16,7 @@ namespace iTender.Compliance.Infrastructure.Services.SigningHub
         private readonly IConfiguration _configuration;
         private readonly ILogger<DocumentSigningService> _logger;
 
-        public DocumentSigningService(
-            ISigningHubApiProvider signingHubApi,
-            ISigningRequestService signingRequestService,
-            ISigningRequestRepository signingRequestRepository,
-            IConfiguration configuration,
-            ILogger<DocumentSigningService> logger)
+        public DocumentSigningService(ISigningHubApiProvider signingHubApi, ISigningRequestService signingRequestService, ISigningRequestRepository signingRequestRepository, IConfiguration configuration, ILogger<DocumentSigningService> logger)
         {
             _signingHubApi = signingHubApi;
             _signingRequestService = signingRequestService;
@@ -30,10 +25,7 @@ namespace iTender.Compliance.Infrastructure.Services.SigningHub
             _logger = logger;
         }
 
-        public async Task RequestApprovalAsync(
-            CaseLetter letter,
-            Agent manager,
-            CancellationToken cancellationToken = default)
+        public async Task RequestApprovalAsync(CaseLetter letter, Agent manager, CancellationToken cancellationToken = default)
         {
             var requestId = await _signingRequestService.CreateAsync(
                 letter.Id,
@@ -105,8 +97,7 @@ namespace iTender.Compliance.Infrastructure.Services.SigningHub
             }
         }
 
-        public async Task<SigningPollResult> PollAndCompleteAsync(
-            CancellationToken cancellationToken = default)
+        public async Task<SigningPollResult> PollAndCompleteAsync(CancellationToken cancellationToken = default)
         {
             var result = new SigningPollResult();
 

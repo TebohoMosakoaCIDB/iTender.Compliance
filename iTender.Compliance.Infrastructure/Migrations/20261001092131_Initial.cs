@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace iTender.Compliance.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class @new : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -136,6 +136,24 @@ namespace iTender.Compliance.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "PublicHolidays",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Date = table.Column<DateOnly>(type: "date", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    IsObservedShift = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PublicHolidays", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "SystemSettings",
                 columns: table => new
                 {
@@ -154,6 +172,13 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     OpenTenderResponseHours = table.Column<int>(type: "int", nullable: false),
                     ClosedTenderResponseDays = table.Column<int>(type: "int", nullable: false),
                     ContraventionNoticeResponseDays = table.Column<int>(type: "int", nullable: false),
+                    InstructionLetterResponseWorkingDays = table.Column<int>(type: "int", nullable: false),
+                    ReminderAfterWorkingDays = table.Column<int>(type: "int", nullable: false),
+                    AgsaReferralDeadlineDays = table.Column<int>(type: "int", nullable: false),
+                    RopCheckAfterDays = table.Column<int>(type: "int", nullable: false),
+                    RopRegistrationGraceDays = table.Column<int>(type: "int", nullable: false),
+                    AgsaReferralEmail = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    EnforcementUnitEmail = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     RequireManagerApproval = table.Column<bool>(type: "bit", nullable: false),
                     CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
@@ -359,6 +384,16 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     ClosingDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Source = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     TenderUrl = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
+                    ExternalId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Ocid = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProcurementCategory = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Province = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DeliveryLocation = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProcurementMethod = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProcurementMethodDetails = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TenderStatus = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SpecialConditions = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SourceDocumentUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     TenderSyncId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     IsConstruction = table.Column<bool>(type: "bit", nullable: false),
                     ClassOfWorks = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -780,6 +815,12 @@ namespace iTender.Compliance.Infrastructure.Migrations
                 column: "ComplianceCaseId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_PublicHolidays_Date",
+                table: "PublicHolidays",
+                column: "Date",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_SigningRequests_CaseLetterId",
                 table: "SigningRequests",
                 column: "CaseLetterId",
@@ -846,6 +887,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Notifications");
+
+            migrationBuilder.DropTable(
+                name: "PublicHolidays");
 
             migrationBuilder.DropTable(
                 name: "SigningRequests");

@@ -29,13 +29,24 @@ namespace iTender.Compliance.Infrastructure.Services
             var body = await response.Content.ReadAsStringAsync();
 
             throw new InvalidOperationException(
-                $"eTenders {operation} failed with {(int)response.StatusCode} {response.StatusCode}: {body}");
+                $"""
+                eTenders API request failed.
+
+                Operation : {operation}
+                Status    : {(int)response.StatusCode} {response.StatusCode}
+                URI       : {response.RequestMessage?.RequestUri}
+
+                Response:
+                The eTender Release API is currently down.
+
+                Please try again later.
+                """);
         }
 
         public async Task<IReadOnlyList<EtendersRelease>> GetAllReleasesAsync(
             DateTime fromDate,
             DateTime toDate,
-            int pageSize = 100,
+            int pageSize = 50,
             CancellationToken cancellationToken = default)
         {
             var constructionFilter = new EtendersConstructionFilter();
@@ -51,27 +62,27 @@ namespace iTender.Compliance.Infrastructure.Services
             constructionTenders.AddRange(
                 constructionFilter.Filter(currentPage.Releases));
 
-            while (!string.IsNullOrWhiteSpace(currentPage.Links?.Next))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
+            //while (!string.IsNullOrWhiteSpace(currentPage.Links?.Next))
+            //{
+            //    cancellationToken.ThrowIfCancellationRequested();
 
-                currentPage = await GetPageAsync(
-                    currentPage.Links.Next,
-                    cancellationToken);
+            //    currentPage = await GetPageAsync(
+            //        currentPage.Links.Next,
+            //        cancellationToken);
 
-                constructionTenders.AddRange(
-                    constructionFilter.Filter(currentPage.Releases));
-            }
+            //    constructionTenders.AddRange(
+            //        constructionFilter.Filter(currentPage.Releases));
+            //}
 
             return constructionTenders;
         }
 
         public async Task<EtendersResponse> GetReleasesAsync(
-            DateTime fromDate,
-            DateTime toDate,
-            int pageNumber = 1,
-            int pageSize = 100,
-            CancellationToken cancellationToken = default)
+    DateTime fromDate,
+    DateTime toDate,
+    int pageNumber = 1,
+    int pageSize = 50,
+    CancellationToken cancellationToken = default)
         {
             var url =
                 $"/api/OCDSReleases" +
@@ -87,8 +98,7 @@ namespace iTender.Compliance.Infrastructure.Services
             await EnsureSuccessAsync(response, "GetReleasesAsync");
 
             var result = await response.Content
-                .ReadFromJsonAsync<EtendersResponse>(
-                    cancellationToken);
+                .ReadFromJsonAsync<EtendersResponse>(cancellationToken);
 
             return result
                 ?? throw new InvalidOperationException(

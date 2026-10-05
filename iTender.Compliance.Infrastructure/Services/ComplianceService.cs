@@ -40,12 +40,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _workingDayCalculator = workingDayCalculator;
         }
 
-        public async Task AssignAgentAsync(
-            Guid complianceCaseId,
-            Guid agentId,
-            CasePriority priority,
-            string? comments,
-            CancellationToken cancellationToken = default)
+        public async Task AssignAgentAsync(Guid complianceCaseId, Guid agentId, CasePriority priority, string? comments, CancellationToken cancellationToken = default)
         {
             var complianceCase = await _complianceCaseRepository.GetByIdAsync(
                 complianceCaseId,
@@ -84,10 +79,7 @@ namespace iTender.Compliance.Infrastructure.Services
             });
         }
 
-        public async Task MarkCompliantAsync(
-            Guid complianceCaseId,
-            string? comments,
-            CancellationToken cancellationToken = default)
+        public async Task MarkCompliantAsync(Guid complianceCaseId, string? comments, CancellationToken cancellationToken = default)
         {
             var complianceCase = await _complianceCaseRepository.GetByIdAsync(
                 complianceCaseId,

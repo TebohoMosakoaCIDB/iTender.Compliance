@@ -25,9 +25,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _templateRepository = templateRepository;
         }
 
-        public async Task<DocumentResult> GenerateInstructionLetterAsync(
-    SendInstructionLetterModel model,
-    CancellationToken cancellationToken = default)
+        public async Task<DocumentResult> GenerateInstructionLetterAsync(SendInstructionLetterModel model, CancellationToken cancellationToken = default)
         {
             var template = await _templateRepository.GetActiveAsync(
                 CorrespondenceTemplateType.InstructionLetter);
@@ -44,7 +42,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Replace("\\", "-");
 
             var fileName =
-                $"Instruction_{safeTender}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+                $"INSTRUCTIONAL LETTER TO COMPLY - {model.EmployerName}.pdf";
 
             var path = Path.Combine(_rootFolder, fileName);
 
@@ -120,7 +118,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Replace("\\", "-");
 
             var fileName =
-                $"Reminder_{safeTender}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+                $"INSTRUCTIONAL LETTER TO COMPLY - {model.EmployerName}.pdf";
 
             var path = Path.Combine(_rootFolder, fileName);
 
@@ -179,9 +177,8 @@ namespace iTender.Compliance.Infrastructure.Services
                 FilePath = path
             };
         }
-        public async Task<DocumentResult> GenerateContraventionNoticeAsync(
-            SendContraventionNoticeModel model,
-            CancellationToken cancellationToken = default)
+
+        public async Task<DocumentResult> GenerateContraventionNoticeAsync(SendContraventionNoticeModel model, CancellationToken cancellationToken = default)
         {
             var template = await _templateRepository.GetActiveAsync(
                 CorrespondenceTemplateType.ContraventionNotice);
@@ -198,7 +195,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Replace("\\", "-");
 
             var fileName =
-                $"ContraventionNotice_{safeTender}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+                $"Contravention Notice for {model.EmployerName}.pdf";
 
             var path = Path.Combine(_rootFolder, fileName);
 
@@ -257,9 +254,7 @@ namespace iTender.Compliance.Infrastructure.Services
             };
         }
 
-        public Task<DocumentResult> GenerateAgsaReferralDocumentAsync(
-            AgsaReferralDocumentModel model,
-            CancellationToken cancellationToken = default)
+        public Task<DocumentResult> GenerateAgsaReferralDocumentAsync(AgsaReferralDocumentModel model, CancellationToken cancellationToken = default)
         {
             var safeTender = model.TenderNumber
                 .Replace("/", "-")

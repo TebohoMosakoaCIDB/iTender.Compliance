@@ -3,6 +3,7 @@ using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
+using iTender.Compliance.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -14,6 +15,8 @@ namespace iTender.Compliance.Infrastructure.Services
 {
     public class ComplianceProcessingService : IComplianceProcessingService
     {
+        private readonly IClassOfWorksResolver _classOfWorksResolver;
+        private readonly ITenderRepository _tenderRepository;
         private readonly IComplianceCaseRepository _caseRepository;
         private readonly IComplianceFindingRepository _findingRepository;
         private readonly IComplianceActionRepository _actionRepository;
@@ -84,13 +87,31 @@ namespace iTender.Compliance.Infrastructure.Services
             var findings = new List<ComplianceFinding>();
 
             // ---- STREAM 1: Class of Works ----
+            // OCDS/eTenders never carries a CIDB-specific class-of-works code directly - only a
+            // generic works/goods/services category, already used upstream to filter to construction
+            // tenders in the first place. Previously that meant ClassOfWorks was ALWAYS null here and
+            // EVERY tender hit the "missing" branch below, regardless of actual compliance. Try to
+            // resolve a real class from the advert's own text against CIDB's class list first.
+            if (string.IsNullOrWhiteSpace(tender.ClassOfWorks))
+            {
+                tender.ClassOfWorks = await _classOfWorksResolver.ResolveAsync(tender, cancellationToken);
+
+                if (!string.IsNullOrWhiteSpace(tender.ClassOfWorks))
+                {
+                    // Persist the resolved class onto the Tender record itself so future passes
+                    // (and anyone looking at the tender directly) see it without re-resolving.
+                    await _tenderRepository.UpdateAsync(tender, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(tender.ClassOfWorks))
             {
                 findings.Add(new ComplianceFinding
                 {
                     Stream = ComplianceStream.ClassOfWorks,
                     FindingType = ComplianceFindingType.IncorrectClassOfWorks,
-                    Description = "No class of works specified in the tender advertisement.",
+                    Description = "No class of works specified in the tender advertisement, and none could be inferred from the advert text.",
                     RegulatoryReference = "CIDB Regulation 25 / SFU",
                     IdentifiedAt = DateTime.UtcNow,
                     TenderStatusAtCheck = tenderStatus,

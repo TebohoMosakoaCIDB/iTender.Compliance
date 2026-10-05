@@ -5,6 +5,7 @@ using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Scrapers;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Application.Providers;
+using iTender.Compliance.Infrastructure.CRM;
 using iTender.Compliance.Infrastructure.Data;
 using iTender.Compliance.Infrastructure.Mappers;
 using iTender.Compliance.Infrastructure.Models;
@@ -26,6 +27,18 @@ namespace iTender.Compliance.Infrastructure.Extensions
     {
         public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
         {
+            // DI Registrations (Dataverse + Repos)
+
+            services.AddOptions<CrmOptions>()
+                .Bind(configuration.GetSection(CrmOptions.SectionName))
+                .ValidateOnStart();
+
+            services.AddOptions<EncryptionOptions>()
+                .Bind(configuration.GetSection(EncryptionOptions.SectionName))
+                .ValidateOnStart();
+
+            services.AddScoped<ICrmServiceFactory, CrmServiceFactory>();
+
             services.Configure<SigningHubOptions>(
                 configuration.GetSection(SigningHubOptions.SectionName));
 
@@ -55,7 +68,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
 
                 client.BaseAddress = new Uri(options.BaseUrl);
 
-                client.Timeout = TimeSpan.FromSeconds(60);
+                client.Timeout = TimeSpan.FromSeconds(360);
             });
 
             services.AddScoped<EtendersConstructionFilter>();
@@ -92,6 +105,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<ISigningRequestRepository, SigningRequestRepository>();
             services.AddScoped<IComplianceFindingRepository, ComplianceFindingRepository>();
             services.AddScoped<IComplianceActionRepository, ComplianceActionRepository>();
+            services.AddScoped<IClassOfWorkTypeRepository, ClassOfWorkTypeRepository>();
             services.AddScoped<IAgsaReferralRepository, AgsaReferralRepository>();
             services.AddScoped<ICaseObjectionRepository, CaseObjectionRepository>();
             services.AddScoped<IReportRepository, ReportRepository>();
@@ -136,8 +150,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<ICorrespondenceService, CorrespondenceService>();
             services.AddScoped<IObjectionService, ObjectionService>();
             services.AddScoped<IReminderService, ReminderService>();
-            services.AddScoped<IObjectionService, ObjectionService>();
-
+            services.AddScoped<IClassOfWorksResolver, ClassOfWorksResolver>();
 
             services.AddScoped<IProfileService, ProfileService>();
             services.AddHttpClient("TenderFlow", client =>

@@ -68,7 +68,9 @@ namespace iTender.Compliance.Infrastructure.Services
             _etendersTenderMapper = etendersTenderMapper;
         }
 
-        public async Task SynchronizeAsync(bool isManual, CancellationToken cancellationToken = default)
+        public async Task SynchronizeAsync(
+    bool isManual,
+    CancellationToken cancellationToken = default)
         {
             var executionUserId = GetExecutionUserId(isManual);
 
@@ -97,30 +99,32 @@ namespace iTender.Compliance.Infrastructure.Services
             {
                 var scrapedTenders = new List<Tender>();
 
-                //foreach (var scraper in _scrapers)
-                //{
-                //    var tenders = await scraper.ScrapeAsync(cancellationToken);
+                // ---------------------------------------------------------
+                // Scrapers
+                // ---------------------------------------------------------
+                // foreach (var scraper in _scrapers)
+                // {
+                //     var tenders = await scraper.ScrapeAsync(cancellationToken);
+                //
+                //     scrapedTenders.AddRange(tenders);
+                //
+                //     await LogAsync(
+                //         sync.Id,
+                //         SyncLogType.Information,
+                //         SyncLogLevel.Information,
+                //         "Scraper Completed",
+                //         $"{scraper.GetType().Name} returned {tenders.Count} tenders.",
+                //         cancellationToken: cancellationToken);
+                // }
 
-                //    scrapedTenders.AddRange(tenders);
-
-                //    //var clientTenders = await _openAI.FindTendersAsync(
-                //    //        new DateTime(2026, 8, 23),
-                //    //        DateTime.Now);
-
-                //    await LogAsync(
-                //        sync.Id,
-                //        SyncLogType.Information,
-                //        SyncLogLevel.Information,
-                //        "Scraper Completed",
-                //        $"{scraper.GetType().Name} returned {tenders.Count} tenders.",
-                //        cancellationToken: cancellationToken);
-                //}
-
+                // ---------------------------------------------------------
+                // Get eTenders releases
+                // ---------------------------------------------------------
                 var etendersReleases = await _etendersClient.GetAllReleasesAsync(
-                    DateTime.UtcNow.Date.AddDays(-1),
+                    DateTime.UtcNow.Date.AddMonths(-1),
                     DateTime.UtcNow.Date,
                     cancellationToken: cancellationToken);
-               
+
                 var constructionReleases =
                     _etendersConstructionFilter.Filter(etendersReleases);
 
@@ -137,6 +141,17 @@ namespace iTender.Compliance.Infrastructure.Services
 
                 sync.TotalRetrieved = scrapedTenders.Count;
 
+                await LogAsync(
+                    sync.Id,
+                    SyncLogType.Information,
+                    SyncLogLevel.Information,
+                    "Tender Information Retrieved",
+                    $"{sync.TotalRetrieved} relevant tenders were retrieved for processing.",
+                    cancellationToken: cancellationToken);
+
+                // ---------------------------------------------------------
+                // Get advertised tenders from CRM
+                // ---------------------------------------------------------
                 var crmTenders = await _dataverseService
                     .GetAdvertisedTendersAsync(cancellationToken);
 
@@ -145,6 +160,9 @@ namespace iTender.Compliance.Infrastructure.Services
                     .Select(x => x.TenderNumber.Trim())
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+                // ---------------------------------------------------------
+                // Identify Stream 3 tenders
+                // ---------------------------------------------------------
                 var stream3Tenders = scrapedTenders
                     .Where(x =>
                         x.AwardedDate.HasValue &&
@@ -164,6 +182,9 @@ namespace iTender.Compliance.Infrastructure.Services
                             cancellationToken);
                 }
 
+                // ---------------------------------------------------------
+                // Process tenders
+                // ---------------------------------------------------------
                 var compliant = 0;
                 var nonCompliant = 0;
                 var casesCreated = 0;
@@ -175,47 +196,64 @@ namespace iTender.Compliance.Infrastructure.Services
                     if (string.IsNullOrWhiteSpace(tender.TenderNumber))
                         continue;
 
-                    // Check for duplicate in our own DB
+                    // -----------------------------------------------------
+                    // Check for duplicate
+                    // -----------------------------------------------------
                     var existingTender = await _tenderRepository
-                        .GetByTenderNumberAsync(tender.TenderNumber, cancellationToken);
+                        .GetByTenderNumberAsync(
+                            tender.TenderNumber,
+                            cancellationToken);
+
                     if (existingTender != null)
                     {
                         await LogAsync(
                             sync.Id,
                             SyncLogType.Duplicate,
                             SyncLogLevel.Warning,
-                            "Duplicate Tender",
-                            "Tender has already been synchronized previously.",
+                            "Tender Already Processed",
+                            "This tender has already been synchronized and was skipped.",
                             tender.TenderNumber,
                             cancellationToken);
+
                         continue;
                     }
 
+                    // -----------------------------------------------------
                     // Save tender
+                    // -----------------------------------------------------
                     tender.TenderSyncId = sync.Id;
-                    await _tenderRepository.AddAsync(tender, cancellationToken);
-                    await _unitOfWork.SaveChangesAsync(cancellationToken); // get Id
+
+                    await _tenderRepository.AddAsync(
+                        tender,
+                        cancellationToken);
+
+                    await _unitOfWork.SaveChangesAsync(
+                        cancellationToken);
 
                     await LogAsync(
                         sync.Id,
                         SyncLogType.TenderImported,
                         SyncLogLevel.Information,
                         "Tender Imported",
-                        "Tender imported successfully.",
+                        "Tender information was imported successfully.",
                         tender.TenderNumber,
                         cancellationToken);
 
-                    // ---- Process Compliance ----
+                    // -----------------------------------------------------
+                    // Process compliance
+                    // -----------------------------------------------------
                     Guid? createdCaseId = null;
+
                     try
                     {
-                        createdCaseId = await _complianceProcessingService.ProcessTenderAsync(
-                            tender,
-                            crmTenderNumbers,
-                            crmContracts,
-                            sync.Id,
-                            executionUserId,
-                            cancellationToken);
+                        createdCaseId =
+                            await _complianceProcessingService.ProcessTenderAsync(
+                                tender,
+                                crmTenderNumbers,
+                                crmContracts,
+                                sync.Id,
+                                executionUserId,
+                                cancellationToken);
                     }
                     catch (Exception ex)
                     {
@@ -223,10 +261,11 @@ namespace iTender.Compliance.Infrastructure.Services
                             sync.Id,
                             SyncLogType.Error,
                             SyncLogLevel.Error,
-                            "Compliance Processing Failed",
-                            $"Error processing tender {tender.TenderNumber}: {ex.Message}",
+                            "Tender Compliance Check Failed",
+                            "The tender was imported, but its compliance check could not be completed.",
                             tender.TenderNumber,
                             cancellationToken);
+
                         sync.ErrorCount++;
                     }
 
@@ -241,6 +280,9 @@ namespace iTender.Compliance.Infrastructure.Services
                     }
                 }
 
+                // ---------------------------------------------------------
+                // Complete synchronization
+                // ---------------------------------------------------------
                 sync.CompletedOn = DateTime.UtcNow;
                 sync.Status = SyncStatus.Completed;
                 sync.TotalCompliant = compliant;
@@ -252,11 +294,17 @@ namespace iTender.Compliance.Infrastructure.Services
                     SyncLogType.Information,
                     SyncLogLevel.Information,
                     "Synchronization Completed",
-                    $"Retrieved {sync.TotalRetrieved}, Created {casesCreated} compliance cases.",
+                    $"Synchronization completed successfully. " +
+                    $"{sync.TotalRetrieved} tenders were retrieved and " +
+                    $"{casesCreated} compliance cases were created.",
                     cancellationToken: cancellationToken);
 
-                await _tenderSyncRepository.UpdateAsync(sync, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await _tenderSyncRepository.UpdateAsync(
+                    sync,
+                    cancellationToken);
+
+                await _unitOfWork.SaveChangesAsync(
+                    cancellationToken);
             }
             catch (HttpRequestException ex)
             {
@@ -268,12 +316,39 @@ namespace iTender.Compliance.Infrastructure.Services
                     sync.Id,
                     SyncLogType.Error,
                     SyncLogLevel.Error,
-                    "Connection to iTender Failed",
+                    "Unable to Retrieve Tender Information",
+                    "We couldn't retrieve the latest tender information from the required service. Please try again later.",
+                    cancellationToken: cancellationToken);
+
+                await _tenderSyncRepository.UpdateAsync(
+                    sync,
+                    cancellationToken);
+
+                await _unitOfWork.SaveChangesAsync(
+                    cancellationToken);
+
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                sync.CompletedOn = DateTime.UtcNow;
+                sync.Status = SyncStatus.Failed;
+                sync.ErrorCount++;
+
+                await LogAsync(
+                    sync.Id,
+                    SyncLogType.Error,
+                    SyncLogLevel.Error,
+                    "Unable to Retrieve Tender Information",
                     ex.Message,
                     cancellationToken: cancellationToken);
 
-                await _tenderSyncRepository.UpdateAsync(sync, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await _tenderSyncRepository.UpdateAsync(
+                    sync,
+                    cancellationToken);
+
+                await _unitOfWork.SaveChangesAsync(
+                    cancellationToken);
 
                 return;
             }
@@ -288,11 +363,15 @@ namespace iTender.Compliance.Infrastructure.Services
                     SyncLogType.Error,
                     SyncLogLevel.Error,
                     "Synchronization Failed",
-                    ex.ToString(),
+                    "We couldn't complete the synchronization. Please try again later. If the problem continues, contact the system administrator.",
                     cancellationToken: cancellationToken);
 
-                await _tenderSyncRepository.UpdateAsync(sync, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await _tenderSyncRepository.UpdateAsync(
+                    sync,
+                    cancellationToken);
+
+                await _unitOfWork.SaveChangesAsync(
+                    cancellationToken);
 
                 return;
             }
