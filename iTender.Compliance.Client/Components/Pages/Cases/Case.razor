@@ -1,18 +1,18 @@
 ﻿@page "/cases/{Id:guid}"
 
-@using iTender.Compliance.Client.Helpers
-@using iTender.Compliance.Application.DTOs
-@using iTender.Compliance.Domain.Enums
-@using iTender.Compliance.Domain.Entities
-@using iTender.Compliance.Application.Interfaces.Repositories
-@using iTender.Compliance.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Repositories
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Client.Helpers
+@using iTender.Compliance.Domain.Entities
+@using iTender.Compliance.Domain.Enums
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ICorrespondenceService CorrespondenceService
-
 @inject IComplianceCaseRepository Repository
+@inject IClientGroupRepository ClientGroupRepository
 @inject IAgentRepository AgentRepository
 @inject IComplianceService ComplianceService
 @inject ICaseNoteRepository CaseNoteRepository
@@ -66,15 +66,8 @@ else
             <div class="d-flex justify-content-between align-items-start mb-2">
 
                 <div>
-
-                    <h3 class="mb-1">
-                        @Model.Tender.TenderNumber
-                    </h3>
-
-                    <h5 class="text-muted fw-normal">
-                        @Model.Tender.Title
-                    </h5>
-
+                    <h3 class="mb-1">@Model.Tender.TenderNumber</h3>
+                    <h5 class="text-muted fw-normal">@Model.Tender.Title</h5>
                 </div>
 
                 <span class="badge bg-secondary fs-6">
@@ -95,37 +88,29 @@ else
                     </h5>
 
                     <table class="table table-sm">
-
                         <tbody>
-
                             <tr>
                                 <th width="180">Tender Number</th>
                                 <td>@Model.Tender.TenderNumber</td>
                             </tr>
-
                             <tr>
                                 <th>Employer</th>
                                 <td>@Model.Tender.Employer</td>
                             </tr>
-
                             <tr>
                                 <th>Closing Date</th>
                                 <td>@Model.Tender.ClosingDate.ToString("dd MMM yyyy HH:mm")</td>
                             </tr>
-
                             <tr>
                                 <th>Tender Link</th>
                                 <td>
-                                    <a href="@Model.Tender.TenderUrl"
-                                       target="_blank">
+                                    <a href="@Model.Tender.TenderUrl" target="_blank">
                                         <i class="bi bi-box-arrow-up-right me-1"></i>
                                         View documents
                                     </a>
                                 </td>
                             </tr>
-
                         </tbody>
-
                     </table>
 
                 </div>
@@ -138,31 +123,24 @@ else
                     </h5>
 
                     <table class="table table-sm">
-
                         <tbody>
-
                             <tr>
                                 <th width="180">Priority</th>
                                 <td>@Model.Case.Priority</td>
                             </tr>
-
                             <tr>
                                 <th>Status</th>
                                 <td>@Model.Case.Status</td>
                             </tr>
-
                             <tr>
                                 <th>Assigned Agent</th>
                                 <td>@(Model.Case.Agent ?? "-")</td>
                             </tr>
-
                             <tr>
                                 <th>Outcome</th>
                                 <td>@(Model.Case.Outcome?.ToString() ?? "-")</td>
                             </tr>
-
                         </tbody>
-
                     </table>
 
                 </div>
@@ -174,10 +152,6 @@ else
             @if (Model.Case.Status != "Closed")
             {
                 <div class="d-flex flex-wrap gap-2 mb-4">
-
-                    @* ========================================================= *@
-                    @* ASSIGN AGENT                                              *@
-                    @* ========================================================= *@
 
                     @if (Model.Case.Agent == null && CanAssignAgent)
                     {
@@ -191,55 +165,18 @@ else
                     }
                     else
                     {
-                        @* ===================================================== *@
-                        @* CORRESPONDENCE / DOCUMENT LOGIC                      *@
-                        @* Only available once an agent has been assigned.      *@
-                        @* ===================================================== *@
+                        @* Correspondence is now issued at the group level. *@
+                        @* This case's letters will be listed in Correspondence History below. *@
 
-                        @if (Model.Case.Agent != null && CanManageCorrespondence)
+                        @if (Model.Letters.Any() && CanManageCorrespondence)
                         {
-                            if (NextCorrespondence != null)
-                            {
-                                if (NextCorrespondence.CanGenerate)
-                                {
-                                    <button class="btn btn-sm btn-cidb-submit-outline"
-                                            @onclick="GenerateNextCorrespondence">
+                            <button class="btn btn-sm btn-cidb-submit"
+                                    @onclick="OpenCaptureResponse">
 
-                                        <i class="bi bi-file-earmark-pdf me-1"></i>
-                                        @NextCorrespondence.Title
+                                <i class="bi bi-check-circle me-1"></i>
+                                Capture Response
 
-                                    </button>
-
-                                    @if (!string.IsNullOrWhiteSpace(
-                                        NextCorrespondence.ResponsePeriodText))
-                                    {
-                                        <small class="text-muted ms-2 align-self-center">
-                                            Response required within
-                                            <strong>
-                                                @NextCorrespondence.ResponsePeriodText
-                                            </strong>
-                                        </small>
-                                    }
-                                }
-                                else
-                                {
-                                    <div class="alert alert-warning mb-0">
-                                        <strong>@NextCorrespondence.Title</strong>
-                                        <br />
-                                        @NextCorrespondence.Description
-                                    </div>
-                                }
-                            }
-                            else if (Model.Letters.Any())
-                            {
-                                <button class="btn btn-sm btn-cidb-submit"
-                                        @onclick="OpenCaptureResponse">
-
-                                    <i class="bi bi-check-circle me-1"></i>
-                                    Capture Response
-
-                                </button>
-                            }
+                            </button>
                         }
 
                         @if (HasOutstandingLetter && Model.Case.Status != "UnderManagerReview")
@@ -262,26 +199,22 @@ else
             else
             {
                 <div class="alert alert-danger">
-
                     This compliance case has been closed and is marked as
                     <strong>@Model.Case.Outcome</strong>.
-
                 </div>
             }
 
             <hr />
 
-            <!-- ========================================================== -->
-            <!-- FINDINGS & ACTIONS – IMPROVED CARDS -->
-            <!-- ========================================================== -->
+            <!-- FINDINGS & ACTIONS -->
             <div class="row g-4 mb-4">
 
-                <!-- FINDINGS COLUMN -->
                 <div class="col-md-6">
                     <h5 class="table-header-brand mb-3">
                         <i class="bi bi-search me-2"></i>
                         Compliance Findings
                     </h5>
+
                     @if (Model.Findings.Any())
                     {
                         <div class="d-flex flex-column gap-3">
@@ -378,12 +311,12 @@ else
                     }
                 </div>
 
-                <!-- ACTIONS COLUMN -->
                 <div class="col-md-6">
                     <h5 class="table-header-brand mb-3">
                         <i class="bi bi-list-task me-2"></i>
                         Compliance Actions
                     </h5>
+
                     @if (Model.Actions.Any())
                     {
                         <div class="d-flex flex-column gap-3">
@@ -436,7 +369,6 @@ else
                                                     }
                                                 </div>
                                             </div>
-                                            <!-- Status indicator dot -->
                                             <div class="ms-3">
                                                 <span class="badge rounded-pill bg-@statusBg" style="width:12px;height:12px;display:inline-block;"></span>
                                             </div>
@@ -456,9 +388,7 @@ else
 
             <hr />
 
-            <!-- ========================================================== -->
             <!-- CORRESPONDENCE HISTORY -->
-            <!-- ========================================================== -->
             <div class="row">
                 <div class="col-lg-12">
 
@@ -468,36 +398,23 @@ else
                     </h5>
 
                     <table class="table table-striped table-hover align-middle">
-
                         <thead>
-
                             <tr>
-
                                 <th>#</th>
                                 <th>Letter</th>
                                 <th>Recipient</th>
                                 <th>Sent</th>
                                 <th>Due</th>
                                 <th>Status</th>
-
                             </tr>
-
                         </thead>
-
                         <tbody>
-
                             @if (Model.Letters.Any())
                             {
                                 @foreach (var letter in Model.Letters.OrderBy(x => x.LetterNumber))
                                 {
                                     <tr>
-
-                                        <!-- Number -->
-                                        <td>
-                                            @letter.LetterNumber
-                                        </td>
-
-                                        <!-- Correspondence Type -->
+                                        <td>@letter.LetterNumber</td>
                                         <td>
                                             @switch (letter.Type)
                                             {
@@ -507,73 +424,46 @@ else
                                                         Instructional Letter
                                                     </span>
                                                     break;
-
                                                 case LetterType.ContraventionNotice:
                                                     <span class="badge bg-danger">
                                                         <i class="bi bi-exclamation-triangle me-1"></i>
                                                         Contravention Notice
                                                     </span>
                                                     break;
-
                                                 case LetterType.Erratum:
                                                     <span class="badge bg-secondary">
                                                         <i class="bi bi-pencil-square me-1"></i>
                                                         Erratum
                                                     </span>
                                                     break;
-
                                                 default:
-                                                    <span class="badge bg-secondary">
-                                                        @letter.Type
-                                                    </span>
+                                                    <span class="badge bg-secondary">@letter.Type</span>
                                                     break;
                                             }
                                         </td>
-
-                                        <!-- Recipient -->
                                         <td>
-                                            <div class="fw-semibold">
-                                                @letter.RecipientName
-                                            </div>
-
+                                            <div class="fw-semibold">@letter.RecipientName</div>
                                             @if (!string.IsNullOrWhiteSpace(letter.RecipientEmail))
                                             {
-                                                <small class="text-muted">
-                                                    @letter.RecipientEmail
-                                                </small>
+                                                <small class="text-muted">@letter.RecipientEmail</small>
                                             }
                                             else
                                             {
-                                                <small class="text-muted">
-                                                    No email recorded
-                                                </small>
+                                                <small class="text-muted">No email recorded</small>
                                             }
                                         </td>
-
-                                        <!-- Sent -->
-                                        <td>
-                                            <div>
-                                                @letter.SentOn.ToString("dd MMM yyyy HH:mm")
-                                            </div>
-                                        </td>
-
-                                        <!-- Due -->
+                                        <td>@letter.SentOn.ToString("dd MMM yyyy HH:mm")</td>
                                         <td>
                                             @if (letter.Type == LetterType.Erratum)
                                             {
-                                                <span class="text-muted">
-                                                    N/A
-                                                </span>
+                                                <span class="text-muted">N/A</span>
                                             }
                                             else
                                             {
                                                 @letter.ResponseDueOn.ToString("dd MMM yyyy HH:mm")
                                             }
                                         </td>
-
-                                        <!-- Status -->
                                         <td>
-
                                             @if (letter.Type == LetterType.Erratum)
                                             {
                                                 <span class="badge bg-secondary">
@@ -602,9 +492,7 @@ else
                                                     Awaiting
                                                 </span>
                                             }
-
                                         </td>
-
                                     </tr>
                                 }
                             }
@@ -612,16 +500,12 @@ else
                             {
                                 <tr>
                                     <td colspan="6" class="text-center text-muted py-4">
-
                                         <i class="bi bi-envelope-paper fs-4 d-block mb-2"></i>
-
                                         No correspondence has been sent.
-
                                     </td>
                                 </tr>
                             }
                         </tbody>
-
                     </table>
 
                 </div>
@@ -629,9 +513,7 @@ else
 
             <hr />
 
-            <!-- ========================================================== -->
             <!-- CASE NOTES -->
-            <!-- ========================================================== -->
             <div class="row">
                 <div class="col-lg-12">
 
@@ -646,7 +528,6 @@ else
                             @foreach (var note in Model.Notes.OrderByDescending(x => x.CreatedOn))
                             {
                                 <div class="note-entry d-flex">
-                                    <!-- Timeline dot + line -->
                                     <div class="note-line">
                                         <div class="note-dot"></div>
                                         @if (note != Model.Notes.Last())
@@ -654,8 +535,6 @@ else
                                             <div class="note-line-vertical"></div>
                                         }
                                     </div>
-
-                                    <!-- Note card -->
                                     <div class="note-content flex-grow-1 ps-3">
                                         <div class="card border-0 shadow-sm mb-3 note-card">
                                             <div class="card-body py-2 px-3">
@@ -694,7 +573,6 @@ else
             {
                 <div class="row mt-4">
                     <div class="col-lg-12">
-
                         <h5 class="table-header-brand mb-3">
                             <i class="bi bi-shield-exclamation me-2"></i>
                             AGSA Enforcement Referral
@@ -706,14 +584,12 @@ else
                             <div><strong>Status:</strong> @AgsaReferral.Status</div>
                             <div><strong>Reason:</strong> @AgsaReferral.Reason</div>
                         </div>
-
                     </div>
                 </div>
             }
 
             <div class="row mt-4">
                 <div class="col-lg-12">
-
                     <h5 class="table-header-brand mb-3">
                         <i class="bi bi-flag me-2"></i>
                         Objections
@@ -725,14 +601,11 @@ else
                         {
                             <div class="card mb-2">
                                 <div class="card-body">
-
                                     <div class="d-flex justify-content-between align-items-start">
-
                                         <div>
                                             <span class="fw-semibold">
                                                 Objection to @objection.CaseLetter.Type
                                             </span>
-
                                             <div class="text-muted small">
                                                 Received @objection.ReceivedOn.ToString("dd MMM yyyy")
                                             </div>
@@ -750,7 +623,6 @@ else
                                                 Awaiting Manager Review
                                             </span>
                                         }
-
                                     </div>
 
                                     <p class="mt-2 mb-1">@objection.Reason</p>
@@ -772,7 +644,6 @@ else
                                             Resolve Objection
                                         </button>
                                     }
-
                                 </div>
                             </div>
                         }
@@ -783,15 +654,51 @@ else
                             No objections have been raised.
                         </div>
                     }
-
                 </div>
             </div>
         </div>
 
-        <!-- ========================================================== -->
-        <!-- RIGHT COLUMN – ACTIVITY TIMELINE -->
-        <!-- ========================================================== -->
+        <!-- RIGHT COLUMN -->
         <div class="col-3">
+
+            @if (ClientGroup is not null)
+            {
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header">
+                        <strong><i class="bi bi-people-fill me-2"></i>Client Group</strong>
+                    </div>
+                    <div class="card-body">
+
+                        <div class="fw-semibold">@ClientGroup.EmployerName</div>
+
+                        <div class="small text-muted mb-2">
+                            @ClientGroup.TenderCount tender@(ClientGroup.TenderCount == 1 ? "" : "s") in this group
+                        </div>
+
+                        <div class="mb-2">
+                            <span class="badge @GetGroupStatusClass(ClientGroup.Status)">
+                                @ClientGroup.Status
+                            </span>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(ClientGroup.AgentName))
+                        {
+                            <div class="small">
+                                <i class="bi bi-person-badge me-1"></i>
+                                @ClientGroup.AgentName
+                            </div>
+                        }
+
+                        <a href="@($"/clients/groups/{ClientGroup.Id}")"
+                           class="btn btn-sm btn-cidb-submit-outline w-100 mt-3">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>
+                            View Group
+                        </a>
+
+                    </div>
+                </div>
+            }
+
             <div class="col-lg-12">
 
                 <h5 class="table-header-brand mb-3">
@@ -804,90 +711,63 @@ else
                     @foreach (var audit in Model.Timeline.OrderByDescending(x => x.Date))
                     {
                         <div class="timeline-item">
-
                             <div class="timeline-icon">
-
                                 @switch (audit.Action)
                                 {
                                     case AuditAction.Created:
                                         <i class="bi bi-plus-circle-fill text-secondary"></i>
                                         break;
-
                                     case AuditAction.Assigned:
                                         <i class="bi bi-person-plus-fill text-secondary"></i>
                                         break;
-
                                     case AuditAction.Reassigned:
                                         <i class="bi bi-arrow-repeat text-secondary"></i>
                                         break;
-
                                     case AuditAction.InstructionLetterSent:
                                         <i class="bi bi-envelope-fill text-secondary"></i>
                                         break;
-
                                     case AuditAction.ReminderLetterSent:
                                         <i class="bi bi-bell-fill text-secondary"></i>
                                         break;
-
                                     case AuditAction.ResponseReceived:
                                         <i class="bi bi-check-circle-fill text-secondary"></i>
                                         break;
-
                                     case AuditAction.CaseClosed:
                                         <i class="bi bi-lock-fill text-secondary"></i>
                                         break;
-
                                     case AuditAction.ContraventionNoticeSent:
                                         <i class="bi bi-exclamation-octagon-fill text-danger"></i>
                                         break;
-
                                     case AuditAction.ReferredToEnforcement:
                                         <i class="bi bi-shield-exclamation text-danger"></i>
                                         break;
-
                                     case AuditAction.ObjectionReceived:
                                         <i class="bi bi-flag-fill text-warning"></i>
                                         break;
-
                                     case AuditAction.ObjectionResolved:
                                         <i class="bi bi-flag text-secondary"></i>
                                         break;
-
                                     case AuditAction.ExtensionApproved:
                                         <i class="bi bi-calendar-plus-fill text-secondary"></i>
                                         break;
-
                                     default:
                                         <i class="bi bi-dot"></i>
                                         break;
                                 }
-
                             </div>
-
                             <div class="timeline-content">
-
-                                <div class="fw-semibold">
-                                    @audit.Action
-                                </div>
-
+                                <div class="fw-semibold">@audit.Action</div>
                                 <small class="text-muted">
                                     @audit.Date.ToString("dd MMM yyyy HH:mm")
                                 </small>
-
-                                <div class="mt-1">
-                                    @audit.Description
-                                </div>
-
+                                <div class="mt-1">@audit.Description</div>
                             </div>
-
                         </div>
                     }
                 }
                 else
                 {
-                    <div class="text-muted">
-                        No activity recorded.
-                    </div>
+                    <div class="text-muted">No activity recorded.</div>
                 }
 
             </div>
@@ -899,108 +779,50 @@ else
     <!-- ========================================================== -->
     @if (ShowAssignAgentModal)
     {
-        <div class="modal fade show d-block"
-             tabindex="-1"
-             style="background-color:rgba(0,0,0,.5)">
-
+        <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
             <div class="modal-dialog modal-lg">
-
                 <div class="modal-content">
-
                     <div class="modal-header">
-
-                        <h5 class="modal-title">
-                            Assign Compliance Agent
-                        </h5>
-
-                        <button class="btn-close"
-                                @onclick="CloseAssignAgent">
-                        </button>
-
+                        <h5 class="modal-title">Assign Compliance Agent</h5>
+                        <button class="btn-close" @onclick="CloseAssignAgent"></button>
                     </div>
-
                     <div class="modal-body">
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Agent <span class="text-danger">*</span>
-                            </label>
-
-                            <InputSelect class="form-select"
-                                         @bind-Value="SelectedAgentId">
-
+                            <label class="form-label">Agent <span class="text-danger">*</span></label>
+                            <InputSelect class="form-select" @bind-Value="SelectedAgentId">
                                 <option value="">-- Select Agent --</option>
-
                                 @foreach (var agent in Agents.OrderBy(x => x.FullName))
                                 {
                                     <option value="@agent.Id">
                                         @agent.FullName (@agent.OpenCases open cases)
                                     </option>
                                 }
-
                             </InputSelect>
-
                         </div>
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Priority
-                            </label>
-
-                            <InputSelect class="form-select"
-                                         @bind-Value="SelectedPriority">
-
+                            <label class="form-label">Priority</label>
+                            <InputSelect class="form-select" @bind-Value="SelectedPriority">
                                 @foreach (var priority in Enum.GetValues<CasePriority>())
                                 {
-                                    <option value="@priority">
-                                        @priority
-                                    </option>
+                                    <option value="@priority">@priority</option>
                                 }
-
                             </InputSelect>
-
                         </div>
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Assignment Comments
-                            </label>
-
-                            <InputTextArea class="form-control"
-                                           rows="4"
-                                           maxlength="500"
-                                           @bind-Value="AssignmentComments" />
-
-                            <small class="text-muted">
-                                Optional notes for the assigned agent.
-                            </small>
-
+                            <label class="form-label">Assignment Comments</label>
+                            <InputTextArea class="form-control" rows="4" maxlength="500" @bind-Value="AssignmentComments" />
+                            <small class="text-muted">Optional notes for the assigned agent.</small>
                         </div>
-
                     </div>
-
                     <div class="modal-footer">
-
-                        <button class="btn btn-sm btn-secondary"
-                                @onclick="CloseAssignAgent">
-                            Cancel
-                        </button>
-
-                        <button class="btn btn-sm btn-cidb-submit"
-                                @onclick="AssignAgent">
+                        <button class="btn btn-sm btn-secondary" @onclick="CloseAssignAgent">Cancel</button>
+                        <button class="btn btn-sm btn-cidb-submit" @onclick="AssignAgent">
                             <i class="bi bi-person-plus me-1"></i>
                             Assign Agent
                         </button>
-
                     </div>
-
                 </div>
-
             </div>
-
         </div>
     }
 
@@ -1009,387 +831,179 @@ else
     <!-- ========================================================== -->
     @if (ShowCaptureResponseModal)
     {
-        <div class="modal fade show d-block"
-             tabindex="-1"
-             style="background-color:rgba(0,0,0,.5)">
-
+        <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
             <div class="modal-dialog">
-
                 <div class="modal-content">
-
                     <div class="modal-header">
-
-                        <h5 class="modal-title">
-                            Capture Response
-                        </h5>
-
-                        <button class="btn-close"
-                                @onclick="CloseCaptureResponse">
-                        </button>
-
+                        <h5 class="modal-title">Capture Response</h5>
+                        <button class="btn-close" @onclick="CloseCaptureResponse"></button>
                     </div>
-
                     <div class="modal-body">
-
-                        <!-- Outcome -->
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Outcome
-                            </label>
-
-                            <InputSelect class="form-select"
-                                         @bind-Value="Response.Outcome">
-
-                                <option value="@ComplianceOutcome.Compliant">
-                                    Compliant
-                                </option>
-
-                                <option value="@ComplianceOutcome.NonCompliant">
-                                    Non-Compliant
-                                </option>
-
+                            <label class="form-label">Outcome</label>
+                            <InputSelect class="form-select" @bind-Value="Response.Outcome">
+                                <option value="@ComplianceOutcome.Compliant">Compliant</option>
+                                <option value="@ComplianceOutcome.NonCompliant">Non-Compliant</option>
                             </InputSelect>
-
                         </div>
-
-                        <!-- Date -->
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Response Date
-                            </label>
-
-                            <InputDate class="form-control"
-                                       @bind-Value="Response.RespondedOn" />
-
+                            <label class="form-label">Response Date</label>
+                            <InputDate class="form-control" @bind-Value="Response.RespondedOn" />
                         </div>
-
-                        <!-- Comments -->
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Comments
-                            </label>
-
-                            <InputTextArea class="form-control"
-                                           rows="4"
-                                           @bind-Value="Response.Comments" />
-
+                            <label class="form-label">Comments</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="Response.Comments" />
                         </div>
-
                     </div>
-
                     <div class="modal-footer">
-
-                        <button class="btn btn-sm btn-secondary"
-                                @onclick="CloseCaptureResponse">
-                            Cancel
-                        </button>
-
-                        <button class="btn btn-sm btn-cidb-submit"
-                                @onclick="SaveResponse">
-
-                            Save Response
-
-                        </button>
-
+                        <button class="btn btn-sm btn-secondary" @onclick="CloseCaptureResponse">Cancel</button>
+                        <button class="btn btn-sm btn-cidb-submit" @onclick="SaveResponse">Save Response</button>
                     </div>
-
                 </div>
-
             </div>
-
         </div>
     }
 
     @if (ShowRecordObjectionModal)
     {
-        <div class="modal fade show d-block"
-             tabindex="-1"
-             style="background-color:rgba(0,0,0,.5)">
-
+        <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
             <div class="modal-dialog">
-
                 <div class="modal-content">
-
                     <div class="modal-header">
-
-                        <h5 class="modal-title">
-                            Record Client Objection
-                        </h5>
-
-                        <button class="btn-close"
-                                @onclick="CloseRecordObjection">
-                        </button>
-
+                        <h5 class="modal-title">Record Client Objection</h5>
+                        <button class="btn-close" @onclick="CloseRecordObjection"></button>
                     </div>
-
                     <div class="modal-body">
-
                         <p class="text-muted">
                             Recording an objection pauses the response deadline and routes the
                             case to a Regulatory Compliance Manager for a decision.
                         </p>
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Reason for Objection <span class="text-danger">*</span>
-                            </label>
-
-                            <InputTextArea class="form-control"
-                                           rows="4"
-                                           @bind-Value="ObjectionReason" />
-
+                            <label class="form-label">Reason for Objection <span class="text-danger">*</span></label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="ObjectionReason" />
                         </div>
-
                     </div>
-
                     <div class="modal-footer">
-
-                        <button class="btn btn-sm btn-secondary"
-                                @onclick="CloseRecordObjection">
-                            Cancel
-                        </button>
-
+                        <button class="btn btn-sm btn-secondary" @onclick="CloseRecordObjection">Cancel</button>
                         <button class="btn btn-sm btn-cidb-submit"
                                 disabled="@string.IsNullOrWhiteSpace(ObjectionReason)"
                                 @onclick="SaveObjection">
                             Record Objection
                         </button>
-
                     </div>
-
                 </div>
-
             </div>
-
         </div>
     }
 
     @if (ShowResolveObjectionModal && ObjectionToResolve != null)
     {
-        <div class="modal fade show d-block"
-             tabindex="-1"
-             style="background-color:rgba(0,0,0,.5)">
-
+        <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
             <div class="modal-dialog">
-
                 <div class="modal-content">
-
                     <div class="modal-header">
-
-                        <h5 class="modal-title">
-                            Resolve Objection
-                        </h5>
-
-                        <button class="btn-close"
-                                @onclick="CloseResolveObjection">
-                        </button>
-
+                        <h5 class="modal-title">Resolve Objection</h5>
+                        <button class="btn-close" @onclick="CloseResolveObjection"></button>
                     </div>
-
                     <div class="modal-body">
-
                         <p><strong>Objection:</strong> @ObjectionToResolve.Reason</p>
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Decision
-                            </label>
-
-                            <InputSelect class="form-select"
-                                         @bind-Value="ObjectionDecisionValue">
-
+                            <label class="form-label">Decision</label>
+                            <InputSelect class="form-select" @bind-Value="ObjectionDecisionValue">
                                 <option value="@ObjectionDecision.Overruled">
                                     Overrule - case continues through the workflow
                                 </option>
-
                                 <option value="@ObjectionDecision.Upheld">
                                     Uphold - close the case
                                 </option>
-
                             </InputSelect>
-
                         </div>
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Manager Notes
-                            </label>
-
-                            <InputTextArea class="form-control"
-                                           rows="3"
-                                           @bind-Value="ManagerNotes" />
-
+                            <label class="form-label">Manager Notes</label>
+                            <InputTextArea class="form-control" rows="3" @bind-Value="ManagerNotes" />
                         </div>
-
                     </div>
-
                     <div class="modal-footer">
-
-                        <button class="btn btn-sm btn-secondary"
-                                @onclick="CloseResolveObjection">
-                            Cancel
-                        </button>
-
-                        <button class="btn btn-sm btn-cidb-submit"
-                                @onclick="SaveObjectionDecision">
-                            Save Decision
-                        </button>
-
+                        <button class="btn btn-sm btn-secondary" @onclick="CloseResolveObjection">Cancel</button>
+                        <button class="btn btn-sm btn-cidb-submit" @onclick="SaveObjectionDecision">Save Decision</button>
                     </div>
-
                 </div>
-
             </div>
-
         </div>
     }
 
     @if (ShowExtensionModal)
     {
-        <div class="modal fade show d-block"
-             tabindex="-1"
-             style="background-color:rgba(0,0,0,.5)">
-
+        <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
             <div class="modal-dialog">
-
                 <div class="modal-content">
-
                     <div class="modal-header">
-
-                        <h5 class="modal-title">
-                            Request Response Extension
-                        </h5>
-
-                        <button class="btn-close"
-                                @onclick="CloseRequestExtension">
-                        </button>
-
+                        <h5 class="modal-title">Request Response Extension</h5>
+                        <button class="btn-close" @onclick="CloseRequestExtension"></button>
                     </div>
-
                     <div class="modal-body">
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Additional Days <span class="text-danger">*</span>
-                            </label>
-
-                            <InputNumber class="form-control"
-                                         @bind-Value="ExtensionDays" />
-
+                            <label class="form-label">Additional Days <span class="text-danger">*</span></label>
+                            <InputNumber class="form-control" @bind-Value="ExtensionDays" />
                         </div>
-
                         <div class="mb-3">
-
-                            <label class="form-label">
-                                Reason <span class="text-danger">*</span>
-                            </label>
-
-                            <InputTextArea class="form-control"
-                                           rows="3"
-                                           @bind-Value="ExtensionReason" />
-
-                            <small class="text-muted">
-                                Extensions must be requested by the client in writing.
-                            </small>
-
+                            <label class="form-label">Reason <span class="text-danger">*</span></label>
+                            <InputTextArea class="form-control" rows="3" @bind-Value="ExtensionReason" />
+                            <small class="text-muted">Extensions must be requested by the client in writing.</small>
                         </div>
-
                     </div>
-
                     <div class="modal-footer">
-
-                        <button class="btn btn-sm btn-secondary"
-                                @onclick="CloseRequestExtension">
-                            Cancel
-                        </button>
-
+                        <button class="btn btn-sm btn-secondary" @onclick="CloseRequestExtension">Cancel</button>
                         <button class="btn btn-sm btn-cidb-submit"
                                 disabled="@(ExtensionDays <= 0 || string.IsNullOrWhiteSpace(ExtensionReason))"
                                 @onclick="SaveExtension">
                             Grant Extension
                         </button>
-
                     </div>
-
                 </div>
-
             </div>
-
         </div>
     }
 
     @if (ShowVerificationActionModal)
     {
-        <div class="modal fade show d-block"
-             tabindex="-1"
-             style="background-color:rgba(0,0,0,.5)">
-
+        <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
             <div class="modal-dialog">
                 <div class="modal-content">
-
                     <div class="modal-header">
                         <h5 class="modal-title">
                             @(VerificationMode == "Override"
                                 ? "Override Automated Verification"
                                 : "Manual Verification")
                         </h5>
-                        <button class="btn-close"
-                                @onclick="CloseVerificationAction">
-                        </button>
+                        <button class="btn-close" @onclick="CloseVerificationAction"></button>
                     </div>
-
                     <div class="modal-body">
-
                         @if (VerificationMode == "Manual")
                         {
                             <div class="mb-3">
-                                <label class="form-label">
-                                    Outcome
-                                </label>
-                                <InputSelect class="form-select"
-                                             @bind-Value="ManualVerificationIsCompliant">
+                                <label class="form-label">Outcome</label>
+                                <InputSelect class="form-select" @bind-Value="ManualVerificationIsCompliant">
                                     <option value="true">Compliant</option>
                                     <option value="false">Non-Compliant</option>
                                 </InputSelect>
                             </div>
                         }
-
                         <div class="mb-3">
                             <label class="form-label">
-                                @(VerificationMode == "Override"
-                                    ? "Override Reason (required)"
-                                    : "Notes")
+                                @(VerificationMode == "Override" ? "Override Reason (required)" : "Notes")
                             </label>
-                            <InputTextArea class="form-control"
-                                           rows="4"
-                                           @bind-Value="VerificationComment" />
+                            <InputTextArea class="form-control" rows="4" @bind-Value="VerificationComment" />
                         </div>
-
                     </div>
-
                     <div class="modal-footer">
-                        <button class="btn btn-sm btn-secondary"
-                                @onclick="CloseVerificationAction">
-                            Cancel
-                        </button>
+                        <button class="btn btn-sm btn-secondary" @onclick="CloseVerificationAction">Cancel</button>
                         <button class="btn btn-sm btn-cidb-submit"
-                                disabled="@(VerificationMode == "Override"
-                                                                    && string.IsNullOrWhiteSpace(VerificationComment))"
+                                disabled="@(VerificationMode == "Override" && string.IsNullOrWhiteSpace(VerificationComment))"
                                 @onclick="SaveVerificationAction">
                             Save
                         </button>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -1400,30 +1014,21 @@ else
     private bool CanAssignAgent;
     private bool CanManageCorrespondence;
     private CaptureResponseModel Response = new();
-    private NextCorrespondenceModel? NextCorrespondence;
     public List<CaseNoteModel> Notes { get; set; } = [];
 
     private bool ShowCaptureResponseModal;
 
     private CasePriority SelectedPriority = CasePriority.Normal;
-
     private string AssignmentComments = string.Empty;
-
     private bool ShowAssignAgentModal;
-
     private Guid? SelectedAgentId;
-
     private List<AgentLookupModel> Agents = [];
 
     [Parameter]
     public Guid Id { get; set; }
 
     private ComplianceCaseDetailModel? Model;
-
-    private bool CanSendInstructionLetter =>
-        Model != null &&
-        Model.Case.Agent != null &&
-        !Model.Letters.Any();
+    private ClientGroupSummaryModel? ClientGroup;
 
     private List<CaseObjection> Objections { get; set; } = [];
     private AGSAReferral? AgsaReferral { get; set; }
@@ -1444,9 +1049,8 @@ else
     private int ExtensionDays = 1;
     private string ExtensionReason = string.Empty;
 
-    // ---- Verification action state ----
     private bool ShowVerificationActionModal;
-    private string VerificationMode = "";           // "Override" or "Manual"
+    private string VerificationMode = "";
     private Guid VerificationFindingId;
     private string VerificationComment = string.Empty;
     private bool ManualVerificationIsCompliant = true;
@@ -1454,33 +1058,24 @@ else
     protected override async Task OnInitializedAsync()
     {
         var authenticationState =
-        await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
 
         var user = authenticationState.User;
 
         CanAssignAgent =
-            (await AuthorizationService.AuthorizeAsync(
-                user,
-                "CaseAssignment")).Succeeded;
+            (await AuthorizationService.AuthorizeAsync(user, "CaseAssignment")).Succeeded;
 
         CanManageCorrespondence =
-            (await AuthorizationService.AuthorizeAsync(
-                user,
-                "Correspondence")).Succeeded;
+            (await AuthorizationService.AuthorizeAsync(user, "Correspondence")).Succeeded;
 
         await RefreshCase();
-
-        if (Model != null)
-        {
-            NextCorrespondence =
-                await ComplianceService.GetNextCorrespondenceAsync(Id);
-        }
-
         await LoadWorkflowExtrasAsync();
 
         if (CurrentUserService.UserId.HasValue)
         {
-            var currentAgent = await AgentRepository.GetByUserIdAsync(CurrentUserService.UserId.Value);
+            var currentAgent = await AgentRepository
+                .GetByUserIdAsync(CurrentUserService.UserId.Value);
+
             CurrentAgentIsManager = currentAgent?.IsManager ?? false;
         }
     }
@@ -1494,24 +1089,15 @@ else
     private async Task RefreshCase()
     {
         Model = await Repository.GetDetailAsync(Id);
-
-        if (Model != null)
-        {
-            NextCorrespondence =
-                await ComplianceService.GetNextCorrespondenceAsync(Id);
-        }
+        ClientGroup = await ClientGroupRepository.GetSummaryByCaseIdAsync(Id);
     }
 
     private async Task OpenAssignAgent()
     {
         Agents = await AgentRepository.GetLookupAsync();
-
         SelectedAgentId = null;
-
         SelectedPriority = Model.Case.Priority;
-
         AssignmentComments = Model.Case.Comments ?? string.Empty;
-
         ShowAssignAgentModal = true;
     }
 
@@ -1543,78 +1129,6 @@ else
                 CreatedOn = DateTime.UtcNow
             };
             await CaseNoteRepository.AddAsync(note);
-        }
-
-        Model = await Repository.GetDetailAsync(Id);
-    }
-
-    private async Task GenerateNextCorrespondence()
-    {
-        if (Model == null)
-            return;
-
-        // Documents may only be generated once an agent
-        // has been assigned to the compliance case.
-        if (Model.Case.AgentId == null)
-            return;
-
-        if (NextCorrespondence == null)
-            return;
-
-        if (!NextCorrespondence.CanGenerate ||
-            !NextCorrespondence.Type.HasValue)
-            return;
-
-        if (string.IsNullOrWhiteSpace(Model.Tender.ContactEmail))
-            throw new InvalidOperationException(
-                "This tender has no client contact email on file - it cannot be notified.");
-
-        var recipientName = Model.Tender.ContactName ?? Model.Tender.Employer;
-
-        switch (NextCorrespondence.Type.Value)
-        {
-            case CorrespondenceTemplateType.InstructionLetter:
-
-                await CorrespondenceService.SendInstructionLetterAsync(new SendInstructionLetterModel
-                {
-                    ComplianceCaseId = Model.Id,
-                    RecipientName = recipientName,
-                    RecipientEmail = Model.Tender.ContactEmail,
-                    TenderNumber = Model.Tender.TenderNumber,
-                    TenderTitle = Model.Tender.Title,
-                    EmployerName = Model.Tender.Employer,
-                    ClosingDate = Model.Tender.ClosingDate,
-                    CompanyName = Model.Tender.Employer,
-                    ContactPerson = recipientName,
-                    HeaderImagePath = Model.Case.HeaderImagePath,
-                    SignatureImagePath = Model.Case.SignatureImagePath,
-                    FooterText = Model.Case.FooterText,
-                    ResponseDueOn = DateTime.UtcNow.AddHours(NextCorrespondence.ResponseHours)
-                });
-
-                break;
-
-            case CorrespondenceTemplateType.ContraventionNotice:
-
-                await CorrespondenceService.SendContraventionNoticeAsync(new SendContraventionNoticeModel
-                {
-                    ComplianceCaseId = Model.Id,
-                    RecipientName = recipientName,
-                    RecipientEmail = Model.Tender.ContactEmail,
-                    TenderNumber = Model.Tender.TenderNumber,
-                    TenderTitle = Model.Tender.Title,
-                    EmployerName = Model.Tender.Employer,
-                    ClosingDate = Model.Tender.ClosingDate,
-                    Reason = NextCorrespondence.Description,
-                    ResponseDueOn = DateTime.UtcNow.AddHours(NextCorrespondence.ResponseHours)
-                });
-
-                break;
-
-            default:
-
-                throw new InvalidOperationException(
-                    "Unsupported correspondence type.");
         }
 
         await RefreshCase();
@@ -1668,8 +1182,7 @@ else
         }
 
         ShowCaptureResponseModal = false;
-
-        Model = await Repository.GetDetailAsync(Id);
+        await RefreshCase();
     }
 
     private void OpenRecordObjection()
@@ -1704,7 +1217,6 @@ else
         });
 
         ShowRecordObjectionModal = false;
-
         await RefreshCase();
         await LoadWorkflowExtrasAsync();
     }
@@ -1728,7 +1240,8 @@ else
         if (ObjectionToResolve == null || !CurrentUserService.UserId.HasValue)
             return;
 
-        var currentAgent = await AgentRepository.GetByUserIdAsync(CurrentUserService.UserId.Value);
+        var currentAgent = await AgentRepository
+            .GetByUserIdAsync(CurrentUserService.UserId.Value);
 
         if (currentAgent == null)
             return;
@@ -1774,7 +1287,6 @@ else
         });
 
         ShowExtensionModal = false;
-
         await RefreshCase();
     }
 
@@ -1846,5 +1358,17 @@ else
         VerificationComment = string.Empty;
 
         await RefreshCase();
+    }
+
+    private static string GetGroupStatusClass(ClientGroupStatus status)
+    {
+        return status switch
+        {
+            ClientGroupStatus.Draft => "bg-warning text-dark",
+            ClientGroupStatus.LetterGenerated => "bg-info text-dark",
+            ClientGroupStatus.Issued => "bg-success",
+            ClientGroupStatus.Closed => "bg-secondary",
+            _ => "bg-secondary"
+        };
     }
 }

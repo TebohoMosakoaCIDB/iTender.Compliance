@@ -1,6 +1,7 @@
 ﻿using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Enums;
+using Microsoft.EntityFrameworkCore.Internal;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
@@ -45,6 +46,32 @@ namespace iTender.Compliance.Infrastructure.Services
                 $"{(tender.IsConstruction ? "construction-related" : "non-construction")} by CO.",
                 userId,
                 cancellationToken);
+        }
+
+        public async Task<int> ConfirmManyAsync(
+            IEnumerable<Guid> tenderIds,
+            Guid userId,
+            string? notes,
+            CancellationToken cancellationToken = default)
+        {
+            var confirmed = await _tenderRepository.MarkClassificationReviewedAsync(
+                tenderIds,
+                userId,
+                notes,
+                cancellationToken);
+
+            if (confirmed > 0)
+            {
+                await _auditService.LogAsync(
+                    AuditAction.Updated,
+                    AuditEntity.Tender,
+                    Guid.Empty,
+                    $"Bulk classification confirmation: {confirmed} tender(s) confirmed.",
+                    userId,
+                    cancellationToken);
+            }
+
+            return confirmed;
         }
 
         public async Task OverrideAsync(

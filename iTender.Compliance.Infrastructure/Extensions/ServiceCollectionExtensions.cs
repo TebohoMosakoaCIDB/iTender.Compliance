@@ -157,6 +157,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IAssignmentService, AssignmentService>();
             services.AddScoped<ITenderClassificationService, TenderClassificationService>();
             services.AddScoped<IClientGroupService, ClientGroupService>();
+            services.AddScoped<IWorkBasketService, WorkBasketService>();
 
             services.AddScoped<IProfileService, ProfileService>();
             services.AddHttpClient("TenderFlow", client =>

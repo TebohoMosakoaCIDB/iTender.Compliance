@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.InkML;
-using iTender.Compliance.Application.DTOs;
+﻿using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Infrastructure.Data;
@@ -7,21 +6,67 @@ using Microsoft.EntityFrameworkCore;
 
 namespace iTender.Compliance.Infrastructure.Repositories
 {
-    public class TenderRepository
-    : RepositoryBase, ITenderRepository
+    public class TenderRepository : RepositoryBase, ITenderRepository
     {
-        public TenderRepository(ComplianceDbContext context)
-            : base(context)
+        public TenderRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
+        }
+
+        public async Task<int> CountAwaitingClassificationReviewAsync(
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
+                .CountAsync(t => t.ClassificationReviewedOn == null, cancellationToken);
+        }
+
+        public async Task<int> MarkClassificationReviewedAsync(
+    IEnumerable<Guid> tenderIds,
+    Guid userId,
+    string? notes,
+    CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            var idList = tenderIds?.Distinct().ToList() ?? new List<Guid>();
+
+            if (idList.Count == 0)
+                return 0;
+
+            var tenders = await context.Tenders
+                .Where(t => idList.Contains(t.Id))
+                .Where(t => t.ClassificationReviewedOn == null)
+                .ToListAsync(cancellationToken);
+
+            if (tenders.Count == 0)
+                return 0;
+
+            var now = DateTime.UtcNow;
+
+            foreach (var tender in tenders)
+            {
+                tender.ClassificationReviewedByUserId = userId;
+                tender.ClassificationReviewedOn = now;
+                tender.ClassificationReviewNotes = notes;
+                tender.ClassificationOverridden = false;
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+
+            return tenders.Count;
         }
 
         public async Task<List<Tender>> GetUnregisteredAwardedTendersAsync(
             int minimumDaysSinceClosing,
             CancellationToken cancellationToken = default)
         {
+            await using var context = await CreateContextAsync();
+
             var cutoff = DateTime.UtcNow.AddDays(-minimumDaysSinceClosing);
 
-            return await Context.Tenders
+            return await context.Tenders
                 .Where(t => t.AwardedDate != null && !t.IsRegisteredOnRoP)
                 .Where(t => t.ClosingDate <= cutoff)
                 .ToListAsync(cancellationToken);
@@ -31,120 +76,128 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Tender tender,
             CancellationToken cancellationToken = default)
         {
-            await Context.Tenders.AddAsync(tender, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.Tenders.AddAsync(tender, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<Tender?> GetDetailAsync(
-    Guid id,
-    CancellationToken cancellationToken = default)
+            Guid id,
+            CancellationToken cancellationToken = default)
         {
-            return await Context.Tenders
-                .AsNoTracking()
+            await using var context = await CreateContextAsync();
 
+            return await context.Tenders
+                .AsNoTracking()
                 .Include(x => x.TenderSync)
                     .ThenInclude(x => x.Logs)
-
                 .Include(x => x.ComplianceCase)
-
-                .FirstOrDefaultAsync(
-                    x => x.Id == id,
-                    cancellationToken);
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             Tender tender,
             CancellationToken cancellationToken = default)
         {
-            Context.Tenders.Update(tender);
+            await using var context = await CreateContextAsync();
 
-            return Task.CompletedTask;
+            context.Tenders.Update(tender);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task DeleteAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            var tender = await GetByIdAsync(id, cancellationToken);
+            await using var context = await CreateContextAsync();
 
-            if (tender != null)
-            {
-                Context.Tenders.Remove(tender);
-            }
+            var tender = await context.Tenders
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+            if (tender == null)
+                return;
+
+            context.Tenders.Remove(tender);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task<bool> ExistsAsync(
+        public async Task<bool> ExistsAsync(
             string tenderNumber,
             CancellationToken cancellationToken = default)
         {
-            return Context.Tenders
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
                 .AnyAsync(x => x.TenderNumber == tenderNumber, cancellationToken);
         }
 
-        public Task<List<Tender>> GetAllAsync(CancellationToken cancellationToken = default)
+        public async Task<List<Tender>> GetAllAsync(
+            CancellationToken cancellationToken = default)
         {
-            return Context.Tenders
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
                 .AsNoTracking()
                 .Include(x => x.ComplianceCase)
                 .OrderByDescending(x => x.AdvertisedDate)
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<Tender?> GetByIdAsync(
-    Guid id,
-    CancellationToken cancellationToken = default)
+        public async Task<Tender?> GetByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
         {
-            return Context.Tenders
+            await using var context = await CreateContextAsync();
 
+            return await context.Tenders
                 .Include(x => x.TenderSync)
-
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(x => x.Agent)
-
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(x => x.ComplianceFindings)
-
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(x => x.ComplianceActions)
-
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(x => x.CaseLetters)
-
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(x => x.CaseNotes)
-
-                .FirstOrDefaultAsync(
-                    x => x.Id == id,
-                    cancellationToken);
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task<Tender?> GetByTenderNumberAsync(
+        public async Task<Tender?> GetByTenderNumberAsync(
             string tenderNumber,
             CancellationToken cancellationToken = default)
         {
-            return Context.Tenders
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
                 .Include(x => x.ComplianceCase)
-                .FirstOrDefaultAsync(
-                    x => x.TenderNumber == tenderNumber,
-                    cancellationToken);
+                .FirstOrDefaultAsync(x => x.TenderNumber == tenderNumber, cancellationToken);
         }
 
-        public Task<List<Tender>> GetBySyncIdAsync(
+        public async Task<List<Tender>> GetBySyncIdAsync(
             Guid tenderSyncId,
             CancellationToken cancellationToken = default)
         {
-            return Context.Tenders
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
                 .Where(x => x.TenderSyncId == tenderSyncId)
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<PagedResult<Tender>> SearchAsync(TenderSearchModel search, CancellationToken cancellationToken = default)
+        public async Task<PagedResult<Tender>> SearchAsync(
+            TenderSearchModel search,
+            CancellationToken cancellationToken = default)
         {
-            var query = Context.Tenders
+            await using var context = await CreateContextAsync();
+
+            var query = context.Tenders
                 .Include(x => x.TenderSync)
                 .AsNoTracking()
                 .AsQueryable();
 
-            // Search
             if (!string.IsNullOrWhiteSpace(search.SearchText))
             {
                 var searchText = search.SearchText.Trim();
@@ -153,95 +206,54 @@ namespace iTender.Compliance.Infrastructure.Repositories
                     x.TenderNumber.Contains(searchText) ||
                     x.Title.Contains(searchText) ||
                     x.EmployerName.Contains(searchText) ||
-                    (x.Description != null &&
-                     x.Description.Contains(searchText)));
+                    (x.Description != null && x.Description.Contains(searchText)));
             }
 
-            // Source
             if (!string.IsNullOrWhiteSpace(search.Source))
-            {
-                query = query.Where(x =>
-                    x.Source == search.Source);
-            }
+                query = query.Where(x => x.Source == search.Source);
 
-            // Construction
             if (search.IsConstruction.HasValue)
-            {
-                query = query.Where(x =>
-                    x.IsConstruction == search.IsConstruction.Value);
-            }
+                query = query.Where(x => x.IsConstruction == search.IsConstruction.Value);
 
-            // RoP registration
             if (search.IsRegisteredOnRoP.HasValue)
-            {
-                query = query.Where(x =>
-                    x.IsRegisteredOnRoP == search.IsRegisteredOnRoP.Value);
-            }
+                query = query.Where(x => x.IsRegisteredOnRoP == search.IsRegisteredOnRoP.Value);
 
-            // Awarded
             if (search.HasBeenAwarded.HasValue)
             {
                 if (search.HasBeenAwarded.Value)
-                {
-                    query = query.Where(x =>
-                        x.AwardedDate.HasValue);
-                }
+                    query = query.Where(x => x.AwardedDate.HasValue);
                 else
-                {
-                    query = query.Where(x =>
-                        !x.AwardedDate.HasValue);
-                }
+                    query = query.Where(x => !x.AwardedDate.HasValue);
             }
 
-            // Advertised date
             if (search.FromAdvertisedDate.HasValue)
-            {
-                query = query.Where(x =>
-                    x.AdvertisedDate >= search.FromAdvertisedDate.Value);
-            }
+                query = query.Where(x => x.AdvertisedDate >= search.FromAdvertisedDate.Value);
 
             if (search.ToAdvertisedDate.HasValue)
             {
                 var toDate = search.ToAdvertisedDate.Value.Date.AddDays(1);
-
-                query = query.Where(x =>
-                    x.AdvertisedDate < toDate);
+                query = query.Where(x => x.AdvertisedDate < toDate);
             }
 
-            // Closing date
             if (search.FromClosingDate.HasValue)
-            {
-                query = query.Where(x =>
-                    x.ClosingDate >= search.FromClosingDate.Value);
-            }
+                query = query.Where(x => x.ClosingDate >= search.FromClosingDate.Value);
 
             if (search.ToClosingDate.HasValue)
             {
                 var toDate = search.ToClosingDate.Value.Date.AddDays(1);
-
-                query = query.Where(x =>
-                    x.ClosingDate < toDate);
+                query = query.Where(x => x.ClosingDate < toDate);
             }
 
             if (search.HasComplianceCase.HasValue)
             {
                 if (search.HasComplianceCase.Value)
-                {
-                    query = query.Where(x =>
-                        x.ComplianceCase != null);
-                }
+                    query = query.Where(x => x.ComplianceCase != null);
                 else
-                {
-                    query = query.Where(x =>
-                        x.ComplianceCase == null);
-                }
+                    query = query.Where(x => x.ComplianceCase == null);
             }
 
-            // Total before paging
-            var totalCount =
-                await query.CountAsync(cancellationToken);
+            var totalCount = await query.CountAsync(cancellationToken);
 
-            // Paging
             var items = await query
                 .OrderByDescending(x => x.AdvertisedDate)
                 .Skip((search.PageNumber - 1) * search.PageSize)
@@ -257,13 +269,14 @@ namespace iTender.Compliance.Infrastructure.Repositories
             };
         }
 
-        
         public async Task<IReadOnlyList<Tender>> GetByNormalizedTitleAsync(
             string normalizedTitle,
             Guid excludeTenderId,
             CancellationToken cancellationToken = default)
         {
-            return await Context.Tenders
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
                 .Where(x => x.Id != excludeTenderId
                             && x.NormalizedTitle == normalizedTitle)
                 .ToListAsync(cancellationToken);
@@ -275,9 +288,11 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid excludeTenderId,
             CancellationToken cancellationToken = default)
         {
+            await using var context = await CreateContextAsync();
+
             var day = closingDate.Date;
 
-            return await Context.Tenders
+            return await context.Tenders
                 .Where(x => x.Id != excludeTenderId
                             && x.EmployerName == employerName
                             && x.ClosingDate.Date == day)
@@ -290,7 +305,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             int graceDays,
             CancellationToken cancellationToken = default)
         {
-            return await Context.Tenders
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
                 .Where(t => t.IsRegisteredOnRoP
                          && t.RoPRegistrationDate != null
                          && t.RoPRegistrationDate > t.ClosingDate.AddDays(graceDays)
@@ -301,10 +318,12 @@ namespace iTender.Compliance.Infrastructure.Repositories
         }
 
         public async Task<PagedResult<Tender>> SearchForClassificationReviewAsync(
-    TenderClassificationSearchModel search,
-    CancellationToken cancellationToken = default)
+            TenderClassificationSearchModel search,
+            CancellationToken cancellationToken = default)
         {
-            var query = Context.Tenders.AsQueryable();
+            await using var context = await CreateContextAsync();
+
+            var query = context.Tenders.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search.SearchText))
             {
@@ -340,15 +359,17 @@ namespace iTender.Compliance.Infrastructure.Repositories
         }
 
         public async Task<IReadOnlyList<Tender>> GetByIdsAsync(
-    IEnumerable<Guid> ids,
-    CancellationToken cancellationToken = default)
+            IEnumerable<Guid> ids,
+            CancellationToken cancellationToken = default)
         {
+            await using var context = await CreateContextAsync();
+
             var idList = ids?.Distinct().ToList() ?? new List<Guid>();
 
             if (idList.Count == 0)
                 return Array.Empty<Tender>();
 
-            return await Context.Tenders
+            return await context.Tenders
                 .Where(t => idList.Contains(t.Id))
                 .ToListAsync(cancellationToken);
         }

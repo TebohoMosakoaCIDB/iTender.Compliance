@@ -7,25 +7,31 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class CaseNoteRepository : RepositoryBase, ICaseNoteRepository
     {
-        private readonly IUnitOfWork _unitOfWork;
-        public CaseNoteRepository(ComplianceDbContext context, IUnitOfWork unitOfWork)
-            : base(context)
+        public CaseNoteRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
-            _unitOfWork = unitOfWork;
-        }
-        public async Task AddAsync(CaseNote note, CancellationToken cancellationToken = default)
-        {
-            await Context.Notes.AddAsync(note, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        public async Task<List<CaseNote>> GetByCaseIdAsync(Guid complianceCaseId, CancellationToken cancellationToken = default)
+        public async Task AddAsync(
+            CaseNote note,
+            CancellationToken cancellationToken = default)
         {
-            return await Context.Notes
+            await using var context = await CreateContextAsync();
+
+            await context.Notes.AddAsync(note, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task<List<CaseNote>> GetByCaseIdAsync(
+            Guid complianceCaseId,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.Notes
                 .Where(x => x.ComplianceCaseId == complianceCaseId)
                 .OrderByDescending(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
-
     }
 }

@@ -5,19 +5,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace iTender.Compliance.Infrastructure.Repositories
 {
-    public class SystemSettingRepository
-    : RepositoryBase, ISystemSettingRepository
+    public class SystemSettingRepository : RepositoryBase, ISystemSettingRepository
     {
-        public SystemSettingRepository(
-            ComplianceDbContext context)
-            : base(context)
+        public SystemSettingRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
         public async Task<SystemSetting> GetAsync(
             CancellationToken cancellationToken = default)
         {
-            var settings = await Context.SystemSettings
+            await using var context = await CreateContextAsync();
+
+            var settings = await context.SystemSettings
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (settings != null)
@@ -25,22 +25,20 @@ namespace iTender.Compliance.Infrastructure.Repositories
 
             settings = new SystemSetting();
 
-            await Context.SystemSettings.AddAsync(
-                settings,
-                cancellationToken);
-
-            await Context.SaveChangesAsync(cancellationToken);
+            await context.SystemSettings.AddAsync(settings, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
 
             return settings;
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             SystemSetting setting,
             CancellationToken cancellationToken = default)
         {
-            Context.SystemSettings.Update(setting);
+            await using var context = await CreateContextAsync();
 
-            return Task.CompletedTask;
+            context.SystemSettings.Update(setting);
+            await context.SaveChangesAsync(cancellationToken);
         }
     }
 }

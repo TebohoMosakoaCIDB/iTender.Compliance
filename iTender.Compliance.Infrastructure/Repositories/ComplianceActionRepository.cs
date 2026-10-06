@@ -7,41 +7,62 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class ComplianceActionRepository : IComplianceActionRepository
     {
-        private readonly ComplianceDbContext _context;
-        private readonly DbSet<ComplianceAction> _dbSet;
+        private readonly IDbContextFactory<ComplianceDbContext> _contextFactory;
 
-        public ComplianceActionRepository(ComplianceDbContext context)
+        public ComplianceActionRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
         {
-            _context = context;
-            _dbSet = context.Set<ComplianceAction>();
+            _contextFactory = contextFactory;
         }
 
-        public async Task<ComplianceAction?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-            => await _dbSet.FindAsync(new object[] { id }, cancellationToken);
+        public async Task<ComplianceAction?> GetByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        public async Task<IEnumerable<ComplianceAction>> GetByCaseIdAsync(Guid caseId, CancellationToken cancellationToken = default)
-            => await _dbSet.Where(a => a.ComplianceCaseId == caseId).ToListAsync(cancellationToken);
+            return await context.ComplianceActions
+                .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        }
+
+        public async Task<IEnumerable<ComplianceAction>> GetByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            return await context.ComplianceActions
+                .Where(a => a.ComplianceCaseId == caseId)
+                .ToListAsync(cancellationToken);
+        }
 
         public async Task AddAsync(
-    ComplianceAction action,
-    CancellationToken cancellationToken = default)
+            ComplianceAction action,
+            CancellationToken cancellationToken = default)
         {
-            await _context.ComplianceActions.AddAsync(
-                action,
-                cancellationToken);
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-        public Task UpdateAsync(ComplianceAction action, CancellationToken cancellationToken = default)
-        {
-            _dbSet.Update(action);
-            return Task.CompletedTask;
+            await context.ComplianceActions.AddAsync(action, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task DeleteAsync(ComplianceAction action, CancellationToken cancellationToken = default)
+        public async Task UpdateAsync(
+            ComplianceAction action,
+            CancellationToken cancellationToken = default)
         {
-            _dbSet.Remove(action);
-            return Task.CompletedTask;
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            context.ComplianceActions.Update(action);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task DeleteAsync(
+            ComplianceAction action,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            context.ComplianceActions.Remove(action);
+            await context.SaveChangesAsync(cancellationToken);
         }
     }
 }

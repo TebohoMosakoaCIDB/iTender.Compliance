@@ -8,6 +8,12 @@
             string? notes,
             CancellationToken cancellationToken = default);
 
+        Task<int> ConfirmManyAsync(
+            IEnumerable<Guid> tenderIds,
+            Guid userId,
+            string? notes,
+            CancellationToken cancellationToken = default);
+
         Task OverrideAsync(
             Guid tenderId,
             bool isConstruction,

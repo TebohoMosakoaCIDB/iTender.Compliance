@@ -1,4 +1,5 @@
 ﻿@page "/approvals"
+@page "/administration/approvals"
 @rendermode InteractiveServer
 
 @using Microsoft.AspNetCore.Authorization
@@ -47,12 +48,64 @@
 
     </div>
 
+    <br />
+    <!-- ===================================================== -->
+    <!-- ADMINISTRATION TABS -->
+    <!-- ===================================================== -->
+    <ul class="nav nav-tabs mb-4">
+
+        <li class="nav-item">
+            <NavLink class="nav-link"
+                     href="/administration"
+                     Match="NavLinkMatch.All">
+                <i class="bi bi-sliders me-1"></i>
+                Settings
+            </NavLink>
+        </li>
+
+        <AuthorizeView Policy="Correspondence">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/administration/templates">
+                    <i class="bi bi-envelope-paper me-1"></i>
+                    Templates
+                </NavLink>
+            </li>
+        </AuthorizeView>
+
+        <AuthorizeView Policy="ComplianceOversight">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/administration/approvals">
+                    <i class="bi bi-patch-check me-1"></i>
+                    Approvals
+                </NavLink>
+            </li>
+        </AuthorizeView>
+
+        <li class="nav-item">
+            <NavLink class="nav-link" href="/administration/synchronizations">
+                <i class="bi bi-clock-history me-1"></i>
+                Synchronizations
+            </NavLink>
+        </li>
+
+        <AuthorizeView Policy="AccountManagement">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/administration/accounts">
+                    <i class="bi bi-people me-1"></i>
+                    Accounts
+                </NavLink>
+            </li>
+        </AuthorizeView>
+
+    </ul>
+
     @if (!string.IsNullOrWhiteSpace(_resultMessage))
     {
         <div class="alert @(_resultIsError ? "alert-danger" : "alert-success")">
             @_resultMessage
         </div>
     }
+
 
     <div class="card shadow-sm">
 

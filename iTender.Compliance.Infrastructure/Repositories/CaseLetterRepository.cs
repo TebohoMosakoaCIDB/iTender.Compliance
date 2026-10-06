@@ -7,8 +7,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class CaseLetterRepository : RepositoryBase, ICaseLetterRepository
     {
-        public CaseLetterRepository(ComplianceDbContext context)
-            : base(context)
+        public CaseLetterRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
@@ -16,67 +16,86 @@ namespace iTender.Compliance.Infrastructure.Repositories
             CaseLetter letter,
             CancellationToken cancellationToken = default)
         {
-            await Context.CaseLetters.AddAsync(letter, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.CaseLetters.AddAsync(letter, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             CaseLetter letter,
             CancellationToken cancellationToken = default)
         {
-            Context.CaseLetters.Update(letter);
-            return Task.CompletedTask;
+            await using var context = await CreateContextAsync();
+
+            context.CaseLetters.Update(letter);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task<CaseLetter?> GetByIdAsync(
+        public async Task<CaseLetter?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task<List<CaseLetter>> GetByComplianceCaseIdAsync(
+        public async Task<List<CaseLetter>> GetByComplianceCaseIdAsync(
             Guid complianceCaseId,
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
                 .Where(x => x.ComplianceCaseId == complianceCaseId)
                 .OrderBy(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<List<CaseLetter>> GetAllAsync(
+        public async Task<List<CaseLetter>> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
                 .OrderByDescending(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<List<CaseLetter>> GetByCaseIdAsync(
-    Guid complianceCaseId,
-    CancellationToken cancellationToken = default)
+        public async Task<List<CaseLetter>> GetByCaseIdAsync(
+            Guid complianceCaseId,
+            CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
                 .Where(x => x.ComplianceCaseId == complianceCaseId)
                 .OrderBy(x => x.LetterNumber)
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<CaseLetter?> GetLatestAsync(
+        public async Task<CaseLetter?> GetLatestAsync(
             Guid complianceCaseId,
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
                 .Where(x => x.ComplianceCaseId == complianceCaseId)
                 .OrderByDescending(x => x.LetterNumber)
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        public Task<List<CaseLetter>> GetOutstandingAsync(
-            CancellationToken cancellationToken = default)
+        public async Task<List<CaseLetter>> GetOutstandingAsync(
+    CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
+                .Include(x => x.ComplianceCase)
+                    .ThenInclude(c => c.ComplianceFindings)
                 .Where(x =>
                     !x.RespondedOn.HasValue &&
                     x.ResponseDueOn <= DateTime.UtcNow)
@@ -84,14 +103,18 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<List<CaseLetter>> GetOutstandingWithCaseAsync(
+        public async Task<List<CaseLetter>> GetOutstandingWithCaseAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(c => c.Tender)
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(c => c.Agent)
+                .Include(x => x.ComplianceCase)
+                    .ThenInclude(c => c.ComplianceFindings)
                 .Where(x =>
                     !x.RespondedOn.HasValue &&
                     x.ResponseDueOn <= DateTime.UtcNow &&
@@ -100,10 +123,12 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<List<CaseLetter>> GetActiveWithCaseAsync(
+        public async Task<List<CaseLetter>> GetActiveWithCaseAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(c => c.Tender)
                 .Include(x => x.ComplianceCase)

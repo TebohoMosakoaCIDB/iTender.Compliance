@@ -1,4 +1,5 @@
 ﻿@page "/accounts/{Id:guid}"
+@page "/administration/accounts/{Id:guid}"
 @rendermode InteractiveServer
 @using iTender.Compliance.Domain.Enums
 @using iTender.Compliance.Application.Common
@@ -335,12 +336,12 @@
             return;
         }
 
-        Navigation.NavigateTo("/accounts");
+        Navigation.NavigateTo("/administration/accounts");
     }
 
     private void Cancel()
     {
-        Navigation.NavigateTo("/accounts");
+        Navigation.NavigateTo("/administration/accounts");
     }
 
     private Task ResetPassword()

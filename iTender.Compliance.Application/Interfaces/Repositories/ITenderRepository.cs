@@ -5,14 +5,21 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface ITenderRepository
     {
-        /// <summary>Awarded tenders still not registered on the RoP, at least minimumDaysSinceClosing days
-        /// past their closing date (CIDB rule: 90-day procurement window + 21-day registration grace = 111).</summary>
+        Task<int> MarkClassificationReviewedAsync(
+            IEnumerable<Guid> tenderIds,
+            Guid userId,
+            string? notes,
+            CancellationToken cancellationToken = default);
+
         Task<List<Tender>> GetUnregisteredAwardedTendersAsync(
             int minimumDaysSinceClosing,
             CancellationToken cancellationToken = default);
 
         Task<Tender?> GetByIdAsync(
             Guid id,
+            CancellationToken cancellationToken = default);
+
+        Task<int> CountAwaitingClassificationReviewAsync(
             CancellationToken cancellationToken = default);
 
         Task<IReadOnlyList<Tender>> GetByIdsAsync(

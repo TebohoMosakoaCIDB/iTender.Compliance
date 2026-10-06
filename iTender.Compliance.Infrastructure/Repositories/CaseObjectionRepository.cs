@@ -8,26 +8,30 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class CaseObjectionRepository : RepositoryBase, ICaseObjectionRepository
     {
-        public CaseObjectionRepository(ComplianceDbContext context)
-            : base(context)
+        public CaseObjectionRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
-        public Task<CaseObjection?> GetByIdAsync(
+        public async Task<CaseObjection?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseObjections
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseObjections
                 .Include(x => x.ComplianceCase)
                 .Include(x => x.CaseLetter)
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task<List<CaseObjection>> GetByCaseIdAsync(
+        public async Task<List<CaseObjection>> GetByCaseIdAsync(
             Guid complianceCaseId,
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseObjections
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseObjections
                 .Where(x => x.ComplianceCaseId == complianceCaseId)
                 .Include(x => x.ComplianceCase)
                 .Include(x => x.CaseLetter)
@@ -35,10 +39,12 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<List<CaseObjection>> GetAwaitingReviewAsync(
+        public async Task<List<CaseObjection>> GetAwaitingReviewAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.CaseObjections
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseObjections
                 .Include(x => x.ComplianceCase)
                     .ThenInclude(c => c.Tender)
                 .Where(x => x.Status != ObjectionStatus.Resolved)
@@ -50,15 +56,20 @@ namespace iTender.Compliance.Infrastructure.Repositories
             CaseObjection objection,
             CancellationToken cancellationToken = default)
         {
-            await Context.CaseObjections.AddAsync(objection, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.CaseObjections.AddAsync(objection, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             CaseObjection objection,
             CancellationToken cancellationToken = default)
         {
-            Context.CaseObjections.Update(objection);
-            return Task.CompletedTask;
+            await using var context = await CreateContextAsync();
+
+            context.CaseObjections.Update(objection);
+            await context.SaveChangesAsync(cancellationToken);
         }
     }
 }

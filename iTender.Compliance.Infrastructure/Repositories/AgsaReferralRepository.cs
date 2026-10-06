@@ -7,33 +7,39 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class AgsaReferralRepository : RepositoryBase, IAgsaReferralRepository
     {
-        public AgsaReferralRepository(ComplianceDbContext context)
-            : base(context)
+        public AgsaReferralRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
-        public Task<AGSAReferral?> GetByIdAsync(
+        public async Task<AGSAReferral?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.AGSAReferrals
+            await using var context = await CreateContextAsync();
+
+            return await context.AGSAReferrals
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task<AGSAReferral?> GetByCaseIdAsync(
+        public async Task<AGSAReferral?> GetByCaseIdAsync(
             Guid complianceCaseId,
             CancellationToken cancellationToken = default)
         {
-            return Context.AGSAReferrals
+            await using var context = await CreateContextAsync();
+
+            return await context.AGSAReferrals
                 .FirstOrDefaultAsync(
                     x => x.ComplianceCaseId == complianceCaseId,
                     cancellationToken);
         }
 
-        public Task<List<AGSAReferral>> GetAllAsync(
+        public async Task<List<AGSAReferral>> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.AGSAReferrals
+            await using var context = await CreateContextAsync();
+
+            return await context.AGSAReferrals
                 .OrderByDescending(x => x.ReferralDate)
                 .ToListAsync(cancellationToken);
         }
@@ -42,15 +48,20 @@ namespace iTender.Compliance.Infrastructure.Repositories
             AGSAReferral referral,
             CancellationToken cancellationToken = default)
         {
-            await Context.AGSAReferrals.AddAsync(referral, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.AGSAReferrals.AddAsync(referral, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             AGSAReferral referral,
             CancellationToken cancellationToken = default)
         {
-            Context.AGSAReferrals.Update(referral);
-            return Task.CompletedTask;
+            await using var context = await CreateContextAsync();
+
+            context.AGSAReferrals.Update(referral);
+            await context.SaveChangesAsync(cancellationToken);
         }
     }
 }

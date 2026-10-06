@@ -770,7 +770,7 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
                     b.HasIndex("ComplianceCaseId");
 
-                    b.ToTable("ComplianceFinding");
+                    b.ToTable("ComplianceFindings");
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.CorrespondenceTemplateModel", b =>

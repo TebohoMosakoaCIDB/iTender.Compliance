@@ -9,8 +9,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class AgentRepository : RepositoryBase, IAgentRepository
     {
-        public AgentRepository(ComplianceDbContext context)
-            : base(context)
+        public AgentRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
@@ -18,63 +18,78 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Agent agent,
             CancellationToken cancellationToken = default)
         {
-            await Context.Agents.AddAsync(agent, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.Agents.AddAsync(agent, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             Agent agent,
             CancellationToken cancellationToken = default)
         {
-            Context.Agents.Update(agent);
-            return Task.CompletedTask;
+            await using var context = await CreateContextAsync();
+
+            context.Agents.Update(agent);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task<Agent?> GetByIdAsync(
+        public async Task<Agent?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.Agents
+            await using var context = await CreateContextAsync();
+
+            return await context.Agents
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task<Agent?> GetByUserIdAsync(
+        public async Task<Agent?> GetByUserIdAsync(
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            return Context.Agents
+            await using var context = await CreateContextAsync();
+
+            return await context.Agents
                 .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
         }
 
-        public Task<List<Agent>> GetAllAsync(
+        public async Task<List<Agent>> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.Agents
+            await using var context = await CreateContextAsync();
+
+            return await context.Agents
                 .OrderBy(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<List<Agent>> GetActiveAsync(
+        public async Task<List<Agent>> GetActiveAsync(
             CancellationToken cancellationToken = default)
         {
-            var agents =  Context.Agents
+            await using var context = await CreateContextAsync();
+
+            return await context.Agents
                 .Where(x => x.IsActive)
                 .ToListAsync(cancellationToken);
-
-            return agents;
         }
 
-        public Task<List<Agent>> GetManagersAsync(
+        public async Task<List<Agent>> GetManagersAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.Agents
+            await using var context = await CreateContextAsync();
+
+            return await context.Agents
                 .Where(x => x.IsActive && x.IsManager)
                 .ToListAsync(cancellationToken);
         }
 
         public async Task<List<AgentLookupModel>> GetLookupAsync(
-    CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default)
         {
-            return await Context.Agents
+            await using var context = await CreateContextAsync();
+
+            return await context.Agents
                 .Where(x => x.IsActive)
                 .OrderBy(x => x.FullName)
                 .Select(x => new AgentLookupModel

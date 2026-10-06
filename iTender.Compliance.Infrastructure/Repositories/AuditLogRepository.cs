@@ -5,12 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace iTender.Compliance.Infrastructure.Repositories
 {
-    public class AuditLogRepository
-    : RepositoryBase, IAuditLogRepository
+    public class AuditLogRepository : RepositoryBase, IAuditLogRepository
     {
-        public AuditLogRepository(
-            ComplianceDbContext context)
-            : base(context)
+        public AuditLogRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
@@ -18,44 +16,51 @@ namespace iTender.Compliance.Infrastructure.Repositories
             AuditLog auditLog,
             CancellationToken cancellationToken = default)
         {
-            await Context.AuditLogs.AddAsync(
-                auditLog,
-                cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.AuditLogs.AddAsync(auditLog, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task<List<AuditLog>> GetAllAsync(CancellationToken cancellationToken = default)
+        public async Task<List<AuditLog>> GetAllAsync(
+            CancellationToken cancellationToken = default)
         {
-            return Context.AuditLogs
+            await using var context = await CreateContextAsync();
+
+            return await context.AuditLogs
                 .OrderByDescending(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<AuditLog?> GetByIdAsync(
+        public async Task<AuditLog?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.AuditLogs
-                .FirstOrDefaultAsync(
-                    x => x.Id == id,
-                    cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            return await context.AuditLogs
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        
-        public Task<List<AuditLog>> GetByUserAsync(
+        public async Task<List<AuditLog>> GetByUserAsync(
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            return Context.AuditLogs
+            await using var context = await CreateContextAsync();
+
+            return await context.AuditLogs
                 .Where(x => x.CreatedBy == userId)
                 .OrderByDescending(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<List<AuditLog>> GetRecentAsync(
+        public async Task<List<AuditLog>> GetRecentAsync(
             int count,
             CancellationToken cancellationToken = default)
         {
-            return Context.AuditLogs
+            await using var context = await CreateContextAsync();
+
+            return await context.AuditLogs
                 .OrderByDescending(x => x.CreatedOn)
                 .Take(count)
                 .ToListAsync(cancellationToken);

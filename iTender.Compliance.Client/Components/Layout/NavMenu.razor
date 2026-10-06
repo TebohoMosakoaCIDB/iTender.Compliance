@@ -1,5 +1,8 @@
 ﻿@implements IDisposable
 
+@using iTender.Compliance.Application.Interfaces.Repositories
+@inject ITenderRepository TenderRepository
+
 @inject NavigationManager NavigationManager
 
 <div class="top-row ps-3 navbar navbar-dark">
@@ -56,6 +59,7 @@
                     </NavLink>
                 </div>
 
+                <!-- Client Groups -->
                 <AuthorizeView Policy="CaseManagement">
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="clients/groups">
@@ -68,19 +72,33 @@
                 <!-- Compliance Cases -->
                 <AuthorizeView Policy="CaseManagement">
                     <div class="nav-item px-3">
-                        <NavLink class="nav-link"
-                                 href="cases">
+                        <NavLink class="nav-link" href="cases">
                             <span class="bi bi-patch-check-fill-nav-menu"></span>
-                            Compliance Cases
+                            All Cases
                         </NavLink>
                     </div>
                 </AuthorizeView>
 
+                <!-- Work Baskets -->
+                <AuthorizeView Policy="CaseManagement">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="work-baskets">
+                            <span class="bi bi-inboxes-fill-nav-menu" aria-hidden="true"></span>
+                            Work Baskets
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
+
+                <!-- Compliance Case Review -->
                 <AuthorizeView Policy="CaseManagement">
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="tenders/classification">
                             <span class="bi bi-diagram-3-nav-menu" aria-hidden="true"></span>
                             Classification Review
+                            @if (UnreviewedTenderCount > 0)
+                            {
+                                <span class="badge bg-danger ms-2">@UnreviewedTenderCount</span>
+                            }
                         </NavLink>
                     </div>
                 </AuthorizeView>
@@ -97,7 +115,6 @@
                     </div>
                 </AuthorizeView>
 
-
                 <!-- Administration -->
                 <AuthorizeView Policy="Administration">
                     <div class="nav-item px-3">
@@ -105,52 +122,6 @@
                                  href="administration">
                             <span class="bi bi-gear-fill-nav-menu"></span>
                             Administration
-                        </NavLink>
-                    </div>
-                </AuthorizeView>
-
-
-                <!-- Correspondence Templates -->
-                <AuthorizeView Policy="Correspondence">
-                    <div class="nav-item px-3">
-
-                        <NavLink class="nav-link"
-                                 href="correspondence">
-
-                            <span class="bi bi-envelope-paper-fill-nav-menu"></span>
-
-                            Templates
-
-                        </NavLink>
-
-                    </div>
-                </AuthorizeView>
-
-
-                <!-- Approvals -->
-                <AuthorizeView Policy="ComplianceOversight">
-                    <div class="nav-item px-3">
-
-                        <NavLink class="nav-link"
-                                 href="approvals">
-
-                            <span class="bi bi-patch-check-fill-nav-menu"></span>
-
-                            Approvals
-
-                        </NavLink>
-
-                    </div>
-                </AuthorizeView>
-
-
-                <!-- User Management -->
-                <AuthorizeView Policy="AccountManagement">
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link"
-                                 href="accounts">
-                            <span class="bi bi-people-fill-nav-menu"></span>
-                            Manage Accounts
                         </NavLink>
                     </div>
                 </AuthorizeView>
@@ -191,27 +162,38 @@
 
 </div>
 
-
 @code
 {
     private string? currentUrl;
+    private int UnreviewedTenderCount;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         currentUrl =
-            NavigationManager.ToBaseRelativePath(
-                NavigationManager.Uri);
+            NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+
+        UnreviewedTenderCount =
+            await TenderRepository.CountAwaitingClassificationReviewAsync();
 
         NavigationManager.LocationChanged += OnLocationChanged;
     }
 
-    private void OnLocationChanged(
+    private async void OnLocationChanged(
         object? sender,
         LocationChangedEventArgs e)
     {
         currentUrl =
-            NavigationManager.ToBaseRelativePath(
-                e.Location);
+            NavigationManager.ToBaseRelativePath(e.Location);
+
+        try
+        {
+            UnreviewedTenderCount =
+                await TenderRepository.CountAwaitingClassificationReviewAsync();
+        }
+        catch
+        {
+            // Don't let a nav-count failure crash the layout.
+        }
 
         StateHasChanged();
     }

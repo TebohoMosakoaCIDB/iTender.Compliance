@@ -8,9 +8,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class TenderSyncLogRepository : RepositoryBase, ITenderSyncLogRepository
     {
-        public TenderSyncLogRepository(
-            ComplianceDbContext context)
-            : base(context)
+        public TenderSyncLogRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
@@ -18,24 +17,31 @@ namespace iTender.Compliance.Infrastructure.Repositories
             TenderSyncLog log,
             CancellationToken cancellationToken = default)
         {
-            await Context.SyncLogs.AddAsync(log, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.SyncLogs.AddAsync(log, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task<List<TenderSyncLog>> GetBySyncIdAsync(
+        public async Task<List<TenderSyncLog>> GetBySyncIdAsync(
             Guid tenderSyncId,
             CancellationToken cancellationToken = default)
         {
-            return Context.SyncLogs
+            await using var context = await CreateContextAsync();
+
+            return await context.SyncLogs
                 .Where(x => x.TenderSyncId == tenderSyncId)
                 .OrderBy(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
 
         public async Task<TenderSyncDetailModel?> GetDetailAsync(
-    Guid id,
-    CancellationToken cancellationToken = default)
+            Guid id,
+            CancellationToken cancellationToken = default)
         {
-            return await Context.TenderSyncs
+            await using var context = await CreateContextAsync();
+
+            return await context.TenderSyncs
                 .Where(x => x.Id == id)
                 .Select(x => new TenderSyncDetailModel
                 {

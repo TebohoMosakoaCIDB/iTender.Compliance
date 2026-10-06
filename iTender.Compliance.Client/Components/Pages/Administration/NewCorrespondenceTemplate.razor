@@ -529,11 +529,9 @@
             Template.CreatedOn =
                 DateTime.UtcNow;
 
-
             await TemplateService.CreateAsync(Template);
 
-
-            Navigation.NavigateTo("/correspondence");
+            Navigation.NavigateTo("/administration/templates");
 
         }
         catch (Exception ex)
@@ -551,7 +549,7 @@
 
     private void Cancel()
     {
-        Navigation.NavigateTo("/correspondence");
+        Navigation.NavigateTo("/administration/templates");
     }
 
 

@@ -8,8 +8,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class SigningRequestRepository : RepositoryBase, ISigningRequestRepository
     {
-        public SigningRequestRepository(ComplianceDbContext context)
-            : base(context)
+        public SigningRequestRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
@@ -17,46 +17,50 @@ namespace iTender.Compliance.Infrastructure.Repositories
             SigningRequest request,
             CancellationToken cancellationToken = default)
         {
-            await Context.SigningRequests.AddAsync(
-                request,
-                cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.SigningRequests.AddAsync(request, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             SigningRequest request,
             CancellationToken cancellationToken = default)
         {
-            Context.SigningRequests.Update(request);
+            await using var context = await CreateContextAsync();
 
-            return Task.CompletedTask;
+            context.SigningRequests.Update(request);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task<SigningRequest?> GetByIdAsync(
+        public async Task<SigningRequest?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.SigningRequests
+            await using var context = await CreateContextAsync();
+
+            return await context.SigningRequests
                 .Include(x => x.CaseLetter)
-                .FirstOrDefaultAsync(
-                    x => x.Id == id,
-                    cancellationToken);
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task<SigningRequest?> GetByCaseLetterAsync(
+        public async Task<SigningRequest?> GetByCaseLetterAsync(
             Guid caseLetterId,
             CancellationToken cancellationToken = default)
         {
-            return Context.SigningRequests
+            await using var context = await CreateContextAsync();
+
+            return await context.SigningRequests
                 .Include(x => x.CaseLetter)
-                .FirstOrDefaultAsync(
-                    x => x.CaseLetterId == caseLetterId,
-                    cancellationToken);
+                .FirstOrDefaultAsync(x => x.CaseLetterId == caseLetterId, cancellationToken);
         }
 
         public async Task<List<SigningRequest>> GetPendingAsync(
             CancellationToken cancellationToken = default)
         {
-            return await Context.SigningRequests
+            await using var context = await CreateContextAsync();
+
+            return await context.SigningRequests
                 .Include(x => x.CaseLetter)
                 .Where(x =>
                     x.Status == SigningRequestStatus.Draft ||
@@ -70,7 +74,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             int take,
             CancellationToken cancellationToken = default)
         {
-            return await Context.SigningRequests
+            await using var context = await CreateContextAsync();
+
+            return await context.SigningRequests
                 .Include(x => x.CaseLetter)
                     .ThenInclude(l => l.ComplianceCase)
                         .ThenInclude(c => c.Tender)

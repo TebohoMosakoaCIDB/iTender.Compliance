@@ -7,74 +7,154 @@ using Microsoft.EntityFrameworkCore;
 
 namespace iTender.Compliance.Infrastructure.Repositories
 {
-    public class ComplianceCaseRepository
-    : RepositoryBase, IComplianceCaseRepository
+    public class ComplianceCaseRepository : RepositoryBase, IComplianceCaseRepository
     {
-        public ComplianceCaseRepository(
-            ComplianceDbContext context)
-            : base(context)
+        public ComplianceCaseRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
+        }
+
+        public async Task<IReadOnlyList<ComplianceCase>> GetInBasketAsync(
+            WorkBasket basket,
+            Guid? agentId,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            var query = context.ComplianceCases
+                .Include(c => c.Tender)
+                .Include(c => c.Agent)
+                .Include(c => c.ComplianceFindings)
+                .Include(c => c.CaseLetters)
+                .AsQueryable();
+
+            if (agentId.HasValue)
+                query = query.Where(c => c.AgentId == agentId.Value);
+
+            query = basket switch
+            {
+                WorkBasket.NewlyIdentified =>
+                    query.Where(c => c.Status == CaseStatus.New && c.AgentId == null),
+
+                WorkBasket.VerificationRequired =>
+                    query.Where(c =>
+                        c.Status != CaseStatus.Closed &&
+                        c.ComplianceFindings.Any(f =>
+                            f.VerificationStatus == VerificationStatus.AutomatedFailed &&
+                            !f.IsResolved)),
+
+                WorkBasket.NotAdvertised =>
+                    query.Where(c =>
+                        c.Status != CaseStatus.Closed &&
+                        c.ComplianceFindings.Any(f =>
+                            f.Stream == ComplianceStream.Advertisement &&
+                            !f.IsResolved)),
+
+                WorkBasket.DueForInstructionLetter =>
+                    query.Where(c =>
+                        c.Status == CaseStatus.New &&
+                        c.ComplianceFindings.Any(f => !f.IsResolved) &&
+                        !c.CaseLetters.Any(l => l.Type == LetterType.Instruction)),
+
+                WorkBasket.DueForContraventionNotice =>
+                    query.Where(c =>
+                        c.Status == CaseStatus.WaitingForResponse &&
+                        c.CaseLetters.Any(l =>
+                            (l.Type == LetterType.Instruction || l.Type == LetterType.Reminder) &&
+                            l.RespondedOn == null &&
+                            l.ResponseDueOn <= DateTime.UtcNow)),
+
+                WorkBasket.CorrectiveAction =>
+                    query.Where(c => c.Status == CaseStatus.ContraventionNoticeIssued),
+
+                WorkBasket.NonCompliant =>
+                    query.Where(c =>
+                        c.Status != CaseStatus.Closed &&
+                        c.Status != CaseStatus.ReferredForEnforcement &&
+                        c.ComplianceFindings.Any(f => !f.IsResolved)),
+
+                WorkBasket.Referral =>
+                    query.Where(c => c.Status == CaseStatus.ReferredForEnforcement),
+
+                WorkBasket.ClearedResolved =>
+                    query.Where(c => c.Status == CaseStatus.Closed),
+
+                _ => query
+            };
+
+            return await query
+                .OrderByDescending(c => c.Priority)
+                .ThenBy(c => c.CreatedOn)
+                .ToListAsync(cancellationToken);
         }
 
         public async Task AddAsync(
             ComplianceCase complianceCase,
             CancellationToken cancellationToken = default)
         {
-            await Context.ComplianceCases.AddAsync(
-                complianceCase,
-                cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.ComplianceCases.AddAsync(complianceCase, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<IReadOnlyList<ComplianceCase>> GetByIdsAsync(
             IEnumerable<Guid> ids,
             CancellationToken cancellationToken = default)
         {
+            await using var context = await CreateContextAsync();
+
             var idList = ids.ToList();
 
-            return await Context.ComplianceCases
+            return await context.ComplianceCases
                 .Include(c => c.Tender)
                 .Include(c => c.CaseLetters)
                 .Where(c => idList.Contains(c.Id))
                 .ToListAsync(cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             ComplianceCase complianceCase,
             CancellationToken cancellationToken = default)
         {
-            Context.ComplianceCases.Update(complianceCase);
+            await using var context = await CreateContextAsync();
 
-            return Task.CompletedTask;
+            context.ComplianceCases.Update(complianceCase);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task<ComplianceCase?> GetByIdAsync(
+        public async Task<ComplianceCase?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
                 .Include(x => x.Tender)
                 .Include(x => x.Agent)
                 .Include(x => x.CaseLetters)
                 .Include(x => x.AuditLogs)
-                .FirstOrDefaultAsync(
-                    x => x.Id == id,
-                    cancellationToken);
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task<List<ComplianceCase>> GetAllAsync(
+        public async Task<List<ComplianceCase>> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
                 .AsNoTracking()
                 .OrderByDescending(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
 
         public async Task<PagedResult<ComplianceCase>> SearchAsync(
-    ComplianceCaseSearchModel search,
-    CancellationToken cancellationToken = default)
+            ComplianceCaseSearchModel search,
+            CancellationToken cancellationToken = default)
         {
-            var query = Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            var query = context.ComplianceCases
                 .Include(x => x.Tender)
                 .Include(x => x.Agent)
                 .Include(c => c.ComplianceFindings)
@@ -111,14 +191,15 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 PageNumber = search.PageNumber,
                 PageSize = search.PageSize
             };
-
         }
 
         public async Task<ComplianceCaseDetailModel?> GetDetailAsync(
-    Guid id,
-    CancellationToken cancellationToken = default)
+            Guid id,
+            CancellationToken cancellationToken = default)
         {
-            var model = await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            var model = await context.ComplianceCases
                 .Where(x => x.Id == id)
                 .Select(x => new ComplianceCaseDetailModel
                 {
@@ -144,7 +225,6 @@ namespace iTender.Compliance.Infrastructure.Repositories
                             ? x.Outcome.Value.ToString()
                             : null,
                         AgentId = x.AgentId,
-                        // ---- Null‑safe access for Agent ----
                         Level = x.Agent != null ? x.Agent.Level : (AgentLevel?)null,
                         JobTitle = x.Agent != null ? x.Agent.JobTitle : null,
                         FooterText = x.Agent != null ? x.Agent.FooterText : null,
@@ -216,7 +296,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
             if (model == null)
                 return null;
 
-            model.Timeline = await Context.AuditLogs
+            model.Timeline = await context.AuditLogs
                 .Where(x =>
                     x.Entity == AuditEntity.ComplianceCase &&
                     x.EntityId == id)
@@ -235,11 +315,13 @@ namespace iTender.Compliance.Infrastructure.Repositories
             return model;
         }
 
-        public Task<CaseLetter?> GetLatestOutstandingAsync(
-    Guid complianceCaseId,
-    CancellationToken cancellationToken = default)
+        public async Task<CaseLetter?> GetLatestOutstandingAsync(
+            Guid complianceCaseId,
+            CancellationToken cancellationToken = default)
         {
-            return Context.CaseLetters
+            await using var context = await CreateContextAsync();
+
+            return await context.CaseLetters
                 .Where(x =>
                     x.ComplianceCaseId == complianceCaseId &&
                     !x.RespondedOn.HasValue)
@@ -248,74 +330,76 @@ namespace iTender.Compliance.Infrastructure.Repositories
         }
 
         public async Task<int> GetOpenCaseCountByAgentAsync(
-    Guid agentId,
-    CancellationToken cancellationToken = default)
+            Guid agentId,
+            CancellationToken cancellationToken = default)
         {
-            return await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
                 .CountAsync(x =>
                     x.AgentId == agentId &&
                     x.Status != CaseStatus.Closed,
                     cancellationToken);
         }
-        
+
         public async Task<List<ComplianceCase>> GetCasesAwaitingReminderAsync(
-    int reminderAfterHours,
-    CancellationToken cancellationToken = default)
+            int reminderAfterHours,
+            CancellationToken cancellationToken = default)
         {
+            await using var context = await CreateContextAsync();
+
             var reminderCutoff = DateTime.UtcNow.AddHours(-reminderAfterHours);
 
-            return await Context.ComplianceCases
-
+            return await context.ComplianceCases
                 .Include(x => x.Agent)
                 .Include(x => x.Tender)
                 .Include(x => x.CaseLetters)
-
-                // Case must still be open
                 .Where(x => x.Status != CaseStatus.Closed)
-
-                // Must be assigned
                 .Where(x => x.AgentId != null)
-
-                // Waiting for supplier response
                 .Where(x => x.Status == CaseStatus.WaitingForResponse)
-
-                // Must have an instruction letter older than X hours
                 .Where(x => x.CaseLetters.Any(l =>
                     l.Type == LetterType.Instruction &&
                     l.CreatedOn <= reminderCutoff))
-
-                // Must NOT already have a reminder
                 .Where(x => !x.CaseLetters.Any(l =>
                     l.Type == LetterType.Reminder))
-
                 .OrderBy(x => x.CreatedOn)
-
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<ComplianceCase?> GetByTenderIdAsync(Guid tenderId, CancellationToken cancellationToken = default)
+        public async Task<ComplianceCase?> GetByTenderIdAsync(
+            Guid tenderId,
+            CancellationToken cancellationToken = default)
         {
-            return await Context.ComplianceCases.FirstOrDefaultAsync(c => c.TenderId == tenderId, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
+                .FirstOrDefaultAsync(c => c.TenderId == tenderId, cancellationToken);
         }
 
         public async Task<List<ComplianceCase>> GetOpenCasesAssignedBeforeAsync(
             DateTime cutoff,
             CancellationToken cancellationToken = default)
         {
-            return await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
                 .Include(x => x.Tender)
-                .Where(x => x.Status != CaseStatus.Closed && x.Status != CaseStatus.ReferredForEnforcement)
+                .Include(c => c.ComplianceFindings)
+                .Where(x => x.Status != CaseStatus.Closed
+                         && x.Status != CaseStatus.ReferredForEnforcement)
                 .Where(x => x.AssignedOn != null && x.AssignedOn <= cutoff)
                 .ToListAsync(cancellationToken);
         }
 
         public async Task<IReadOnlyList<ComplianceCase>> GetContraventionNoticeDueAsync(
-    int withinWorkingDays,
-    CancellationToken cancellationToken = default)
+            int withinWorkingDays,
+            CancellationToken cancellationToken = default)
         {
+            await using var context = await CreateContextAsync();
+
             var cutoff = DateTime.UtcNow.AddDays(withinWorkingDays);
 
-            return await Context.ComplianceCases
+            return await context.ComplianceCases
                 .Include(c => c.Tender)
                 .Include(c => c.CaseLetters)
                 .Where(c => c.Status == CaseStatus.WaitingForResponse

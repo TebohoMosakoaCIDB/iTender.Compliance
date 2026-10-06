@@ -41,7 +41,7 @@
             </h2>
 
             <p class="text-muted mb-0">
-                Manage tender synchronization, system configuration and case assignment.
+                Manage tender synchronization, system configuration and group assignment.
             </p>
 
         </div>
@@ -70,6 +70,56 @@
         </button>
 
     </div>
+
+    <!-- ===================================================== -->
+    <!-- ADMINISTRATION TABS -->
+    <!-- ===================================================== -->
+    <ul class="nav nav-tabs mb-4">
+
+        <li class="nav-item">
+            <NavLink class="nav-link"
+                     href="/administration"
+                     Match="NavLinkMatch.All">
+                <i class="bi bi-sliders me-1"></i>
+                Settings
+            </NavLink>
+        </li>
+
+        <AuthorizeView Policy="Correspondence">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/administration/templates">
+                    <i class="bi bi-envelope-paper me-1"></i>
+                    Templates
+                </NavLink>
+            </li>
+        </AuthorizeView>
+
+        <AuthorizeView Policy="ComplianceOversight">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/administration/approvals">
+                    <i class="bi bi-patch-check me-1"></i>
+                    Approvals
+                </NavLink>
+            </li>
+        </AuthorizeView>
+
+        <li class="nav-item">
+            <NavLink class="nav-link" href="/administration/synchronizations">
+                <i class="bi bi-clock-history me-1"></i>
+                Synchronizations
+            </NavLink>
+        </li>
+
+        <AuthorizeView Policy="AccountManagement">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/administration/accounts">
+                    <i class="bi bi-people me-1"></i>
+                    Accounts
+                </NavLink>
+            </li>
+        </AuthorizeView>
+
+    </ul>
 
     <!-- ===================================================== -->
     <!-- ALERTS -->
@@ -1188,11 +1238,8 @@
                     <div class="settings-section">
 
                         <div class="settings-section-title">
-
                             <i class="bi bi-people me-2"></i>
-
-                            Case Assignment
-
+                            Group Assignment
                         </div>
 
                         <div class="row g-3">
@@ -1239,10 +1286,9 @@
                                     </div>
 
                                     <div class="form-text ms-5">
-
-                                        Automatically assign newly created cases
-                                        to eligible compliance officers.
-
+                                        Automatically assign the first case in a new client group to an
+                                        eligible compliance officer. Subsequent cases in the same group
+                                        inherit the same officer.
                                     </div>
 
                                 </div>
@@ -1942,21 +1988,21 @@
 
 
     private static string GetDistributionMethodDescription(
-        CaseDistributionMethod method)
+    CaseDistributionMethod method)
     {
         return method switch
         {
             CaseDistributionMethod.Manual =>
-                "Cases are not assigned automatically. Supervisors assign each case manually.",
+                "Groups are not assigned automatically. Supervisors assign each group manually.",
 
             CaseDistributionMethod.RoundRobin =>
-                "Cases are distributed evenly by assigning each new case to the next available agent in sequence.",
+                "Groups are distributed evenly by assigning each new group to the next available agent in sequence.",
 
             CaseDistributionMethod.LeastWorkload =>
-                "Each new case is assigned to the eligible agent with the fewest open cases.",
+                "Each new group is assigned to the eligible agent with the fewest open groups.",
 
             CaseDistributionMethod.Random =>
-                "A random eligible agent is selected for each new case.",
+                "A random eligible agent is selected for each new group.",
 
             _ => string.Empty
         };

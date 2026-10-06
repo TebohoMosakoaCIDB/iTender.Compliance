@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.InkML;
-using iTender.Compliance.Application.DTOs;
+﻿using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Infrastructure.Data;
@@ -9,8 +8,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class NotificationRepository : RepositoryBase, INotificationRepository
     {
-        public NotificationRepository(ComplianceDbContext context)
-            : base(context)
+        public NotificationRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
@@ -18,7 +17,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            return await Context.Notifications
+            await using var context = await CreateContextAsync();
+
+            return await context.Notifications
                 .Where(x => x.UserId == userId && !x.IsRead)
                 .OrderByDescending(x => x.CreatedOn)
                 .ToListAsync(cancellationToken);
@@ -29,7 +30,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             int count = 20,
             CancellationToken cancellationToken = default)
         {
-            return await Context.Notifications
+            await using var context = await CreateContextAsync();
+
+            return await context.Notifications
                 .Where(x => x.UserId == userId)
                 .OrderByDescending(x => x.CreatedOn)
                 .Take(count)
@@ -40,7 +43,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            return await Context.Notifications
+            await using var context = await CreateContextAsync();
+
+            return await context.Notifications
                 .CountAsync(x =>
                     x.UserId == userId &&
                     !x.IsRead,
@@ -51,21 +56,26 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid notificationId,
             CancellationToken cancellationToken = default)
         {
-            var notification = await Context.Notifications
+            await using var context = await CreateContextAsync();
+
+            var notification = await context.Notifications
                 .FirstOrDefaultAsync(x => x.Id == notificationId, cancellationToken);
 
             if (notification == null)
                 return;
 
             notification.IsRead = true;
-            Context.Notifications.Update(notification);
+            context.Notifications.Update(notification);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task MarkAllAsReadAsync(
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            var notifications = await Context.Notifications
+            await using var context = await CreateContextAsync();
+
+            var notifications = await context.Notifications
                 .Where(x =>
                     x.UserId == userId &&
                     !x.IsRead)
@@ -74,21 +84,30 @@ namespace iTender.Compliance.Infrastructure.Repositories
             foreach (var notification in notifications)
             {
                 notification.IsRead = true;
-                Context.Notifications.Update(notification);
+                context.Notifications.Update(notification);
             }
+
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public async Task AddAsync(Notification notification, CancellationToken cancellationToken = default)
+        public async Task AddAsync(
+            Notification notification,
+            CancellationToken cancellationToken = default)
         {
-            await Context.Notifications.AddAsync(notification);
+            await using var context = await CreateContextAsync();
+
+            await context.Notifications.AddAsync(notification, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<List<Notification>> GetAllAsync(
-                Guid userId,
-                bool? unreadOnly = null,
-                CancellationToken cancellationToken = default)
+            Guid userId,
+            bool? unreadOnly = null,
+            CancellationToken cancellationToken = default)
         {
-            var query = Context.Notifications
+            await using var context = await CreateContextAsync();
+
+            var query = context.Notifications
                 .Where(x => x.UserId == userId);
 
             if (unreadOnly.HasValue)
@@ -105,7 +124,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid notificationId,
             CancellationToken cancellationToken = default)
         {
-            var notification = await Context.Notifications
+            await using var context = await CreateContextAsync();
+
+            var notification = await context.Notifications
                 .FirstOrDefaultAsync(
                     x => x.Id == notificationId,
                     cancellationToken);
@@ -113,12 +134,15 @@ namespace iTender.Compliance.Infrastructure.Repositories
             if (notification == null)
                 return;
 
-            Context.Notifications.Remove(notification);
+            context.Notifications.Remove(notification);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<NotificationDetailModel?> GetByIdAsync(Guid id)
         {
-            return await Context.Notifications
+            await using var context = await CreateContextAsync();
+
+            return await context.Notifications
                 .Where(x => x.Id == id)
                 .Select(x => new NotificationDetailModel
                 {

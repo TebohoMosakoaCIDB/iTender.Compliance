@@ -4,18 +4,13 @@ using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace iTender.Compliance.Infrastructure.Repositories
 {
-    public class TenderSyncRepository
-    : RepositoryBase, ITenderSyncRepository
+    public class TenderSyncRepository : RepositoryBase, ITenderSyncRepository
     {
-        public TenderSyncRepository(
-            ComplianceDbContext context)
-            : base(context)
+        public TenderSyncRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
@@ -23,53 +18,52 @@ namespace iTender.Compliance.Infrastructure.Repositories
             TenderSync tenderSync,
             CancellationToken cancellationToken = default)
         {
-            await Context.TenderSyncs.AddAsync(
-                tenderSync,
-                cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.TenderSyncs.AddAsync(tenderSync, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             TenderSync tenderSync,
             CancellationToken cancellationToken = default)
         {
-            Context.TenderSyncs.Update(tenderSync);
+            await using var context = await CreateContextAsync();
 
-            return Task.CompletedTask;
+            context.TenderSyncs.Update(tenderSync);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<List<TenderSync>> GetAllAsync(
-    CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default)
         {
-            return await Context.TenderSyncs
+            await using var context = await CreateContextAsync();
+
+            return await context.TenderSyncs
                 .OrderByDescending(x => x.StartedOn)
                 .ToListAsync(cancellationToken);
         }
 
         public async Task<PagedResult<TenderSync>> SearchAsync(
-    TenderSyncSearchModel search,
-    CancellationToken cancellationToken = default)
+            TenderSyncSearchModel search,
+            CancellationToken cancellationToken = default)
         {
-            var query = Context.TenderSyncs.AsQueryable();
+            await using var context = await CreateContextAsync();
+
+            var query = context.TenderSyncs.AsQueryable();
 
             if (search.Status.HasValue)
-            {
                 query = query.Where(x => x.Status == search.Status.Value);
-            }
 
             if (search.IsManual.HasValue)
-            {
                 query = query.Where(x => x.IsManual == search.IsManual.Value);
-            }
 
             if (search.FromDate.HasValue)
-            {
                 query = query.Where(x => x.StartedOn >= search.FromDate.Value);
-            }
 
             if (search.ToDate.HasValue)
             {
                 var toDate = search.ToDate.Value.Date.AddDays(1);
-
                 query = query.Where(x => x.StartedOn < toDate);
             }
 
@@ -104,29 +98,33 @@ namespace iTender.Compliance.Infrastructure.Repositories
             };
         }
 
-        public Task<TenderSync?> GetByIdAsync(
+        public async Task<TenderSync?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.TenderSyncs
+            await using var context = await CreateContextAsync();
+
+            return await context.TenderSyncs
                 .Include(x => x.Tenders)
-                .FirstOrDefaultAsync(
-                    x => x.Id == id,
-                    cancellationToken);
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
-        public Task<TenderSync?> GetLatestAsync(
+        public async Task<TenderSync?> GetLatestAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.TenderSyncs
+            await using var context = await CreateContextAsync();
+
+            return await context.TenderSyncs
                 .OrderByDescending(x => x.StartedOn)
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        public Task<TenderSync?> GetRunningAsync(
+        public async Task<TenderSync?> GetRunningAsync(
             CancellationToken cancellationToken = default)
         {
-            return Context.TenderSyncs
+            await using var context = await CreateContextAsync();
+
+            return await context.TenderSyncs
                 .FirstOrDefaultAsync(
                     x => x.Status == SyncStatus.Running,
                     cancellationToken);

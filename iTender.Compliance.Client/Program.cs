@@ -117,7 +117,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'AzureConnection' not found.");
-builder.Services.AddDbContext<ComplianceDbContext>(options =>
+builder.Services.AddDbContextFactory<ComplianceDbContext>(options =>
     options.UseSqlServer(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -165,16 +165,14 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
 
-    var context = services.GetRequiredService<ComplianceDbContext>();
+    var contextFactory = services
+        .GetRequiredService<IDbContextFactory<ComplianceDbContext>>();
 
-    //await context.Database.MigrateAsync();
+    await using var context = await contextFactory.CreateDbContextAsync();
 
     await IdentitySeeder.SeedAsync(services);
-
     await AgentSeeder.SeedAsync(services);
-
     await CorrespondenceTemplateSeeder.SeedAsync(context);
-
     await PublicHolidaySeeder.SeedAsync(context);
 }
 

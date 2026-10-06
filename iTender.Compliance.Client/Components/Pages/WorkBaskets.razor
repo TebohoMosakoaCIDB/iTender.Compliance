@@ -1,0 +1,196 @@
+﻿@page "/work-baskets"
+@rendermode InteractiveServer
+
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Entities
+@using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Client.Helpers
+@using Microsoft.AspNetCore.Authorization
+
+@inject IWorkBasketService WorkBasketService
+@inject ICaseAuthorizationService CaseAuthorizationService
+@inject NavigationManager Navigation
+
+@attribute [Authorize(Policy = "CaseManagement")]
+
+<PageTitle>Work Baskets | CRCIP Monitor</PageTitle>
+
+<div class="mb-4">
+    <h2 class="mb-4">
+        <i class="bi bi-inboxes-fill me-2 text-secondary"></i>
+        Work Baskets
+    </h2>
+    <small class="text-muted">
+        Queues of compliance cases grouped by the stage they're at.
+    </small>
+</div>
+
+<ul class="nav nav-tabs mb-4">
+
+    @foreach (var basket in Enum.GetValues<WorkBasket>())
+    {
+        var isActive = basket == _selectedBasket;
+        var count = _counts.TryGetValue(basket, out var c) ? c : 0;
+
+        <li class="nav-item">
+            <button class="nav-link @(isActive ? "active" : "")"
+                    @onclick="() => SelectBasket(basket)">
+                @GetBasketLabel(basket)
+                @if (count > 0)
+                {
+                    <span class="badge @(isActive ? "bg-light text-dark" : "bg-secondary") ms-1">
+                        @count
+                    </span>
+                }
+            </button>
+        </li>
+    }
+
+</ul>
+
+@if (_loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-danger"></div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>@GetBasketLabel(_selectedBasket)</strong>
+            <span class="badge bg-secondary">@_cases.Count</span>
+        </div>
+
+        <div class="card-body p-0">
+            @if (!_cases.Any())
+            {
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-check-circle display-5 text-success"></i>
+                    <p class="mt-3 mb-0">Nothing in this basket.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light table-header-brand">
+                            <tr>
+                                <th>Tender</th>
+                                <th>Employer</th>
+                                <th>Status</th>
+                                <th>Findings</th>
+                                <th>Agent</th>
+                                <th>Age</th>
+                                <th style="width:100px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _cases)
+                            {
+                                var openFindings = item.ComplianceFindings?.Count(f => !f.IsResolved) ?? 0;
+                                var age = (DateTime.UtcNow - item.CreatedOn).Days;
+
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">
+                                            @(item.Tender?.TenderNumber ?? "-")
+                                        </div>
+                                        <small class="text-muted">
+                                            @item.Tender?.Title
+                                        </small>
+                                    </td>
+                                    <td>@item.Tender?.EmployerName</td>
+                                    <td>@item.Status.ToDisplayName()</td>
+                                    <td>
+                                        @if (openFindings > 0)
+                                        {
+                                            <span class="badge bg-danger">@openFindings open</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success">0</span>
+                                        }
+                                    </td>
+                                    <td>@(item.Agent?.FullName ?? "-")</td>
+                                    <td>
+                                        <span class="badge @(age > 25 ? "bg-danger" : age > 15 ? "bg-warning text-dark" : "bg-secondary")">
+                                            @age d
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-cidb-submit"
+                                                @onclick="() => OpenCase(item.Id)">
+                                            <i class="bi bi-folder2-open me-1"></i>
+                                            Open
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private WorkBasket _selectedBasket = WorkBasket.NewlyIdentified;
+    private List<ComplianceCase> _cases = new();
+    private Dictionary<WorkBasket, int> _counts = new();
+    private bool _loading = true;
+    private Guid? _agentFilter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var canViewAll = await CaseAuthorizationService.CanViewAllCasesAsync();
+
+        _agentFilter = canViewAll
+            ? null
+            : await CaseAuthorizationService.GetCurrentAgentIdAsync();
+
+        await RefreshAsync();
+    }
+
+    private async Task SelectBasket(WorkBasket basket)
+    {
+        _selectedBasket = basket;
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+
+        try
+        {
+            _counts = await WorkBasketService.GetCountsAsync(_agentFilter);
+            _cases = (await WorkBasketService.GetCasesAsync(_selectedBasket, _agentFilter)).ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenCase(Guid caseId)
+    {
+        Navigation.NavigateTo($"/cases/{caseId}");
+    }
+
+    private static string GetBasketLabel(WorkBasket basket) =>
+        basket switch
+        {
+            WorkBasket.NewlyIdentified => "Newly Identified",
+            WorkBasket.VerificationRequired => "Verification Required",
+            WorkBasket.NotAdvertised => "Not Advertised",
+            WorkBasket.DueForInstructionLetter => "Due for IL",
+            WorkBasket.DueForContraventionNotice => "Due for CN",
+            WorkBasket.CorrectiveAction => "Corrective Action",
+            WorkBasket.NonCompliant => "Non-Compliant",
+            WorkBasket.Referral => "Referral",
+            WorkBasket.ClearedResolved => "Cleared / Resolved",
+            _ => basket.ToString()
+        };
+}

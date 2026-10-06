@@ -9,41 +9,71 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class ClientGroupRepository : RepositoryBase, IClientGroupRepository
     {
-        public ClientGroupRepository(ComplianceDbContext context)
-            : base(context)
+        public ClientGroupRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
+        }
+
+        public async Task<ClientGroupSummaryModel?> GetSummaryByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroupCases
+                .Where(gc => gc.ComplianceCaseId == caseId)
+                .Select(gc => new ClientGroupSummaryModel
+                {
+                    Id = gc.ClientGroup.Id,
+                    EmployerName = gc.ClientGroup.EmployerName,
+                    Status = gc.ClientGroup.Status,
+                    TenderCount = gc.ClientGroup.Cases.Count,
+                    AgentName = gc.ClientGroup.Agent != null
+                        ? gc.ClientGroup.Agent.FullName
+                        : null
+                })
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task AddAsync(
             ClientGroup group,
             CancellationToken cancellationToken = default)
         {
-            await Context.ClientGroups.AddAsync(group, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.ClientGroups.AddAsync(group, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<int> GetOpenGroupCountByAgentAsync(
             Guid agentId,
             CancellationToken cancellationToken = default)
         {
-            return await Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroups
                 .CountAsync(g => g.AgentId == agentId
                               && g.Status != ClientGroupStatus.Closed,
                              cancellationToken);
         }
 
-        public Task UpdateAsync(
+        public async Task UpdateAsync(
             ClientGroup group,
             CancellationToken cancellationToken = default)
         {
-            Context.ClientGroups.Update(group);
-            return Task.CompletedTask;
+            await using var context = await CreateContextAsync();
+
+            context.ClientGroups.Update(group);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
-        public Task<ClientGroup?> GetByIdAsync(
+        public async Task<ClientGroup?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroups
                 .Include(g => g.Agent)
                 .Include(g => g.Cases)
                     .ThenInclude(c => c.ComplianceCase)
@@ -56,7 +86,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid agentId,
             CancellationToken cancellationToken = default)
         {
-            return await Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroups
                 .Include(g => g.Cases)
                     .ThenInclude(c => c.ComplianceCase)
                         .ThenInclude(cc => cc.Tender)
@@ -67,11 +99,13 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<ClientGroup?> GetDraftByEmployerAsync(
+        public async Task<ClientGroup?> GetDraftByEmployerAsync(
             string normalizedEmployerName,
             CancellationToken cancellationToken = default)
         {
-            return Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroups
                 .Include(g => g.Cases)
                 .FirstOrDefaultAsync(
                     g => g.NormalizedEmployerName == normalizedEmployerName
@@ -83,7 +117,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             string normalizedEmployerName,
             CancellationToken cancellationToken = default)
         {
-            return await Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroups
                 .Include(g => g.Cases)
                 .Where(g => g.NormalizedEmployerName == normalizedEmployerName)
                 .OrderByDescending(g => g.CreatedOn)
@@ -93,7 +129,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
         public async Task<IReadOnlyList<ClientGroup>> GetDraftAsync(
             CancellationToken cancellationToken = default)
         {
-            return await Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroups
                 .Include(g => g.Cases)
                     .ThenInclude(c => c.ComplianceCase)
                         .ThenInclude(cc => cc.Tender)
@@ -105,7 +143,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
         public async Task<IReadOnlyList<ClientGroup>> GetIssuedAsync(
             CancellationToken cancellationToken = default)
         {
-            return await Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroups
                 .Include(g => g.Cases)
                     .ThenInclude(c => c.ComplianceCase)
                         .ThenInclude(cc => cc.Tender)
@@ -117,10 +157,12 @@ namespace iTender.Compliance.Infrastructure.Repositories
         }
 
         public async Task<PagedResult<ClientGroupListItemModel>> SearchAsync(
-    ClientGroupSearchModel search,
-    CancellationToken cancellationToken = default)
+            ClientGroupSearchModel search,
+            CancellationToken cancellationToken = default)
         {
-            var query = Context.ClientGroups.AsQueryable();
+            await using var context = await CreateContextAsync();
+
+            var query = context.ClientGroups.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search.SearchText))
             {
@@ -164,7 +206,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return await Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroups
                 .Include(g => g.Agent)
                 .Where(g => g.Id == id)
                 .Select(g => new ClientGroupDetailModel
@@ -215,11 +259,12 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid excludeGroupId,
             CancellationToken cancellationToken = default)
         {
-            // Cases for this employer that are not already in any group.
-            return await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
                 .Include(c => c.Tender)
                 .Where(c => c.Tender.NormalizedEmployerName == normalizedEmployerName)
-                .Where(c => !Context.ClientGroupCases.Any(g => g.ComplianceCaseId == c.Id))
+                .Where(c => !context.ClientGroupCases.Any(g => g.ComplianceCaseId == c.Id))
                 .OrderByDescending(c => c.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
@@ -232,7 +277,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             Guid modifiedByUserId,
             CancellationToken cancellationToken = default)
         {
-            var group = await Context.ClientGroups
+            await using var context = await CreateContextAsync();
+
+            var group = await context.ClientGroups
                 .FirstOrDefaultAsync(g => g.Id == groupId, cancellationToken)
                 ?? throw new InvalidOperationException("Client group not found.");
 
@@ -241,6 +288,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
             group.CcEmails = ccEmails;
             group.ModifiedBy = modifiedByUserId;
             group.ModifiedOn = DateTime.UtcNow;
+
+            await context.SaveChangesAsync(cancellationToken);
         }
     }
 }

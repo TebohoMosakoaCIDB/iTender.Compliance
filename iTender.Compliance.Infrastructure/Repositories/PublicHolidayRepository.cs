@@ -5,29 +5,32 @@ using Microsoft.EntityFrameworkCore;
 
 namespace iTender.Compliance.Infrastructure.Repositories
 {
-    public class PublicHolidayRepository
-        : RepositoryBase, IPublicHolidayRepository
+    public class PublicHolidayRepository : RepositoryBase, IPublicHolidayRepository
     {
-        public PublicHolidayRepository(ComplianceDbContext context)
-            : base(context)
+        public PublicHolidayRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
         public async Task<HashSet<DateOnly>> GetAllDatesAsync(
             CancellationToken cancellationToken = default)
         {
-            var dates = await Context.PublicHolidays
+            await using var context = await CreateContextAsync();
+
+            var dates = await context.PublicHolidays
                 .Select(x => x.Date)
                 .ToListAsync(cancellationToken);
 
             return dates.ToHashSet();
         }
 
-        public Task<bool> ExistsForYearAsync(
+        public async Task<bool> ExistsForYearAsync(
             int year,
             CancellationToken cancellationToken = default)
         {
-            return Context.PublicHolidays
+            await using var context = await CreateContextAsync();
+
+            return await context.PublicHolidays
                 .AnyAsync(x => x.Date.Year == year, cancellationToken);
         }
 
@@ -35,7 +38,10 @@ namespace iTender.Compliance.Infrastructure.Repositories
             IEnumerable<PublicHoliday> holidays,
             CancellationToken cancellationToken = default)
         {
-            await Context.PublicHolidays.AddRangeAsync(holidays, cancellationToken);
+            await using var context = await CreateContextAsync();
+
+            await context.PublicHolidays.AddRangeAsync(holidays, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
     }
 }

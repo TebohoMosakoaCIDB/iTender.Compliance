@@ -8,7 +8,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class ReportRepository : RepositoryBase, IReportRepository
     {
-        public ReportRepository(ComplianceDbContext context) : base(context)
+        public ReportRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
+            : base(contextFactory)
         {
         }
 
@@ -16,7 +17,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             DateTime fromDate,
             DateTime toDate)
         {
-            return await Context.Tenders
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
                 .AsNoTracking()
                 .Where(x =>
                     x.AdvertisedDate >= fromDate &&
@@ -28,7 +31,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             DateTime fromDate,
             DateTime toDate)
         {
-            return await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
                 .AsNoTracking()
                 .Where(x =>
                     x.CreatedOn >= fromDate &&
@@ -40,7 +45,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             DateTime fromDate,
             DateTime toDate)
         {
-            return await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
                 .AsNoTracking()
                 .Where(x =>
                     x.CreatedOn >= fromDate &&
@@ -48,17 +55,11 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .Select(x => new ReportTenderModel
                 {
                     TenderId = x.TenderId,
-
                     TenderNumber = x.Tender.TenderNumber,
-
                     ClientName = x.Tender.EmployerName,
-
                     AdvertisedDate = x.Tender.AdvertisedDate,
-
                     Status = x.Status,
-
                     Outcome = x.Outcome,
-
                     Priority = x.Priority
                 })
                 .ToListAsync();
@@ -68,7 +69,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             DateTime fromDate,
             DateTime toDate)
         {
-            var results = await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            var results = await context.ComplianceCases
                 .AsNoTracking()
                 .Where(x =>
                     x.CreatedOn >= fromDate &&
@@ -100,7 +103,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             DateTime fromDate,
             DateTime toDate)
         {
-            var results = await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            var results = await context.ComplianceCases
                 .AsNoTracking()
                 .Where(x =>
                     x.CreatedOn >= fromDate &&
@@ -133,7 +138,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             DateTime fromDate,
             DateTime toDate)
         {
-            return await Context.ComplianceCases
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
                 .AsNoTracking()
                 .Where(x =>
                     x.CreatedOn >= fromDate &&
@@ -143,17 +150,11 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .Select(x => new ReportTenderModel
                 {
                     TenderId = x.TenderId,
-
                     TenderNumber = x.Tender.TenderNumber,
-
                     ClientName = x.Tender.EmployerName,
-
                     AdvertisedDate = x.Tender.AdvertisedDate,
-
                     Status = x.Status,
-
                     Outcome = x.Outcome,
-
                     Priority = x.Priority
                 })
                 .ToListAsync();

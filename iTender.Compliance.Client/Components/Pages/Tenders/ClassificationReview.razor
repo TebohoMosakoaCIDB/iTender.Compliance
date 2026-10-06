@@ -96,6 +96,25 @@
             </div>
 
             <div class="d-flex gap-2">
+                @if (_selectedIds.Any())
+                {
+                    <button class="btn btn-sm btn-cidb-submit"
+                            @onclick="ConfirmSelected"
+                            disabled="@_bulkSaving">
+
+                        @if (_bulkSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check2-all me-1"></i>
+                        }
+                        Confirm Selected (@_selectedIds.Count)
+
+                    </button>
+                }
+
                 <button class="btn btn-sm btn-secondary"
                         @onclick="ResetFilters">
                     <i class="bi bi-arrow-counterclockwise me-1"></i>
@@ -139,6 +158,12 @@ else
 
         <thead class="table-light table-header-brand">
             <tr>
+                <th style="width:40px;">
+                    <input type="checkbox"
+                           class="form-check-input"
+                           checked="@AllVisibleSelected"
+                           @onchange="ToggleSelectAll" />
+                </th>
                 <th>Tender Details</th>
                 <th>Employer</th>
                 <th>Closing Date</th>
@@ -153,7 +178,7 @@ else
             @if (!Result.Items.Any())
             {
                 <tr>
-                    <td colspan="6" class="text-center text-muted">
+                    <td colspan="7" class="text-center text-muted">
                         No tenders match the current filters.
                     </td>
                 </tr>
@@ -163,15 +188,19 @@ else
                 @foreach (var tender in Result.Items)
                 {
                     var reviewed = tender.ClassificationReviewedOn.HasValue;
+                    var selected = _selectedIds.Contains(tender.Id);
 
                     <tr>
                         <td>
-                            <div class="fw-semibold">
-                                @tender.TenderNumber
-                            </div>
-                            <small class="text-muted">
-                                @tender.Title
-                            </small>
+                            <input type="checkbox"
+                                   class="form-check-input"
+                                   checked="@selected"
+                                   disabled="@reviewed"
+                                   @onchange="e => ToggleRow(tender.Id, e)" />
+                        </td>
+                        <td>
+                            <div class="fw-semibold">@tender.TenderNumber</div>
+                            <small class="text-muted">@tender.Title</small>
                         </td>
 
                         <td>
@@ -455,6 +484,74 @@ else
     private bool IsSaving;
     private string? _errorMessage;
 
+    private readonly HashSet<Guid> _selectedIds = new();
+    private bool _bulkSaving;
+
+    private bool AllVisibleSelected =>
+        Result is not null &&
+        Result.Items.Any() &&
+        Result.Items.Where(t => !t.ClassificationReviewedOn.HasValue)
+                    .All(t => _selectedIds.Contains(t.Id));
+
+    private void ToggleRow(Guid tenderId, ChangeEventArgs e)
+    {
+        var isChecked = e.Value is bool b && b;
+
+        if (isChecked)
+            _selectedIds.Add(tenderId);
+        else
+            _selectedIds.Remove(tenderId);
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        var isChecked = e.Value is bool b && b;
+
+        if (Result is null)
+            return;
+
+        if (isChecked)
+        {
+            // Select every row on the current page that isn't already reviewed.
+            foreach (var t in Result.Items.Where(t => !t.ClassificationReviewedOn.HasValue))
+                _selectedIds.Add(t.Id);
+        }
+        else
+        {
+            // Deselect every row on the current page.
+            foreach (var t in Result.Items)
+                _selectedIds.Remove(t.Id);
+        }
+    }
+
+    private async Task ConfirmSelected()
+    {
+        if (!_selectedIds.Any() || !CurrentUserService.UserId.HasValue)
+            return;
+
+        _bulkSaving = true;
+
+        try
+        {
+            await ClassificationService.ConfirmManyAsync(
+                _selectedIds,
+                CurrentUserService.UserId.Value,
+                notes: "Bulk confirmed via Classification Review page.");
+
+            _selectedIds.Clear();
+
+            await LoadTenders();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _bulkSaving = false;
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         Settings = await SystemSettingService.GetAsync();
@@ -486,6 +583,7 @@ else
     private async Task SearchTenders()
     {
         Search.PageNumber = 1;
+        _selectedIds.Clear();
         await LoadTenders();
     }
 
@@ -508,6 +606,8 @@ else
             PageNumber = 1,
             PageSize = Settings.DefaultPageSize
         };
+
+        _selectedIds.Clear();
 
         await LoadTenders();
     }

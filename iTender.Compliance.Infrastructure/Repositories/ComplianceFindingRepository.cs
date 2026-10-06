@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.InkML;
-using iTender.Compliance.Application.Interfaces.Repositories;
+﻿using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Data;
@@ -9,40 +8,70 @@ namespace iTender.Compliance.Infrastructure.Repositories
 {
     public class ComplianceFindingRepository : IComplianceFindingRepository
     {
-        private readonly ComplianceDbContext _context;
-        private readonly DbSet<ComplianceFinding> _dbSet;
+        private readonly IDbContextFactory<ComplianceDbContext> _contextFactory;
 
-        public ComplianceFindingRepository(ComplianceDbContext context)
+        public ComplianceFindingRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
         {
-            _context = context;
-            _dbSet = context.Set<ComplianceFinding>();
+            _contextFactory = contextFactory;
         }
 
-        public async Task<ComplianceFinding?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-            => await _dbSet.FindAsync(new object[] { id }, cancellationToken);
-
-        public async Task<IEnumerable<ComplianceFinding>> GetByCaseIdAsync(Guid caseId, CancellationToken cancellationToken = default)
-            => await _dbSet.Where(f => f.ComplianceCaseId == caseId).ToListAsync(cancellationToken);
-
-        public async Task AddAsync(ComplianceFinding finding, CancellationToken cancellationToken = default)
-            => await _dbSet.AddAsync(finding, cancellationToken);
-
-        public Task UpdateAsync(ComplianceFinding finding, CancellationToken cancellationToken = default)
+        public async Task<ComplianceFinding?> GetByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
         {
-            _dbSet.Update(finding);
-            return Task.CompletedTask;
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            return await context.ComplianceFindings
+                .FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
         }
 
-        public Task DeleteAsync(ComplianceFinding finding, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<ComplianceFinding>> GetByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default)
         {
-            _dbSet.Remove(finding);
-            return Task.CompletedTask;
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            return await context.ComplianceFindings
+                .Where(f => f.ComplianceCaseId == caseId)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task AddAsync(
+            ComplianceFinding finding,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            await context.ComplianceFindings.AddAsync(finding, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task UpdateAsync(
+            ComplianceFinding finding,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            context.ComplianceFindings.Update(finding);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task DeleteAsync(
+            ComplianceFinding finding,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            context.ComplianceFindings.Remove(finding);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<IReadOnlyList<ComplianceFinding>> GetAwaitingCoReviewAsync(
-    CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default)
         {
-            return await _dbSet
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            return await context.ComplianceFindings
                 .Include(f => f.ComplianceCase)
                     .ThenInclude(c => c.Tender)
                 .Include(f => f.ComplianceCase)

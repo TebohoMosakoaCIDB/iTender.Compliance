@@ -94,6 +94,24 @@ namespace iTender.Compliance.Infrastructure.Services
                 try
                 {
                     var complianceCase = letter.ComplianceCase;
+
+                    if (!IsStillNonCompliant(complianceCase))
+                    {
+                        _logger.LogInformation(
+                            "Case {CaseId} is no longer non-compliant; skipping IL escalation.",
+                            complianceCase.Id);
+
+                        await _auditService.LogAsync(
+                            AuditAction.Updated,
+                            AuditEntity.ComplianceCase,
+                            complianceCase.Id,
+                            "BR-12: Contravention Notice not issued - case is no longer non-compliant.",
+                            _currentUser.UserId,
+                            cancellationToken);
+
+                        continue;
+                    }
+
                     var tender = complianceCase.Tender;
 
                     var dueOn = await _workingDayCalculator.AddWorkingDaysAsync(
@@ -165,6 +183,25 @@ namespace iTender.Compliance.Infrastructure.Services
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                var complianceCase = letter.ComplianceCase;
+
+                if (!IsStillNonCompliant(complianceCase))
+                {
+                    _logger.LogInformation(
+                        "Case {CaseId} is no longer non-compliant; skipping AGSA referral.",
+                        complianceCase.Id);
+
+                    await _auditService.LogAsync(
+                        AuditAction.Updated,
+                        AuditEntity.ComplianceCase,
+                        complianceCase.Id,
+                        "BR-12: AGSA referral skipped - case is no longer non-compliant.",
+                        _currentUser.UserId,
+                        cancellationToken);
+
+                    continue;
+                }
+
                 try
                 {
                     var referred = await CreateAgsaReferralAsync(
@@ -217,6 +254,23 @@ namespace iTender.Compliance.Infrastructure.Services
 
                 try
                 {
+                    if (!IsStillNonCompliant(complianceCase))
+                    {
+                        _logger.LogInformation(
+                            "Case {CaseId} is no longer non-compliant; skipping 30-day referral.",
+                            complianceCase.Id);
+
+                        await _auditService.LogAsync(
+                            AuditAction.Updated,
+                            AuditEntity.ComplianceCase,
+                            complianceCase.Id,
+                            "BR-12: 30-day referral skipped - case is no longer non-compliant.",
+                            _currentUser.UserId,
+                            cancellationToken);
+
+                        continue;
+                    }
+
                     var referred = await CreateAgsaReferralAsync(
                         complianceCase,
                         $"The {settings.AgsaReferralDeadlineDays}-day statutory deadline from allocation to a " +
@@ -359,6 +413,26 @@ namespace iTender.Compliance.Infrastructure.Services
                     Url = $"/cases/{complianceCase.Id}"
                 }, cancellationToken);
             }
+
+            return true;
+        }
+
+        /// <summary>
+        /// BR-12: before issuing a subsequent notice, confirm the case is still
+        /// actually non-compliant. Returns false if there are no open findings,
+        /// or the case is already resolved/closed.
+        /// </summary>
+        private static bool IsStillNonCompliant(ComplianceCase complianceCase)
+        {
+            if (complianceCase.Status == CaseStatus.Closed)
+                return false;
+
+            if (complianceCase.Outcome == ComplianceOutcome.Compliant)
+                return false;
+
+            if (complianceCase.ComplianceFindings == null
+                || !complianceCase.ComplianceFindings.Any(f => !f.IsResolved))
+                return false;
 
             return true;
         }

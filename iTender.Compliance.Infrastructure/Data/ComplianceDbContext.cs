@@ -26,6 +26,8 @@ namespace iTender.Compliance.Infrastructure.Data
 
         public DbSet<CaseNote> Notes => Set<CaseNote>();
 
+        public DbSet<ComplianceFinding> ComplianceFindings => Set<ComplianceFinding>();
+
         public DbSet<TenderSync> TenderSyncs => Set<TenderSync>();
 
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();

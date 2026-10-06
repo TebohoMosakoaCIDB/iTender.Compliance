@@ -1,5 +1,6 @@
 ﻿using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Domain.Entities;
+using iTender.Compliance.Domain.Enums;
 
 namespace iTender.Compliance.Application.Interfaces.Repositories
 {
@@ -8,6 +9,11 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<List<ComplianceCase>> GetCasesAwaitingReminderAsync(int reminderAfterHours, CancellationToken cancellationToken = default);
 
         Task<int> GetOpenCaseCountByAgentAsync(Guid agentId, CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<ComplianceCase>> GetInBasketAsync(
+            WorkBasket basket,
+            Guid? agentId,
+            CancellationToken cancellationToken = default);
 
         Task<ComplianceCase?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 

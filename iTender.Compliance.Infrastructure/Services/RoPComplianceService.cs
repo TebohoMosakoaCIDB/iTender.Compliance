@@ -12,41 +12,38 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly ITenderRepository _tenderRepository;
         private readonly IComplianceCaseRepository _caseRepository;
         private readonly IComplianceFindingRepository _findingRepository;
-        private readonly IComplianceActionRepository _actionRepository;
-        private readonly ICaseLetterRepository _letterRepository;
         private readonly ISystemSettingRepository _settingRepository;
         private readonly IWorkingDayCalculator _workingDayCalculator;
         private readonly IAuditService _auditService;
-        private readonly ILetterNumberGenerator _letterNumberGenerator;
-        private readonly ICorrespondenceService _correspondenceService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ICorrespondenceService _correspondenceService;
+        private readonly IClientGroupService _clientGroupService;
+        private readonly IAssignmentService _assignmentService;
         private readonly ILogger<RoPComplianceService> _logger;
 
         public RoPComplianceService(
             ITenderRepository tenderRepository,
-            ICorrespondenceService correspondenceService,
             IComplianceCaseRepository caseRepository,
             IComplianceFindingRepository findingRepository,
-            IComplianceActionRepository actionRepository,
-            ICaseLetterRepository letterRepository,
             ISystemSettingRepository settingRepository,
             IWorkingDayCalculator workingDayCalculator,
             IAuditService auditService,
-            ILetterNumberGenerator letterNumberGenerator,
             IUnitOfWork unitOfWork,
+            ICorrespondenceService correspondenceService,
+            IClientGroupService clientGroupService,
+            IAssignmentService assignmentService,
             ILogger<RoPComplianceService> logger)
         {
             _tenderRepository = tenderRepository;
             _caseRepository = caseRepository;
             _findingRepository = findingRepository;
-            _actionRepository = actionRepository;
-            _letterRepository = letterRepository;
             _settingRepository = settingRepository;
             _workingDayCalculator = workingDayCalculator;
             _auditService = auditService;
-            _correspondenceService = correspondenceService;
-            _letterNumberGenerator = letterNumberGenerator;
             _unitOfWork = unitOfWork;
+            _correspondenceService = correspondenceService;
+            _clientGroupService = clientGroupService;
+            _assignmentService = assignmentService;
             _logger = logger;
         }
 
@@ -58,15 +55,13 @@ namespace iTender.Compliance.Infrastructure.Services
             if (settings == null)
                 throw new InvalidOperationException("System settings not found.");
 
-            // CIDB finalized rule: 90 days from tender closing allows the procurement/award process
-            // to complete, then a further 21-day RoP registration grace period - so a tender only
-            // becomes a compliance matter 111 days after it closed, not the moment it's detected.
+            // CIDB finalized rule: 90 days from tender closing + 21-day RoP registration grace period.
             var minimumDaysSinceClosing = settings.RopCheckAfterDays + settings.RopRegistrationGraceDays;
 
-            // 1. Get all tenders that have been awarded but not registered on RoP, past the grace window.
             var tenders = await _tenderRepository.GetUnregisteredAwardedTendersAsync(
                 minimumDaysSinceClosing,
                 cancellationToken);
+
             if (!tenders.Any())
             {
                 _logger.LogInformation("No unregistered awarded tenders found.");
@@ -93,54 +88,67 @@ namespace iTender.Compliance.Infrastructure.Services
 
         private async Task ProcessTenderAsync(Tender tender, CancellationToken cancellationToken)
         {
-            // Check if a case already exists for this tender (for RoP)
             var existingCase = await _caseRepository.GetByTenderIdAsync(tender.Id, cancellationToken);
+
             if (existingCase != null)
             {
-                // If a case already exists, we should check if it has an RoP finding already.
-                // If yes, we might skip or update.
-                var hasRoPFinding = existingCase.ComplianceFindings.Any(f => f.Stream == ComplianceStream.RopRegistration);
+                // If a case already exists and already has an RoP finding, skip.
+                var hasRoPFinding = existingCase.ComplianceFindings
+                    .Any(f => f.Stream == ComplianceStream.RopRegistration);
+
                 if (hasRoPFinding)
                 {
-                    _logger.LogInformation("Case {CaseId} already has RoP finding for tender {TenderNumber}. Skipping.", existingCase.Id, tender.TenderNumber);
+                    _logger.LogInformation(
+                        "Case {CaseId} already has RoP finding for tender {TenderNumber}. Skipping.",
+                        existingCase.Id, tender.TenderNumber);
                     return;
                 }
-                // If no RoP finding, we can add one to the existing case.
-                // But for simplicity, we'll create a new case? The business process might allow multiple findings per case.
-                // Let's create a new finding and append to the existing case.
+
+                // Case exists but has no RoP finding yet. Add the finding only -
+                // do not issue another letter. The case already has correspondence in flight.
                 await AddRoPFindingToExistingCase(existingCase, tender, cancellationToken);
                 return;
             }
 
-            // No case exists – create a new one.
             await CreateNewCaseForRoP(tender, cancellationToken);
         }
 
-        private async Task AddRoPFindingToExistingCase(ComplianceCase existingCase, Tender tender, CancellationToken cancellationToken)
+        private async Task AddRoPFindingToExistingCase(
+            ComplianceCase existingCase,
+            Tender tender,
+            CancellationToken cancellationToken)
         {
-            // Add RoP finding
             var finding = new ComplianceFinding
             {
                 ComplianceCaseId = existingCase.Id,
                 Stream = ComplianceStream.RopRegistration,
                 FindingType = ComplianceFindingType.AwardNotRegisteredOnRop,
-                Description = $"Tender awarded on {tender.AwardedDate} but not registered on RoP.",
+                Description = $"Tender awarded on {tender.AwardedDate:dd MMM yyyy} but not registered on RoP.",
                 RegulatoryReference = "CIDB Regulation 27 / SFU",
                 IdentifiedAt = DateTime.UtcNow,
-                TenderStatusAtCheck = TenderStatus.Closed, // Awarded means closed
+                TenderStatusAtCheck = TenderStatus.Closed,
                 IsResolved = false
             };
+
             await _findingRepository.AddAsync(finding, cancellationToken);
-
-            // Initiate letter flow (Instructional Letter first, because RoP uses IL first regardless of open/closed)
-            await InitiateRoPCorrespondenceAsync(existingCase, finding, tender, cancellationToken);
-
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _auditService.LogAsync(
+                AuditAction.Updated,
+                AuditEntity.ComplianceCase,
+                existingCase.Id,
+                $"RoP finding added to existing case for tender {tender.TenderNumber}.",
+                null,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "RoP finding added to existing case {CaseId} for tender {TenderNumber}.",
+                existingCase.Id, tender.TenderNumber);
         }
 
         private async Task CreateNewCaseForRoP(Tender tender, CancellationToken cancellationToken)
         {
-            // Create case
+            // 1. Create the case.
             var complianceCase = new ComplianceCase
             {
                 TenderId = tender.Id,
@@ -148,36 +156,79 @@ namespace iTender.Compliance.Infrastructure.Services
                 Priority = CasePriority.Normal,
                 CreatedOn = DateTime.UtcNow
             };
-            await _caseRepository.AddAsync(complianceCase);
-            await _unitOfWork.SaveChangesAsync(cancellationToken); // get Id
 
-            // Create finding
+            await _caseRepository.AddAsync(complianceCase, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // 2. Add the RoP finding.
             var finding = new ComplianceFinding
             {
                 ComplianceCaseId = complianceCase.Id,
                 Stream = ComplianceStream.RopRegistration,
                 FindingType = ComplianceFindingType.AwardNotRegisteredOnRop,
-                Description = $"Tender awarded on {tender.AwardedDate} but not registered on RoP.",
+                Description = $"Tender awarded on {tender.AwardedDate:dd MMM yyyy} but not registered on RoP.",
                 RegulatoryReference = "CIDB Regulation 27 / SFU",
                 IdentifiedAt = DateTime.UtcNow,
-                TenderStatusAtCheck = TenderStatus.Closed, // Awarded = closed
+                TenderStatusAtCheck = TenderStatus.Closed,
                 IsResolved = false
             };
+
             await _findingRepository.AddAsync(finding, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Initiate letter flow
-            await InitiateRoPCorrespondenceAsync(complianceCase, finding, tender, cancellationToken);
+            // 3. Attach to a draft client group (BR-14).
+            var group = await _clientGroupService.GetOrCreateDraftGroupAsync(
+                employerName: tender.EmployerName,
+                contactName: tender.ContactName,
+                contactEmail: tender.ContactEmail,
+                ccEmails: null,
+                cancellationToken: cancellationToken);
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
+            await _clientGroupService.AddCaseAsync(
+                group.Id,
+                complianceCase.Id,
+                cancellationToken);
 
-        private async Task InitiateRoPCorrespondenceAsync(
-    ComplianceCase complianceCase,
-    ComplianceFinding finding,
-    Tender tender,
-    CancellationToken cancellationToken)
-        {
+            // 4. Model C assignment.
+            if (group.AgentId.HasValue)
+            {
+                complianceCase.AgentId = group.AgentId;
+                complianceCase.AssignedOn = DateTime.UtcNow;
+                complianceCase.Status = CaseStatus.Assigned;
+                complianceCase.ModifiedOn = DateTime.UtcNow;
+
+                await _caseRepository.UpdateAsync(complianceCase, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation(
+                    "RoP case {CaseId} inherited group owner {AgentId}.",
+                    complianceCase.Id, group.AgentId);
+            }
+            else
+            {
+                try
+                {
+                    await _assignmentService.AssignAsync(complianceCase, cancellationToken);
+
+                    if (complianceCase.AgentId.HasValue)
+                    {
+                        await _clientGroupService.SetOwnerFromCaseAsync(
+                            group.Id, complianceCase.Id, cancellationToken);
+
+                        _logger.LogInformation(
+                            "RoP case {CaseId} assigned to {AgentId}; client group owner set.",
+                            complianceCase.Id, complianceCase.AgentId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Assignment failed for RoP case {CaseId}. Case will need manual assignment.",
+                        complianceCase.Id);
+                }
+            }
+
+            // 5. Issue the Instructional Letter via CorrespondenceService (PDF + email + numbering).
             var settings = await _settingRepository.GetAsync(cancellationToken);
 
             var dueOn = await _workingDayCalculator.AddWorkingDaysAsync(
@@ -198,6 +249,19 @@ namespace iTender.Compliance.Infrastructure.Services
                     ResponseDueOn = dueOn
                 },
                 cancellationToken);
+
+            await _auditService.LogAsync(
+                AuditAction.Created,
+                AuditEntity.ComplianceCase,
+                complianceCase.Id,
+                $"RoP compliance case created for tender {tender.TenderNumber}. " +
+                $"Instructional Letter issued, response due {dueOn:dd MMM yyyy}.",
+                null,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "RoP case {CaseId} created and IL issued for tender {TenderNumber}.",
+                complianceCase.Id, tender.TenderNumber);
         }
     }
 }

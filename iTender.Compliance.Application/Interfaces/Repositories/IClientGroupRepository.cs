@@ -5,6 +5,9 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface IClientGroupRepository
     {
+        Task<ClientGroupSummaryModel?> GetSummaryByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default);
         Task AddAsync(ClientGroup group, CancellationToken cancellationToken = default);
         Task UpdateAsync(ClientGroup group, CancellationToken cancellationToken = default);
         Task<ClientGroup?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);

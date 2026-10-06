@@ -33,7 +33,7 @@
             </small>
         </div>
 
-        <button class="btn btn-cidb-submit-outline"
+        <button class="btn btn-sm btn-secondary"
                 type="button"
                 @onclick="Cancel">
 
@@ -530,8 +530,7 @@
 
             await Task.Delay(1000);
 
-            Navigation.NavigateTo(
-                "/correspondence");
+            Navigation.NavigateTo("/administration/templates");
         }
         catch (Exception ex)
         {
@@ -569,7 +568,7 @@
 
             await Task.Delay(1000);
 
-            Navigation.NavigateTo("/correspondence");
+            Navigation.NavigateTo("/administration/templates");
         }
         catch (Exception ex)
         {
@@ -583,8 +582,7 @@
 
     private void Cancel()
     {
-        Navigation.NavigateTo(
-            "/correspondence");
+        Navigation.NavigateTo("/administration/templates");
     }
 
 
