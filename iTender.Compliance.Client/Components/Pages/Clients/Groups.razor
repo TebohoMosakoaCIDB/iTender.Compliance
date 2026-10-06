@@ -1,0 +1,231 @@
+﻿@page "/clients/groups"
+@rendermode InteractiveServer
+
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Repositories
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Enums
+@using Microsoft.AspNetCore.Authorization
+
+@inject IClientGroupRepository GroupRepository
+@inject IClientGroupService GroupService
+@inject ISystemSettingService SystemSettingService
+@inject NavigationManager Navigation
+
+@attribute [Authorize(Policy = "CaseManagement")]
+
+<PageTitle>Client Groups | CRCIP Monitor</PageTitle>
+
+<div class="mb-4">
+    <h2 class="mb-4">
+        <i class="bi bi-people-fill me-2 text-secondary"></i>
+        Client Groups
+    </h2>
+    <small class="text-muted">
+        Consolidated correspondence by employer. One letter and one Annexure A per employer.
+    </small>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">
+                    <i class="bi bi-search me-1"></i>
+                    Search
+                </label>
+                <input class="form-control"
+                       @bind="Search.SearchText"
+                       placeholder="Employer name" />
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">
+                    <i class="bi bi-flag me-1"></i>
+                    Status
+                </label>
+                <select class="form-select" @bind="Search.Status">
+                    <option value="">All</option>
+                    @foreach (var status in Enum.GetValues<ClientGroupStatus>())
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+                <button class="btn btn-sm btn-cidb-submit w-100"
+                        @onclick="LoadGroups">
+                    <i class="bi bi-search me-1"></i>
+                    Search
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Result is null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-danger"></div>
+    </div>
+}
+else if (!Result.Items.Any())
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        No client groups found. Groups are created automatically when compliance cases are opened.
+    </div>
+}
+else
+{
+    <table class="table table-striped table-hover align-middle">
+        <thead class="table-light table-header-brand">
+            <tr>
+                <th>Employer</th>
+                <th>Status</th>
+                <th>Tenders</th>
+                <th>Created</th>
+                <th>Issued</th>
+                <th>Letter Type</th>
+                <th style="width:140px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var group in Result.Items)
+            {
+                <tr>
+                    <td>
+                        <div class="fw-semibold">@group.EmployerName</div>
+                    </td>
+                    <td>
+                        @switch (group.Status)
+                        {
+                            case ClientGroupStatus.Draft:
+                                <span class="badge bg-warning text-dark">Draft</span>
+                                break;
+                            case ClientGroupStatus.LetterGenerated:
+                                <span class="badge bg-info text-dark">Letter Generated</span>
+                                break;
+                            case ClientGroupStatus.Issued:
+                                <span class="badge bg-success">Issued</span>
+                                break;
+                            case ClientGroupStatus.Closed:
+                                <span class="badge bg-secondary">Closed</span>
+                                break;
+                        }
+                    </td>
+                    <td>@group.CaseCount</td>
+                    <td>@group.CreatedOn.ToString("dd MMM yyyy")</td>
+                    <td>@(group.IssuedOn?.ToString("dd MMM yyyy") ?? "-")</td>
+                    <td>
+                        @if (group.LetterType.HasValue)
+                        {
+                            @group.LetterType.Value
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="() => Open(group.Id)">
+                            <i class="bi bi-folder2-open me-1"></i>
+                            Open
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="text-center mb-2">
+        <small class="text-muted">
+            Showing @StartResult - @EndResult of @Result.TotalCount results
+        </small>
+    </div>
+
+    @if (Result.TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination justify-content-center">
+                @if (Result.HasPreviousPage)
+                {
+                    <li class="page-item">
+                        <button class="page-link" @onclick="() => GoToPage(1)">First</button>
+                    </li>
+                }
+                <li class="page-item @(Result.HasPreviousPage ? "" : "disabled")">
+                    <button class="page-link" @onclick="() => GoToPage(Result.PageNumber - 1)">Previous</button>
+                </li>
+                @foreach (var pageNumber in VisiblePages)
+                {
+                    <li class="page-item @(pageNumber == Result.PageNumber ? "active" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(pageNumber)">@pageNumber</button>
+                    </li>
+                }
+                <li class="page-item @(Result.HasNextPage ? "" : "disabled")">
+                    <button class="page-link" @onclick="() => GoToPage(Result.PageNumber + 1)">Next</button>
+                </li>
+                @if (Result.HasNextPage)
+                {
+                    <li class="page-item">
+                        <button class="page-link" @onclick="() => GoToPage(Result.TotalPages)">Last</button>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+}
+
+@code {
+    private ClientGroupSearchModel Search = new() { PageNumber = 1, PageSize = 20 };
+    private PagedResult<ClientGroupListItemModel>? Result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await SystemSettingService.GetAsync();
+        Search.PageSize = settings.DefaultPageSize;
+
+        await LoadGroups();
+    }
+
+    private async Task LoadGroups()
+    {
+        Result = await GroupRepository.SearchAsync(Search);
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (Result is null) return;
+        page = Math.Max(1, Math.Min(page, Result.TotalPages));
+        Search.PageNumber = page;
+        await LoadGroups();
+    }
+
+    private void Open(Guid id) => Navigation.NavigateTo($"/clients/groups/{id}");
+
+    private IEnumerable<int> VisiblePages
+    {
+        get
+        {
+            if (Result is null) return Enumerable.Empty<int>();
+            const int maxPages = 5;
+            int start = Math.Max(1, Result.PageNumber - 2);
+            int end = Math.Min(Result.TotalPages, start + maxPages - 1);
+            if (end - start < maxPages - 1) start = Math.Max(1, end - maxPages + 1);
+            return Enumerable.Range(start, end - start + 1);
+        }
+    }
+
+    private int StartResult =>
+        Result is null || Result.TotalCount == 0
+            ? 0
+            : ((Result.PageNumber - 1) * Result.PageSize) + 1;
+
+    private int EndResult =>
+        Result is null
+            ? 0
+            : Math.Min(Result.PageNumber * Result.PageSize, Result.TotalCount);
+}

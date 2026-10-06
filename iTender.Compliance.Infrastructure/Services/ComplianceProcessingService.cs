@@ -4,6 +4,7 @@ using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
+using iTender.Compliance.Domain.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace iTender.Compliance.Infrastructure.Services
@@ -24,6 +25,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly ILogger<ComplianceProcessingService> _logger;
         private readonly ICorrespondenceService _correspondenceService;
         private readonly IWorkingDayCalculator _workingDayCalculator;
+        private readonly IClientGroupService _clientGroupService;
 
         public ComplianceProcessingService(
             IComplianceCaseRepository caseRepository,
@@ -37,6 +39,7 @@ namespace iTender.Compliance.Infrastructure.Services
             IWorkClassificationValidator classValidator,
             ILetterNumberGenerator letterNumberGenerator,
             IUnitOfWork unitOfWork,
+            IClientGroupService clientGroupService,
             ILogger<ComplianceProcessingService> logger)
         {
             _caseRepository = caseRepository;
@@ -44,6 +47,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _actionRepository = actionRepository;
             _letterRepository = letterRepository;
             _settingRepository = settingRepository;
+            _clientGroupService = clientGroupService;
             _auditService = auditService;
             _classValidator = classValidator;
             _letterNumberGenerator = letterNumberGenerator;
@@ -146,6 +150,13 @@ namespace iTender.Compliance.Infrastructure.Services
 
             // ---- STREAM 2: Advertised on i-Tender ----
             bool isOnITender = iTenderNumbers.Contains(tender.TenderNumber.Trim());
+
+            tender.IsAdvertised = isOnITender;
+            tender.NormalizedEmployerName = EmployerNameNormalizer.Normalize(tender.EmployerName);
+
+            await _tenderRepository.UpdateAsync(tender, cancellationToken);
+            // no SaveChanges yet - it'll be persisted by the next SaveChanges call
+
             if (!isOnITender)
             {
                 findings.Add(new ComplianceFinding
@@ -195,48 +206,22 @@ namespace iTender.Compliance.Infrastructure.Services
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            
             // =========================================================
-            // 8b. D07: issue the opening letter for this case
+            // 8b. BR-14: attach the case to a draft client group so
+            // correspondence can be issued once per employer, with an
+            // Annexure A listing every non-compliant tender.
             // =========================================================
-            var settings = await _settingRepository.GetAsync(cancellationToken);
+            var group = await _clientGroupService.GetOrCreateDraftGroupAsync(
+                employerName: tender.EmployerName,
+                contactName: tender.ContactName,
+                contactEmail: tender.ContactEmail,
+                ccEmails: null,
+                cancellationToken: cancellationToken);
 
-            var dueOn = await _workingDayCalculator.AddWorkingDaysAsync(
-                DateTime.UtcNow,
-                tenderStatus == TenderStatus.Open
-                    ? settings.InstructionLetterResponseWorkingDays
-                    : settings.ContraventionNoticeResponseDays,
+            await _clientGroupService.AddCaseAsync(
+                group.Id,
+                complianceCase.Id,
                 cancellationToken);
-
-            if (tenderStatus == TenderStatus.Open)
-            {
-                await _correspondenceService.SendInstructionLetterAsync(new SendInstructionLetterModel
-                {
-                    ComplianceCaseId = complianceCase.Id,
-                    RecipientName = tender.EmployerName,
-                    RecipientEmail = tender.ContactEmail ?? string.Empty,
-                    TenderNumber = tender.TenderNumber,
-                    TenderTitle = tender.Title,
-                    EmployerName = tender.EmployerName,
-                    ClosingDate = tender.ClosingDate,
-                    ResponseDueOn = dueOn
-                }, cancellationToken);
-            }
-            else
-            {
-                await _correspondenceService.SendContraventionNoticeAsync(new SendContraventionNoticeModel
-                {
-                    ComplianceCaseId = complianceCase.Id,
-                    RecipientName = tender.EmployerName,
-                    RecipientEmail = tender.ContactEmail ?? string.Empty,
-                    TenderNumber = tender.TenderNumber,
-                    TenderTitle = tender.Title,
-                    EmployerName = tender.EmployerName,
-                    ClosingDate = tender.ClosingDate,
-                    Reason = "Award not registered on the Register of Projects.",
-                    ResponseDueOn = dueOn
-                }, cancellationToken);
-            }
 
             // 9. Audit log
             await _auditService.LogAsync(

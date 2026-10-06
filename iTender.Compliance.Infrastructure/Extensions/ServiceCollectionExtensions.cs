@@ -111,6 +111,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<ICaseObjectionRepository, CaseObjectionRepository>();
             services.AddScoped<IReportRepository, ReportRepository>();
             services.AddScoped<IDuplicateGroupRepository, DuplicateGroupRepository>();
+            services.AddScoped<IClientGroupRepository, ClientGroupRepository>();
 
 
             //Services
@@ -124,7 +125,6 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IDataverseService, DataverseService>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IUserService, UserService>();
-            //services.AddScoped<IDocumentService, DocumentService>();
             services.AddScoped<ISystemSettingService, SystemSettingService>();
             services.AddScoped<ICaseAuthorizationService, CaseAuthorizationService>();
             services.AddScoped<IVerificationService, VerificationService>();
@@ -156,6 +156,8 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IReminderService, ReminderService>();
             services.AddScoped<IClassOfWorksResolver, ClassOfWorksResolver>();
             services.AddScoped<IAssignmentService, AssignmentService>();
+            services.AddScoped<ITenderClassificationService, TenderClassificationService>();
+            services.AddScoped<IClientGroupService, ClientGroupService>();
 
             services.AddScoped<IProfileService, ProfileService>();
             services.AddHttpClient("TenderFlow", client =>

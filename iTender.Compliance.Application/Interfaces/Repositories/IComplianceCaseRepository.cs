@@ -11,6 +11,10 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 
         Task<ComplianceCase?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+        Task<IReadOnlyList<ComplianceCase>> GetByIdsAsync(
+            IEnumerable<Guid> ids,
+            CancellationToken cancellationToken = default);
+
         Task<CaseLetter?> GetLatestOutstandingAsync(
             Guid complianceCaseId,
             CancellationToken cancellationToken = default);

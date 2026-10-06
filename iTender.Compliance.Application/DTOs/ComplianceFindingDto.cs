@@ -13,5 +13,6 @@ namespace iTender.Compliance.Application.DTOs
         public bool IsResolved { get; set; }
         public DateTime? ResolvedOn { get; set; }
         public TenderStatus TenderStatusAtCheck { get; set; }
+        public VerificationStatus VerificationStatus { get; set; }
     }
 }

@@ -20,5 +20,13 @@ namespace iTender.Compliance.Application.Interfaces.Services
         Task<DocumentResult> GenerateAgsaReferralDocumentAsync(
             AgsaReferralDocumentModel model,
             CancellationToken cancellationToken = default);
+
+        Task<DocumentResult> GenerateConsolidatedLetterAsync(
+            ConsolidatedLetterModel model,
+            CancellationToken cancellationToken = default);
+
+        Task<DocumentResult> GenerateAnnexureAsync(
+            AnnexureModel model,
+            CancellationToken cancellationToken = default);
     }
 }

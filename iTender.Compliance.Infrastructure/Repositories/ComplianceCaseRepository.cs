@@ -25,6 +25,19 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 cancellationToken);
         }
 
+        public async Task<IReadOnlyList<ComplianceCase>> GetByIdsAsync(
+            IEnumerable<Guid> ids,
+            CancellationToken cancellationToken = default)
+        {
+            var idList = ids.ToList();
+
+            return await Context.ComplianceCases
+                .Include(c => c.Tender)
+                .Include(c => c.CaseLetters)
+                .Where(c => idList.Contains(c.Id))
+                .ToListAsync(cancellationToken);
+        }
+
         public Task UpdateAsync(
             ComplianceCase complianceCase,
             CancellationToken cancellationToken = default)
@@ -180,7 +193,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
                             IdentifiedAt = f.IdentifiedAt,
                             IsResolved = f.IsResolved,
                             ResolvedOn = f.ResolvedOn,
-                            TenderStatusAtCheck = f.TenderStatusAtCheck
+                            TenderStatusAtCheck = f.TenderStatusAtCheck,
+                            VerificationStatus = f.VerificationStatus
                         })
                         .ToList(),
 

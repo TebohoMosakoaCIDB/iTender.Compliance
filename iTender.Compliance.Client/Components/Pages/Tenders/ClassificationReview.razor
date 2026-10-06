@@ -1,0 +1,579 @@
+﻿@page "/tenders/classification"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Repositories
+@using iTender.Compliance.Application.Interfaces.Services
+
+@inject ITenderRepository TenderRepository
+@inject ITenderClassificationService ClassificationService
+@inject ISystemSettingService SystemSettingService
+@inject ICurrentUserService CurrentUserService
+@inject NavigationManager Navigation
+
+@attribute [Authorize(Policy = "CaseManagement")]
+
+<PageTitle>Tender Classification | CRCIP Monitor</PageTitle>
+
+<div class="mb-4">
+
+    <h2 class="mb-4">
+        <i class="bi bi-diagram-3 me-2 text-secondary"></i>
+        Tender Classification Review
+    </h2>
+
+    <small class="text-muted">
+        Confirm or override the automated construction-related classification for tenders.
+    </small>
+
+</div>
+
+<div class="card shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <div class="row g-3">
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-search me-1"></i>
+                    Search
+                </label>
+                <input class="form-control"
+                       @bind="Search.SearchText"
+                       placeholder="Tender Number, Title or Employer" />
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-hammer me-1"></i>
+                    Classification
+                </label>
+                <select class="form-select" @bind="Search.IsConstruction">
+                    <option value="">All</option>
+                    <option value="true">Construction-related</option>
+                    <option value="false">Non-construction</option>
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">
+                    <i class="bi bi-clipboard-check me-1"></i>
+                    Review Status
+                </label>
+                <select class="form-select" @bind="Search.ReviewedOnly">
+                    <option value="">All</option>
+                    <option value="true">Reviewed</option>
+                    <option value="false">Not yet reviewed</option>
+                </select>
+            </div>
+
+        </div>
+
+        <hr />
+
+        <div class="d-flex justify-content-between align-items-end">
+
+            <div class="d-flex align-items-center gap-2">
+
+                <label class="form-label mb-0">Page Size</label>
+
+                <select class="form-select"
+                        style="width:100px"
+                        @bind="Search.PageSize">
+
+                    @foreach (var size in PageSizes)
+                    {
+                        <option value="@size">@size</option>
+                    }
+
+                </select>
+
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-secondary"
+                        @onclick="ResetFilters">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                    Clear
+                </button>
+
+                <button class="btn btn-sm btn-cidb-submit"
+                        @onclick="SearchTenders">
+                    <i class="bi bi-search me-1"></i>
+                    Search
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+@if (Result is null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-danger"></div>
+    </div>
+}
+else
+{
+    <table class="table table-striped table-hover align-middle">
+
+        <thead class="table-light table-header-brand">
+            <tr>
+                <th>Tender Details</th>
+                <th>Employer</th>
+                <th>Closing Date</th>
+                <th>Classification</th>
+                <th>Review</th>
+                <th style="width:200px;"></th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            @if (!Result.Items.Any())
+            {
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        No tenders match the current filters.
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var tender in Result.Items)
+                {
+                    var reviewed = tender.ClassificationReviewedOn.HasValue;
+
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">
+                                @tender.TenderNumber
+                            </div>
+                            <small class="text-muted">
+                                @tender.Title
+                            </small>
+                        </td>
+
+                        <td>
+                            @tender.EmployerName
+                        </td>
+
+                        <td>
+                            @tender.ClosingDate.ToString("dd MMM yyyy")
+                        </td>
+
+                        <td>
+                            @if (tender.IsConstruction)
+                            {
+                                <span class="badge bg-success">Construction</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Non-construction</span>
+                            }
+
+                            @if (tender.ClassificationOverridden)
+                            {
+                                <span class="badge bg-warning text-dark ms-1">
+                                    Overridden
+                                </span>
+                            }
+                        </td>
+
+                        <td>
+                            @if (reviewed)
+                            {
+                                <div class="small">
+                                    <i class="bi bi-check-circle text-success me-1"></i>
+                                    @tender.ClassificationReviewedOn!.Value.ToString("dd MMM yyyy HH:mm")
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(tender.ClassificationReviewNotes))
+                                {
+                                    <small class="text-muted d-block">
+                                        @tender.ClassificationReviewNotes
+                                    </small>
+                                }
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary-subtle text-dark">
+                                    <i class="bi bi-hourglass-split me-1"></i>
+                                    Pending
+                                </span>
+                            }
+                        </td>
+
+                        <td>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-cidb-submit"
+                                        disabled="@reviewed"
+                                        @onclick="() => Confirm(tender.Id)">
+                                    <i class="bi bi-check2 me-1"></i>
+                                    Confirm
+                                </button>
+
+                                <button class="btn btn-sm btn-cidb-submit-outline"
+                                        @onclick="() => OpenOverride(tender)">
+                                    <i class="bi bi-arrow-left-right me-1"></i>
+                                    Override
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+
+        </tbody>
+
+    </table>
+
+    <div class="text-center mb-2">
+        <small class="text-muted">
+            Showing @StartResult - @EndResult of @Result.TotalCount results
+        </small>
+    </div>
+
+    @if (Result.TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination justify-content-center">
+
+                @if (Result.HasPreviousPage)
+                {
+                    <li class="page-item">
+                        <button class="page-link"
+                                @onclick="() => GoToPage(1)">
+                            First
+                        </button>
+                    </li>
+                }
+
+                <li class="page-item @(Result.HasPreviousPage ? "" : "disabled")">
+                    <button class="page-link"
+                            @onclick="() => GoToPage(Result.PageNumber - 1)">
+                        Previous
+                    </button>
+                </li>
+
+                @foreach (var pageNumber in VisiblePages)
+                {
+                    <li class="page-item @(pageNumber == Result.PageNumber ? "active" : "")">
+                        <button class="page-link"
+                                @onclick="() => GoToPage(pageNumber)">
+                            @pageNumber
+                        </button>
+                    </li>
+                }
+
+                <li class="page-item @(Result.HasNextPage ? "" : "disabled")">
+                    <button class="page-link"
+                            @onclick="() => GoToPage(Result.PageNumber + 1)">
+                        Next
+                    </button>
+                </li>
+
+                @if (Result.HasNextPage)
+                {
+                    <li class="page-item">
+                        <button class="page-link"
+                                @onclick="() => GoToPage(Result.TotalPages)">
+                            Last
+                        </button>
+                    </li>
+                }
+
+            </ul>
+        </nav>
+    }
+}
+
+@if (ShowOverrideModal && TenderToOverride != null)
+{
+    <div class="modal fade show d-block"
+         tabindex="-1"
+         style="background-color:rgba(0,0,0,.5)">
+
+        <div class="modal-dialog">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+
+                    <h5 class="modal-title">
+                        Override Classification
+                    </h5>
+
+                    <button class="btn-close"
+                            @onclick="CloseOverride">
+                    </button>
+
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Tender
+                        </label>
+
+                        <div class="form-control bg-light">
+                            @TenderToOverride.TenderNumber - @TenderToOverride.Title
+                        </div>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Current classification
+                        </label>
+
+                        <div>
+                            @if (TenderToOverride.IsConstruction)
+                            {
+                                <span class="badge bg-success">Construction</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Non-construction</span>
+                            }
+                        </div>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            New classification <span class="text-danger">*</span>
+                        </label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="OverrideIsConstruction">
+
+                            <option value="true">Construction-related</option>
+                            <option value="false">Non-construction</option>
+
+                        </InputSelect>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Reason <span class="text-danger">*</span>
+                        </label>
+
+                        <InputTextArea class="form-control"
+                                       rows="4"
+                                       maxlength="500"
+                                       @bind-Value="OverrideReason" />
+
+                        <small class="text-muted">
+                            Explain why the automated classification is incorrect.
+                        </small>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button class="btn btn-sm btn-secondary"
+                            @onclick="CloseOverride">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-sm btn-cidb-submit"
+                            disabled="@(string.IsNullOrWhiteSpace(OverrideReason) || IsSaving)"
+                            @onclick="SaveOverride">
+
+                        @if (IsSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check2 me-1"></i>
+                        }
+                        Save Override
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    private List<int> PageSizes = [];
+
+    private SystemSettingModel Settings = new();
+
+    private TenderClassificationSearchModel Search = new()
+    {
+        PageNumber = 1
+    };
+
+    private PagedResult<iTender.Compliance.Domain.Entities.Tender>? Result;
+
+    private bool ShowOverrideModal;
+    private iTender.Compliance.Domain.Entities.Tender? TenderToOverride;
+    private bool OverrideIsConstruction;
+    private string OverrideReason = string.Empty;
+    private bool IsSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Settings = await SystemSettingService.GetAsync();
+
+        Search.PageSize = Settings.DefaultPageSize;
+
+        PageSizes =
+        [
+            Settings.DefaultPageSize,
+            Settings.DefaultPageSize * 2,
+            Settings.DefaultPageSize * 5,
+            Settings.DefaultPageSize * 10
+        ];
+
+        PageSizes = PageSizes
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
+        await LoadTenders();
+    }
+
+    private async Task LoadTenders()
+    {
+        Result = await TenderRepository
+            .SearchForClassificationReviewAsync(Search);
+    }
+
+    private async Task SearchTenders()
+    {
+        Search.PageNumber = 1;
+        await LoadTenders();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (Result is null)
+            return;
+
+        page = Math.Max(1, Math.Min(page, Result.TotalPages));
+
+        Search.PageNumber = page;
+
+        await LoadTenders();
+    }
+
+    private async Task ResetFilters()
+    {
+        Search = new TenderClassificationSearchModel
+        {
+            PageNumber = 1,
+            PageSize = Settings.DefaultPageSize
+        };
+
+        await LoadTenders();
+    }
+
+    private async Task Confirm(Guid tenderId)
+    {
+        if (!CurrentUserService.UserId.HasValue)
+            return;
+
+        await ClassificationService.ConfirmAsync(
+            tenderId,
+            CurrentUserService.UserId.Value,
+            notes: null);
+
+        await LoadTenders();
+    }
+
+    private void OpenOverride(iTender.Compliance.Domain.Entities.Tender tender)
+    {
+        TenderToOverride = tender;
+        OverrideIsConstruction = !tender.IsConstruction;
+        OverrideReason = string.Empty;
+        ShowOverrideModal = true;
+    }
+
+    private void CloseOverride()
+    {
+        ShowOverrideModal = false;
+        TenderToOverride = null;
+        OverrideReason = string.Empty;
+    }
+
+    private async Task SaveOverride()
+    {
+        if (TenderToOverride is null
+            || !CurrentUserService.UserId.HasValue
+            || string.IsNullOrWhiteSpace(OverrideReason))
+            return;
+
+        IsSaving = true;
+
+        try
+        {
+            await ClassificationService.OverrideAsync(
+                TenderToOverride.Id,
+                OverrideIsConstruction,
+                CurrentUserService.UserId.Value,
+                OverrideReason);
+
+            CloseOverride();
+
+            await LoadTenders();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private IEnumerable<int> VisiblePages
+    {
+        get
+        {
+            if (Result is null)
+                return Enumerable.Empty<int>();
+
+            const int maxPages = 5;
+
+            int start = Math.Max(1, Result.PageNumber - 2);
+            int end = Math.Min(Result.TotalPages, start + maxPages - 1);
+
+            if (end - start < maxPages - 1)
+            {
+                start = Math.Max(1, end - maxPages + 1);
+            }
+
+            return Enumerable.Range(start, end - start + 1);
+        }
+    }
+
+    private int StartResult =>
+        Result == null || Result.TotalCount == 0
+            ? 0
+            : ((Result.PageNumber - 1) * Result.PageSize) + 1;
+
+    private int EndResult =>
+        Result == null
+            ? 0
+            : Math.Min(Result.PageNumber * Result.PageSize, Result.TotalCount);
+
+}

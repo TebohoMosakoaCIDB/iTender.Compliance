@@ -370,6 +370,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<bool?>("Accepted")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("ClientGroupId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("ComplianceCaseId")
                         .HasColumnType("uniqueidentifier");
 
@@ -429,6 +432,8 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClientGroupId");
 
                     b.HasIndex("ComplianceCaseId");
 
@@ -523,6 +528,79 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.HasIndex("ComplianceCaseId");
 
                     b.ToTable("CaseObjections", (string)null);
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AgentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AnnexureFileName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AnnexureFilePath")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CcEmails")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("ConsolidatedLetterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EmployerName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("IssuedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NormalizedEmployerName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("ConsolidatedLetterId");
+
+                    b.HasIndex("NormalizedEmployerName");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("ClientGroups", (string)null);
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ComplianceAction", b =>
@@ -1125,6 +1203,18 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<string>("ClassOfWorks")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("ClassificationOverridden")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ClassificationReviewNotes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ClassificationReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ClassificationReviewedOn")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("ClosingDate")
                         .HasColumnType("datetime2");
 
@@ -1156,6 +1246,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<string>("ExternalId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsAdvertised")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsConstruction")
                         .HasColumnType("bit");
 
@@ -1167,6 +1260,10 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
                     b.Property<DateTime?>("ModifiedOn")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("NormalizedEmployerName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NormalizedTitle")
                         .IsRequired()
@@ -1333,6 +1430,31 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.HasIndex("TenderSyncId");
 
                     b.ToTable("SyncLogs");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Enums.ClientGroupCase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AddedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ClientGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ComplianceCaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComplianceCaseId");
+
+                    b.HasIndex("ClientGroupId", "ComplianceCaseId")
+                        .IsUnique();
+
+                    b.ToTable("ClientGroupCases", (string)null);
                 });
 
             modelBuilder.Entity("iTender.Compliance.Infrastructure.Identity.ApplicationUser", b =>
@@ -1541,11 +1663,17 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.CaseLetter", b =>
                 {
+                    b.HasOne("iTender.Compliance.Domain.Entities.ClientGroup", "ClientGroup")
+                        .WithMany()
+                        .HasForeignKey("ClientGroupId");
+
                     b.HasOne("iTender.Compliance.Domain.Entities.ComplianceCase", "ComplianceCase")
                         .WithMany("CaseLetters")
                         .HasForeignKey("ComplianceCaseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ClientGroup");
 
                     b.Navigation("ComplianceCase");
                 });
@@ -1578,6 +1706,23 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Navigation("CaseLetter");
 
                     b.Navigation("ComplianceCase");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientGroup", b =>
+                {
+                    b.HasOne("iTender.Compliance.Domain.Entities.Agent", "Agent")
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("iTender.Compliance.Domain.Entities.CaseLetter", "ConsolidatedLetter")
+                        .WithMany()
+                        .HasForeignKey("ConsolidatedLetterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Agent");
+
+                    b.Navigation("ConsolidatedLetter");
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ComplianceAction", b =>
@@ -1683,6 +1828,25 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Navigation("TenderSync");
                 });
 
+            modelBuilder.Entity("iTender.Compliance.Domain.Enums.ClientGroupCase", b =>
+                {
+                    b.HasOne("iTender.Compliance.Domain.Entities.ClientGroup", "ClientGroup")
+                        .WithMany("Cases")
+                        .HasForeignKey("ClientGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("iTender.Compliance.Domain.Entities.ComplianceCase", "ComplianceCase")
+                        .WithMany("ClientGroups")
+                        .HasForeignKey("ComplianceCaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ClientGroup");
+
+                    b.Navigation("ComplianceCase");
+                });
+
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.Agent", b =>
                 {
                     b.Navigation("ComplianceCases");
@@ -1691,6 +1855,11 @@ namespace iTender.Compliance.Infrastructure.Migrations
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.CaseLetter", b =>
                 {
                     b.Navigation("SigningRequest");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientGroup", b =>
+                {
+                    b.Navigation("Cases");
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ComplianceCase", b =>
@@ -1702,6 +1871,8 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Navigation("CaseLetters");
 
                     b.Navigation("CaseNotes");
+
+                    b.Navigation("ClientGroups");
 
                     b.Navigation("ComplianceActions");
 

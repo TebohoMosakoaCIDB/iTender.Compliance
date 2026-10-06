@@ -1,4 +1,5 @@
 ﻿using iTender.Compliance.Domain.Entities;
+using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -50,6 +51,10 @@ namespace iTender.Compliance.Infrastructure.Data
         public DbSet<DuplicateGroup> DuplicateGroups => Set<DuplicateGroup>();
 
         public DbSet<DuplicateCandidate> DuplicateCandidates => Set<DuplicateCandidate>();
+
+        public DbSet<ClientGroup> ClientGroups => Set<ClientGroup>();
+
+        public DbSet<ClientGroupCase> ClientGroupCases => Set<ClientGroupCase>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

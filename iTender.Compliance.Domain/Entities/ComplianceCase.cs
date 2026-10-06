@@ -47,6 +47,9 @@ namespace iTender.Compliance.Domain.Entities
         public virtual ICollection<CaseObjection> Objections { get; set; }
             = new List<CaseObjection>();
 
+        public virtual ICollection<ClientGroupCase> ClientGroups { get; set; }
+            = new List<ClientGroupCase>();
+
         #endregion
     }
 }

@@ -12,6 +12,7 @@
 @attribute [Authorize(Policy = "Administration")]
 
 @inject ISynchronizationService SynchronizationService
+@inject IRoPComplianceService RoPComplianceService
 @inject IReportingService ReportingService
 @inject ISystemSettingService SettingService
 @inject ITenderSyncLogRepository LogRepository
@@ -191,6 +192,23 @@
 
                 </div>
 
+                <div>
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            disabled="@_runningRopCheck"
+                            @onclick="RunRopCheckNow">
+
+                        @if (_runningRopCheck)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-shield-check me-2"></i>
+                        }
+                        Run RoP Check Now
+
+                    </button>
+                </div>
             </div>
 
             @if (!string.IsNullOrWhiteSpace(_triggerResultMessage))
@@ -1799,6 +1817,7 @@
 
     private bool IsRunning;
 
+    private bool _runningRopCheck;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1946,4 +1965,27 @@
         };
     }
 
+    private async Task RunRopCheckNow()
+    {
+        _runningRopCheck = true;
+        _triggerResultMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await RoPComplianceService.ProcessUnregisteredAwardsAsync();
+
+            _triggerResultIsError = false;
+            _triggerResultMessage = "RoP compliance check complete.";
+        }
+        catch (Exception ex)
+        {
+            _triggerResultIsError = true;
+            _triggerResultMessage = $"RoP check failed: {ex.Message}";
+        }
+        finally
+        {
+            _runningRopCheck = false;
+        }
+    }
 }

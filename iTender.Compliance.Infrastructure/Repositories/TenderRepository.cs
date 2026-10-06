@@ -258,7 +258,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
             };
         }
 
-        // Add to TenderRepository
+        
         public async Task<IReadOnlyList<Tender>> GetByNormalizedTitleAsync(
             string normalizedTitle,
             Guid excludeTenderId,
@@ -285,7 +285,6 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        // iTender.Compliance.Infrastructure/Repositories/TenderRepository.cs
         public async Task<IReadOnlyList<Tender>> GetLateRopRegistrationsAsync(
             DateTime from,
             DateTime to,
@@ -299,6 +298,59 @@ namespace iTender.Compliance.Infrastructure.Repositories
                          && t.RoPRegistrationDate >= from
                          && t.RoPRegistrationDate <= to)
                 .OrderByDescending(t => t.RoPRegistrationDate)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<PagedResult<Tender>> SearchForClassificationReviewAsync(
+    TenderClassificationSearchModel search,
+    CancellationToken cancellationToken = default)
+        {
+            var query = Context.Tenders.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search.SearchText))
+            {
+                query = query.Where(t =>
+                    t.TenderNumber.Contains(search.SearchText) ||
+                    t.Title.Contains(search.SearchText) ||
+                    t.EmployerName.Contains(search.SearchText));
+            }
+
+            if (search.IsConstruction.HasValue)
+                query = query.Where(t => t.IsConstruction == search.IsConstruction.Value);
+
+            if (search.ReviewedOnly == true)
+                query = query.Where(t => t.ClassificationReviewedOn != null);
+            else if (search.ReviewedOnly == false)
+                query = query.Where(t => t.ClassificationReviewedOn == null);
+
+            var total = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .OrderByDescending(t => t.CreatedOn)
+                .Skip((search.PageNumber - 1) * search.PageSize)
+                .Take(search.PageSize)
+                .ToListAsync(cancellationToken);
+
+            return new PagedResult<Tender>
+            {
+                Items = items,
+                TotalCount = total,
+                PageNumber = search.PageNumber,
+                PageSize = search.PageSize
+            };
+        }
+
+        public async Task<IReadOnlyList<Tender>> GetByIdsAsync(
+    IEnumerable<Guid> ids,
+    CancellationToken cancellationToken = default)
+        {
+            var idList = ids?.Distinct().ToList() ?? new List<Guid>();
+
+            if (idList.Count == 0)
+                return Array.Empty<Tender>();
+
+            return await Context.Tenders
+                .Where(t => idList.Contains(t.Id))
                 .ToListAsync(cancellationToken);
         }
     }

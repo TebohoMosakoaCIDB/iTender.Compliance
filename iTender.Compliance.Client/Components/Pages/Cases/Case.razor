@@ -21,6 +21,7 @@
 @inject ICaseObjectionRepository CaseObjectionRepository
 @inject IAgsaReferralRepository AgsaReferralRepository
 @inject ICurrentUserService CurrentUserService
+@inject IVerificationService VerificationService
 
 @inject IAuthorizationService AuthorizationService
 
@@ -34,6 +35,25 @@
     <i class="bi bi-folder-check me-2 text-secondary"></i>
     Compliance Case
 </h2>
+
+@if (Model != null)
+{
+    var awaitingReviewCount = Model.Findings
+        .Count(f => f.VerificationStatus == VerificationStatus.AutomatedFailed
+                 && !f.IsResolved);
+
+    if (awaitingReviewCount > 0)
+    {
+        <div class="alert alert-warning d-flex align-items-center mb-4">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div>
+                <strong>@awaitingReviewCount</strong> verification
+                finding@(awaitingReviewCount == 1 ? "" : "s") awaiting review.
+                See Compliance Findings below.
+            </div>
+        </div>
+    }
+}
 
 @if (Model == null)
 {
@@ -267,21 +287,39 @@ else
                         <div class="d-flex flex-column gap-3">
                             @foreach (var finding in Model.Findings)
                             {
+                                var isAwaitingCoReview = finding.VerificationStatus == VerificationStatus.AutomatedFailed
+                                                      && !finding.IsResolved;
+
                                 var statusColor = finding.IsResolved ? "success" : "warning";
                                 var statusText = finding.IsResolved ? "Resolved" : "Open";
+
+                                var verBadge = finding.VerificationStatus switch
+                                {
+                                    VerificationStatus.Pending => ("bg-secondary", "Verification Pending"),
+                                    VerificationStatus.AutomatedPassed => ("bg-success", "Automated Passed"),
+                                    VerificationStatus.AutomatedFailed => ("bg-danger", "Automated Failed"),
+                                    VerificationStatus.CoConfirmed => ("bg-danger", "CO Confirmed"),
+                                    VerificationStatus.CoOverridden => ("bg-secondary", "CO Overridden"),
+                                    VerificationStatus.ManualPassed => ("bg-success", "Manual Passed"),
+                                    VerificationStatus.ManualFailed => ("bg-danger", "Manual Failed"),
+                                    _ => ("bg-secondary", finding.VerificationStatus.ToString())
+                                };
 
                                 <div class="card border-0 shadow-sm">
                                     <div class="card-body py-3 px-4">
                                         <div class="d-flex justify-content-between align-items-start">
                                             <div class="flex-grow-1">
-                                                <div class="d-flex align-items-center gap-2 mb-1">
+                                                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
                                                     <span class="badge bg-danger">@finding.Stream.ToDisplayName()</span>
                                                     <span class="badge bg-secondary">@finding.FindingType.ToDisplayName()</span>
                                                     <span class="badge bg-@statusColor">@statusText</span>
+                                                    <span class="badge @verBadge.Item1">@verBadge.Item2</span>
                                                 </div>
+
                                                 <div class="fw-semibold text-dark">
                                                     @finding.Description
                                                 </div>
+
                                                 <div class="mt-1 d-flex flex-wrap gap-3">
                                                     <small class="text-muted">
                                                         <i class="bi bi-clock me-1"></i>
@@ -299,10 +337,34 @@ else
                                                         Status at check: @finding.TenderStatusAtCheck.ToDisplayName()
                                                     </small>
                                                 </div>
+
+                                                @if (isAwaitingCoReview && CanManageCorrespondence)
+                                                {
+                                                    <div class="d-flex flex-wrap gap-2 mt-3">
+                                                        <button class="btn btn-sm btn-cidb-submit"
+                                                                @onclick="() => ConfirmVerification(finding.Id)">
+                                                            <i class="bi bi-check2-circle me-1"></i>
+                                                            Confirm Failure
+                                                        </button>
+
+                                                        <button class="btn btn-sm btn-cidb-submit-outline"
+                                                                @onclick="() => OpenOverrideVerification(finding.Id)">
+                                                            <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                            Override
+                                                        </button>
+
+                                                        <button class="btn btn-sm btn-cidb-submit-outline"
+                                                                @onclick="() => OpenManualVerification(finding.Id)">
+                                                            <i class="bi bi-pencil-square me-1"></i>
+                                                            Manual Verify
+                                                        </button>
+                                                    </div>
+                                                }
                                             </div>
-                                            <!-- Optional: small status indicator dot -->
+
                                             <div class="ms-3">
-                                                <span class="badge rounded-pill bg-@statusColor" style="width:12px;height:12px;display:inline-block;"></span>
+                                                <span class="badge rounded-pill bg-@statusColor"
+                                                      style="width:12px;height:12px;display:inline-block;"></span>
                                             </div>
                                         </div>
                                     </div>
@@ -1265,6 +1327,73 @@ else
 
         </div>
     }
+
+    @if (ShowVerificationActionModal)
+    {
+        <div class="modal fade show d-block"
+             tabindex="-1"
+             style="background-color:rgba(0,0,0,.5)">
+
+            <div class="modal-dialog">
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            @(VerificationMode == "Override"
+                                ? "Override Automated Verification"
+                                : "Manual Verification")
+                        </h5>
+                        <button class="btn-close"
+                                @onclick="CloseVerificationAction">
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+
+                        @if (VerificationMode == "Manual")
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Outcome
+                                </label>
+                                <InputSelect class="form-select"
+                                             @bind-Value="ManualVerificationIsCompliant">
+                                    <option value="true">Compliant</option>
+                                    <option value="false">Non-Compliant</option>
+                                </InputSelect>
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                @(VerificationMode == "Override"
+                                    ? "Override Reason (required)"
+                                    : "Notes")
+                            </label>
+                            <InputTextArea class="form-control"
+                                           rows="4"
+                                           @bind-Value="VerificationComment" />
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-sm btn-secondary"
+                                @onclick="CloseVerificationAction">
+                            Cancel
+                        </button>
+                        <button class="btn btn-sm btn-cidb-submit"
+                                disabled="@(VerificationMode == "Override"
+                                                                    && string.IsNullOrWhiteSpace(VerificationComment))"
+                                @onclick="SaveVerificationAction">
+                            Save
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -1314,6 +1443,13 @@ else
     private bool ShowExtensionModal;
     private int ExtensionDays = 1;
     private string ExtensionReason = string.Empty;
+
+    // ---- Verification action state ----
+    private bool ShowVerificationActionModal;
+    private string VerificationMode = "";           // "Override" or "Manual"
+    private Guid VerificationFindingId;
+    private string VerificationComment = string.Empty;
+    private bool ManualVerificationIsCompliant = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1638,6 +1774,76 @@ else
         });
 
         ShowExtensionModal = false;
+
+        await RefreshCase();
+    }
+
+    private async Task ConfirmVerification(Guid findingId)
+    {
+        if (!CurrentUserService.UserId.HasValue)
+            return;
+
+        await VerificationService.ReviewVerificationAsync(
+            findingId,
+            isConfirmed: true,
+            overrideReason: null,
+            coUserId: CurrentUserService.UserId.Value);
+
+        await RefreshCase();
+    }
+
+    private void OpenOverrideVerification(Guid findingId)
+    {
+        VerificationMode = "Override";
+        VerificationFindingId = findingId;
+        VerificationComment = string.Empty;
+        ShowVerificationActionModal = true;
+    }
+
+    private void OpenManualVerification(Guid findingId)
+    {
+        VerificationMode = "Manual";
+        VerificationFindingId = findingId;
+        VerificationComment = string.Empty;
+        ManualVerificationIsCompliant = true;
+        ShowVerificationActionModal = true;
+    }
+
+    private void CloseVerificationAction()
+    {
+        ShowVerificationActionModal = false;
+        VerificationFindingId = Guid.Empty;
+        VerificationComment = string.Empty;
+    }
+
+    private async Task SaveVerificationAction()
+    {
+        if (!CurrentUserService.UserId.HasValue || VerificationFindingId == Guid.Empty)
+            return;
+
+        if (VerificationMode == "Override")
+        {
+            if (string.IsNullOrWhiteSpace(VerificationComment))
+                return;
+
+            await VerificationService.ReviewVerificationAsync(
+                VerificationFindingId,
+                isConfirmed: false,
+                overrideReason: VerificationComment,
+                coUserId: CurrentUserService.UserId.Value);
+        }
+        else if (VerificationMode == "Manual")
+        {
+            await VerificationService.ManualVerifyAsync(
+                VerificationFindingId,
+                isCompliant: ManualVerificationIsCompliant,
+                notes: VerificationComment,
+                coUserId: CurrentUserService.UserId.Value);
+        }
+
+        ShowVerificationActionModal = false;
+        VerificationFindingId = Guid.Empty;
+        VerificationComment = string.Empty;
 
         await RefreshCase();
     }

@@ -15,6 +15,10 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             Guid id,
             CancellationToken cancellationToken = default);
 
+        Task<IReadOnlyList<Tender>> GetByIdsAsync(
+            IEnumerable<Guid> ids,
+            CancellationToken cancellationToken = default);
+
         Task<Tender?> GetByTenderNumberAsync(
             string tenderNumber,
             CancellationToken cancellationToken = default);
@@ -66,6 +70,10 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             DateTime from,
             DateTime to,
             int graceDays,
+            CancellationToken cancellationToken = default);
+
+        Task<PagedResult<Tender>> SearchForClassificationReviewAsync(
+            TenderClassificationSearchModel search,
             CancellationToken cancellationToken = default);
     }
 }

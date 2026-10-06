@@ -10,6 +10,12 @@ namespace iTender.Compliance.Domain.Entities
 
         public int LetterNumber { get; set; }
 
+        /// <summary>The client group this letter belongs to, if it was issued as a consolidated letter.</summary>
+        public Guid? ClientGroupId { get; set; }
+
+        /// <summary>Navigation to the client group.</summary>
+        public virtual ClientGroup? ClientGroup { get; set; }
+
         public string RecipientName { get; set; } = string.Empty;
 
         public string RecipientEmail { get; set; } = string.Empty;

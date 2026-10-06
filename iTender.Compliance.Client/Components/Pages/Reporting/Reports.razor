@@ -6,6 +6,7 @@
 @using iTender.Compliance.Domain.Enums
 
 @inject IReportExcelService ReportExcelService
+@inject IReportingService ReportingService
 @inject IReportPdfService ReportPdfService
 @inject IReportService ReportService
 @inject NavigationManager Navigation
@@ -363,6 +364,26 @@
 
             </div>
 
+
+            <div class="col-md-3">
+                <div class="card h-100 report-type-card @(_selectedReportType == "LateReg" ? "border-cidb" : "")"
+                     @onclick="SelectLateRegistrationReport">
+
+                    <div class="card-body text-center">
+
+                        <i class="bi bi-clock-history report-icon"></i>
+
+                        <h6 class="mt-2 mb-1">
+                            Late Registrations
+                        </h6>
+
+                        <small class="text-muted">
+                            Registered outside 21 days
+                        </small>
+
+                    </div>
+                </div>
+            </div>
         </div>
 
 
@@ -703,6 +724,70 @@
 
         </div>
 
+        @if (_selectedReportType == "LateReg")
+        {
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Late RoP Registrations
+                    </h6>
+                    <span class="badge bg-warning text-dark">
+                        @_lateRopRegistrations.Count
+                    </span>
+                </div>
+
+                <div class="card-body p-0">
+                    @if (_lateRopRegistrations.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Tender Number</th>
+                                        <th>Employer</th>
+                                        <th>Closing Date</th>
+                                        <th>Registered</th>
+                                        <th>Days Late</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in _lateRopRegistrations)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <a href="javascript:void(0)"
+                                                   @onclick="() => ViewTender(row.TenderId)"
+                                                   class="text-primary fw-semibold">
+                                                    @row.TenderNumber
+                                                </a>
+                                            </td>
+                                            <td>@row.EmployerName</td>
+                                            <td>@row.ClosingDate.ToString("yyyy-MM-dd")</td>
+                                            <td>@row.RoPRegistrationDate.ToString("yyyy-MM-dd")</td>
+                                            <td>
+                                                <span class="badge bg-warning text-dark">
+                                                    @row.DaysLate
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-check-circle display-5 text-success"></i>
+                            <p class="mt-2 mb-0">
+                                No late registrations found for this period.
+                            </p>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
 
         <!-- ========================= -->
         <!-- REPORT PERIOD -->
@@ -762,7 +847,17 @@
     private ReportSummaryModel? _reportSummary;
 
     private List<ReportTenderModel> _nonCompliantTenders = new();
+    private List<LateRopRegistrationModel> _lateRopRegistrations = new();
 
+    private async Task SelectLateRegistrationReport()
+    {
+        _selectedReportType = "LateReg";
+
+        _toDate = DateTime.Today;
+        _fromDate = DateTime.Today.AddMonths(-1);
+
+        await RefreshReport();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -837,6 +932,12 @@
                 await ReportService.GetNonCompliantTendersAsync(
                     fromDate,
                     toDate);
+
+            _lateRopRegistrations =
+                (await ReportingService.GetLateRopRegistrationsAsync(
+                fromDate,
+                toDate))
+                .ToList();
         }
         finally
         {

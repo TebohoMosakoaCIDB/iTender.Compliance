@@ -31,6 +31,38 @@
 
 </div>
 
+<div class="btn-group mb-3" role="group">
+    <button class="btn btn-sm @(_selectedBasket == null ? "btn-cidb-submit" : "btn-cidb-submit-outline")"
+            @onclick="SelectAllBasket">
+        All Cases
+    </button>
+
+    <button class="btn btn-sm @(_selectedBasket == "New" ? "btn-cidb-submit" : "btn-cidb-submit-outline")"
+            @onclick="SelectNewBasket">
+        Newly Identified
+    </button>
+
+    <button class="btn btn-sm @(_selectedBasket == "CN_Due" ? "btn-cidb-submit" : "btn-cidb-submit-outline")"
+            @onclick="SelectCnDueBasket">
+        Contravention Notice Due
+    </button>
+
+    <button class="btn btn-sm @(_selectedBasket == "Corrective" ? "btn-cidb-submit" : "btn-cidb-submit-outline")"
+            @onclick="SelectCorrectiveBasket">
+        Corrective Action
+    </button>
+
+    <button class="btn btn-sm @(_selectedBasket == "Referral" ? "btn-cidb-submit" : "btn-cidb-submit-outline")"
+            @onclick="SelectReferralBasket">
+        Referral
+    </button>
+
+    <button class="btn btn-sm @(_selectedBasket == "Closed" ? "btn-cidb-submit" : "btn-cidb-submit-outline")"
+            @onclick="SelectClosedBasket">
+        Cleared / Resolved
+    </button>
+</div>
+
 <div class="card shadow-sm mb-4">
 
     <div class="card-body">
@@ -359,6 +391,7 @@ else
 
 @code
 {
+    private string? _selectedBasket;
     private List<int> PageSizes = [];
     private SystemSettingModel Settings = new();
     private bool DisableAgentFilter;
@@ -369,6 +402,13 @@ else
     };
 
     private PagedResult<ComplianceCase>? Result;
+
+    private Task SelectAllBasket() => ApplyBasket(null);
+    private Task SelectNewBasket() => ApplyBasket("New");
+    private Task SelectCnDueBasket() => ApplyBasket("CN_Due");
+    private Task SelectCorrectiveBasket() => ApplyBasket("Corrective");
+    private Task SelectReferralBasket() => ApplyBasket("Referral");
+    private Task SelectClosedBasket() => ApplyBasket("Closed");
 
     protected override async Task OnInitializedAsync()
     {
@@ -434,6 +474,43 @@ else
             PageNumber = 1,
             PageSize = Settings.DefaultPageSize
         };
+
+        await LoadCases();
+    }
+
+    private async Task ApplyBasket(string? basket)
+    {
+        _selectedBasket = basket;
+
+        Search = new ComplianceCaseSearchModel
+        {
+            PageNumber = 1,
+            PageSize = Settings.DefaultPageSize
+        };
+
+        switch (basket)
+        {
+            case "New":
+                Search.Status = CaseStatus.New;
+                Search.AssignedOnly = false;
+                break;
+            case "CN_Due":
+                Search.Status = CaseStatus.WaitingForResponse;
+                Search.AwaitingResponse = true;
+                break;
+            case "Corrective":
+                Search.Status = CaseStatus.ContraventionNoticeIssued;
+                break;
+            case "Referral":
+                Search.Status = CaseStatus.ReferredForEnforcement;
+                break;
+            case "Closed":
+                Search.Status = CaseStatus.Closed;
+                break;
+            case null:
+            default:
+                break;
+        }
 
         await LoadCases();
     }

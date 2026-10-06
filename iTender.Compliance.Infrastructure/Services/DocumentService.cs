@@ -4,6 +4,8 @@ using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Enums;
 using Microsoft.Extensions.Configuration;
 using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
@@ -379,5 +381,259 @@ namespace iTender.Compliance.Infrastructure.Services
                 .Replace("{AgentName}", user)
                 .Replace("{CurrentDate}", DateTime.Now.ToString("dd MMM yyyy"));
         }
+
+        // ---------------------------------------------------------------------
+        // Consolidated Letter (Instruction or Contravention)
+        // ---------------------------------------------------------------------
+        public async Task<DocumentResult> GenerateConsolidatedLetterAsync(
+            ConsolidatedLetterModel model,
+            CancellationToken cancellationToken = default)
+        {
+            var fileName = model.Type == LetterType.Instruction
+                ? $"Instructional_Letter_{Sanitize(model.EmployerName)}_{DateTime.UtcNow:yyyyMMddHHmm}.pdf"
+                : $"Contravention_Notice_{Sanitize(model.EmployerName)}_{DateTime.UtcNow:yyyyMMddHHmm}.pdf";
+
+            var filePath = Path.Combine(_rootFolder, fileName);
+
+            var isInstruction = model.Type == LetterType.Instruction;
+
+            var heading = isInstruction
+                ? "INSTRUCTIONAL LETTER: COMPLIANCE ASSESSMENT"
+                : "CONTRAVENTION NOTICE IN TERMS OF THE CONSTRUCTION INDUSTRY DEVELOPMENT BOARD ACT AND CID REGULATIONS";
+
+            var deadlineText = isInstruction
+                ? "within 48 hours from the time this letter is transmitted electronically by email to your office, failing which, a contravention notice will be issued."
+                : "within fourteen (14) calendar days. The 14 calendar days commences on the day this letter is transmitted electronically by email to the recipient.";
+
+            var complianceParagraph = isInstruction
+                ? "In terms of Construction Industry Development Board Act, 38 of 2000 read with the Construction Industry Development Regulations, GG 26427 of 9 June 2004 (CID Regulations) as amended, collectively referred to herein as CIDB prescripts your attention is drawn to the fact that: The Construction Industry Development Board (\"CIDB\") in terms of the Construction Industry Development Board Act, 38 of 2000 (the Act) has conducted compliance monitoring on construction tenders issued under your department."
+                : "The Construction Industry Development Board Act, 38 of 2000 (Act) read with the Construction Industry Development Regulations, GG 26427 of 9 June 2004 (CID Regulations) as amended, collectively referred to herein as CIDB prescripts, impose an obligation on all public sector employers procuring construction works to comply with the CIDB prescripts.";
+
+            var enforcementParagraph = isInstruction
+                ? "Should you have queries herein, please contact the Compliance Officer assigned to your case. For non-compliance and CIDB prescripts interpretation queries, please contact Adv. Marcia Mashele on 012 482 7308 or MarciaM@cidb.org.za."
+                : "Enforcement action including Preliminary investigation and the subsequent formal inquiry respectively, will be taken by the Board for failure to comply with the CIDB prescripts and will be reported to the Auditor General of South Africa (AGSA) in terms of CID Regulations 21(4) without further notice.";
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(2, Unit.Centimetre);
+                    page.DefaultTextStyle(t => t.FontSize(11).FontFamily("Arial"));
+
+                    // ---------------------------------------------------------
+                    // HEADER (logo / date)
+                    // ---------------------------------------------------------
+                    page.Header().Column(col =>
+                    {
+                        col.Item().AlignRight()
+                           .Text(DateTime.UtcNow.ToString("dd MMMM yyyy").ToUpperInvariant())
+                           .FontSize(11);
+
+                        col.Item().PaddingTop(20).Text(text =>
+                        {
+                            text.Line("THE HEAD OF DEPARTMENT").Bold();
+                            text.Line(model.HodName);
+                            text.Line(model.EmployerName);
+                            if (!string.IsNullOrWhiteSpace(model.DepartmentAddress))
+                                text.Line(model.DepartmentAddress);
+                        });
+
+                        col.Item().PaddingTop(10).Text(text =>
+                        {
+                            text.Line($"Attention: {model.RecipientName}");
+                            text.Line($"Per email: {model.RecipientEmail}");
+                            if (!string.IsNullOrWhiteSpace(model.CcEmails))
+                                text.Line($"Cc: {model.CcEmails}");
+                        });
+                    });
+
+                    // ---------------------------------------------------------
+                    // BODY
+                    // ---------------------------------------------------------
+                    page.Content().PaddingVertical(20).Column(col =>
+                    {
+                        col.Spacing(10);
+
+                        col.Item().PaddingTop(20).Text("Dear Head of Department").Bold();
+
+                        col.Item().Text(heading).Bold().Underline();
+
+                        col.Item().Text(complianceParagraph).Justify();
+
+                        col.Item().Text(
+                            $"CIDB through its compliance monitoring process has identified " +
+                            $"{model.TenderCount} construction contract(s)/tender(s) issued under your " +
+                            $"department which are non-compliant with the CIDB prescripts. " +
+                            $"Refer to attached list \"ANNEXURE 'A'\".")
+                            .Justify();
+
+                        col.Item().Text(
+                            $"You are therefore instructed to comply with CIDB prescripts {deadlineText}")
+                            .Justify();
+
+                        if (!isInstruction)
+                        {
+                            col.Item().Text(enforcementParagraph).Justify();
+                        }
+
+                        col.Item().PaddingTop(10).Text(text =>
+                        {
+                            text.Line("Any queries herein may be addressed to the Compliance Officer.");
+                            text.Line("For non-compliance and CIDB prescripts interpretation queries, " +
+                                      "please contact Adv. Marcia Mashele on 012 482 7308 or MarciaM@cidb.org.za.");
+                        });
+
+                        col.Item().PaddingTop(20).Text("We trust the above will receive your immediate attention.");
+
+                        col.Item().PaddingTop(20).Text("Yours faithfully,");
+
+                        // ---------------------------------------------------------
+                        // SIGNATURE IMAGE
+                        // ---------------------------------------------------------
+                        if (!string.IsNullOrWhiteSpace(_logoPath) &&
+                            File.Exists(_logoPath))
+                        {
+                            col.Item().PaddingTop(10).Height(60).Image(_logoPath);
+                        }
+                        else
+                        {
+                            col.Item().PaddingTop(30);
+                        }
+
+                        col.Item().PaddingTop(5).Text(text =>
+                        {
+                            text.Line("Adv. Marcia Mashele").Bold();
+                            text.Line("Manager: Regulatory Compliance");
+                        });
+                    });
+
+                    // ---------------------------------------------------------
+                    // FOOTER
+                    // ---------------------------------------------------------
+                    page.Footer().AlignCenter().Text(text =>
+                    {
+                        text.DefaultTextStyle(t => t.FontSize(9).FontColor(Colors.Grey.Darken1));
+                        text.Line("Tel +27 86 100 2432 | For postal, email and physical addresses go to www.cidb.org.za. Anonymous Fraud Line 0800 11 24 52");
+                        text.Line("Mts Thembisa Jimana | Dr Elizabeth Makgae | Mr Bongani Dlada (CEO)");
+                    });
+                });
+            });
+
+            document.GeneratePdf(filePath);
+
+            return await Task.FromResult(new DocumentResult
+            {
+                FileName = fileName,
+                FilePath = filePath
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // Annexure A
+        // ---------------------------------------------------------------------
+        public async Task<DocumentResult> GenerateAnnexureAsync(
+            AnnexureModel model,
+            CancellationToken cancellationToken = default)
+        {
+            var fileName = $"Annexure_A_{Sanitize(model.EmployerName)}_{DateTime.UtcNow:yyyyMMddHHmm}.pdf";
+            var filePath = Path.Combine(_rootFolder, fileName);
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(1.5f, Unit.Centimetre);
+                    page.DefaultTextStyle(t => t.FontSize(10).FontFamily("Arial"));
+
+                    // HEADER
+                    page.Header().Column(col =>
+                    {
+                        col.Spacing(5);
+
+                        col.Item().Text(
+                            "LIST OF CONSTRUCTION TENDERS OF THE POTENTIAL ISSUE OF NON-COMPLIANCE " +
+                            "WITH THE CONSTRUCTION INDUSTRY DEVELOPMENT BOARD ACT, 38 OF 2000 AND CID REGULATIONS")
+                            .Bold()
+                            .FontSize(11);
+
+                        col.Item().PaddingTop(5).Text(text =>
+                        {
+                            text.Span("Entity: ").Bold();
+                            text.Span(model.EmployerName);
+                        });
+
+                        col.Item().AlignRight().Text("ANNEXURE A").Bold();
+                    });
+
+                    // BODY (TABLE)
+                    page.Content().PaddingVertical(15).Table(table =>
+                    {
+                        table.ColumnsDefinition(cols =>
+                        {
+                            cols.ConstantColumn(30);   // No
+                            cols.RelativeColumn(4);    // Client Name
+                            cols.RelativeColumn(2);    // Tender Number
+                            cols.ConstantColumn(60);   // Advertised
+                            cols.ConstantColumn(60);   // Registered
+                            cols.ConstantColumn(60);   // Completed
+                        });
+
+                        // Header row
+                        table.Header(header =>
+                        {
+                            header.Cell().Background(Colors.Grey.Lighten2).Padding(5).Text("No").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten2).Padding(5).Text("Client Name").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten2).Padding(5).Text("Tender Number").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten2).Padding(5).Text("Advertised").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten2).Padding(5).Text("Registered").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten2).Padding(5).Text("Completed").Bold();
+                        });
+
+                        // Data rows
+                        foreach (var row in model.Rows)
+                        {
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2)
+                                 .Padding(5).Text(row.Number.ToString());
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2)
+                                 .Padding(5).Text(row.ClientName);
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2)
+                                 .Padding(5).Text(row.TenderNumber);
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2)
+                                 .Padding(5).Text(row.IsAdvertised ? "Yes" : "No");
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2)
+                                 .Padding(5).Text(row.IsRegistered ? "Yes" : "No");
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2)
+                                 .Padding(5).Text(row.IsCompleted ? "Yes" : "No");
+                        }
+                    });
+
+                    // FOOTER
+                    page.Footer().AlignCenter().Text(text =>
+                    {
+                        text.DefaultTextStyle(t => t.FontSize(8).FontColor(Colors.Grey.Darken1));
+                        text.Line("Tel +27 86 100 2432 | For postal, email and physical addresses go to www.cidb.org.za. Anonymous Fraud Line 0800 11 24 52");
+                        text.Line("Mts Thembisa Jobana | Dr Elizabeth Makgae | Mr Bongani Dlada (CEO)");
+                    });
+                });
+            });
+
+            document.GeneratePdf(filePath);
+
+            return await Task.FromResult(new DocumentResult
+            {
+                FileName = fileName,
+                FilePath = filePath
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // Helper
+        // ---------------------------------------------------------------------
+        private static string Sanitize(string? value)
+            => string.IsNullOrWhiteSpace(value)
+                ? "client"
+                : new string(value.Where(c => char.IsLetterOrDigit(c)).ToArray());
     }
 }

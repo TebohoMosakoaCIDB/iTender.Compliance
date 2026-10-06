@@ -6,6 +6,7 @@ using iTender.Compliance.Application.Interfaces.Scrapers;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
+using iTender.Compliance.Domain.Utilities;
 using iTender.Compliance.Infrastructure.Mappers;
 using Microsoft.Extensions.Configuration;
 
@@ -233,6 +234,7 @@ namespace iTender.Compliance.Infrastructure.Services
                     // -----------------------------------------------------
                     tender.TenderSyncId = sync.Id;
                     tender.NormalizedTitle = TenderTitleNormalizer.Normalize(tender.Title);
+                    tender.NormalizedEmployerName = EmployerNameNormalizer.Normalize(tender.EmployerName);
 
                     await _tenderRepository.AddAsync(tender, cancellationToken);
                     await _unitOfWork.SaveChangesAsync(cancellationToken);

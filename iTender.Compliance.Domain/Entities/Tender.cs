@@ -45,5 +45,28 @@
 
         public virtual TenderSync TenderSync { get; set; } = null!;
         public virtual ComplianceCase? ComplianceCase { get; set; }
+
+        /// <summary>Who last confirmed or overrode the automated construction classification.</summary>
+        public Guid? ClassificationReviewedByUserId { get; set; }
+
+        /// <summary>When the classification was reviewed.</summary>
+        public DateTime? ClassificationReviewedOn { get; set; }
+
+        /// <summary>Free-text reason when a CO overrides the automated classification.</summary>
+        public string? ClassificationReviewNotes { get; set; }
+
+        /// <summary>True if the automated classification was changed by a CO.</summary>
+        public bool ClassificationOverridden { get; set; }
+        /// <summary>
+        /// Whether the tender was advertised on the Board's i-Tender portal.
+        /// Populated during compliance processing from the Advertisement finding.
+        /// </summary>
+        public bool IsAdvertised { get; set; }
+
+        /// <summary>
+        /// Canonical, normalised employer name used for client grouping.
+        /// Derived from EmployerName on ingestion or on first group creation.
+        /// </summary>
+        public string NormalizedEmployerName { get; set; } = string.Empty;
     }
 }

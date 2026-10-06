@@ -1,0 +1,323 @@
+﻿@page "/clients/groups/{Id:guid}"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Repositories
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Enums
+
+@inject IClientGroupRepository GroupRepository
+@inject IClientGroupService GroupService
+@inject ICurrentUserService CurrentUserService
+@inject NavigationManager Navigation
+
+@attribute [Authorize(Policy = "CaseManagement")]
+
+<PageTitle>Client Group | CRCIP Monitor</PageTitle>
+
+@if (Model is null)
+{
+    <div class="text-center py-5"><div class="spinner-border text-danger"></div></div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2 class="mb-1">@Model.EmployerName</h2>
+            <span class="badge bg-secondary">@Model.Status</span>
+        </div>
+        <button class="btn btn-sm btn-secondary"
+                @onclick='() => Navigation.NavigateTo("/clients/groups")'>
+            <i class="bi bi-arrow-left me-1"></i>
+            Back
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-danger">@ErrorMessage</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong><i class="bi bi-list-task me-2"></i>Tenders in this group</strong>
+                    <span class="badge bg-secondary">@Model.Tenders.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (Model.Tenders.Any())
+                    {
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Tender</th>
+                                    <th>Closing</th>
+                                    <th>Advertised</th>
+                                    <th>Registered</th>
+                                    @if (Model.Status == ClientGroupStatus.Draft)
+                                    {
+                                        <th style="width:100px;"></th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in Model.Tenders)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold">@t.TenderNumber</div>
+                                            <small class="text-muted">@t.Title</small>
+                                        </td>
+                                        <td>@t.ClosingDate.ToString("dd MMM yyyy")</td>
+                                        <td>
+                                            <span class="badge @(t.IsAdvertised ? "bg-success" : "bg-danger")">
+                                                @(t.IsAdvertised ? "Yes" : "No")
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge @(t.IsRegistered ? "bg-success" : "bg-danger")">
+                                                @(t.IsRegistered ? "Yes" : "No")
+                                            </span>
+                                        </td>
+                                        @if (Model.Status == ClientGroupStatus.Draft)
+                                        {
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                        @onclick="() => RemoveCase(t.ComplianceCaseId)">
+                                                    Remove
+                                                </button>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-5">No tenders in this group.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <strong><i class="bi bi-envelope me-2"></i>Recipient</strong>
+                </div>
+                <div class="card-body">
+                    @if (Model.Status == ClientGroupStatus.Draft)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Contact Name</label>
+                            <input class="form-control" @bind="_contactName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Contact Email</label>
+                            <input class="form-control" @bind="_contactEmail" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">CC (semicolon-separated)</label>
+                            <textarea class="form-control" rows="3" @bind="_ccEmails"></textarea>
+                        </div>
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="SaveRecipient"
+                                disabled="@_saving">
+                            @if (_saving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            Save
+                        </button>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Name</dt>
+                            <dd class="col-sm-8">@Model.ContactName</dd>
+                            <dt class="col-sm-4">Email</dt>
+                            <dd class="col-sm-8">@Model.ContactEmail</dd>
+                            <dt class="col-sm-4">CC</dt>
+                            <dd class="col-sm-8">@Model.CcEmails</dd>
+                        </dl>
+                    }
+                </div>
+            </div>
+
+            @if (Model.Status != ClientGroupStatus.Draft)
+            {
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <strong><i class="bi bi-file-earmark-pdf me-2"></i>Issued Documents</strong>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrWhiteSpace(Model.ConsolidatedLetterFilePath))
+                        {
+                            <a href="@Model.ConsolidatedLetterFilePath"
+                               target="_blank"
+                               class="btn btn-sm btn-cidb-submit-outline w-100 mb-2">
+                                <i class="bi bi-download me-1"></i>
+                                @Model.LetterType Letter
+                            </a>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.AnnexureFilePath))
+                        {
+                            <a href="@Model.AnnexureFilePath"
+                               target="_blank"
+                               class="btn btn-sm btn-cidb-submit-outline w-100">
+                                <i class="bi bi-download me-1"></i>
+                                Annexure A
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (Model.Status == ClientGroupStatus.Draft)
+    {
+        <div class="card shadow-sm mt-4">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>Issue Consolidated Letter</strong>
+                    <div class="small text-muted">
+                        Generates one letter and one Annexure A covering all tenders in this group.
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-cidb-submit"
+                        @onclick="OpenIssue"
+                        disabled="@(!Model.Tenders.Any() || string.IsNullOrWhiteSpace(_contactEmail))">
+                    <i class="bi bi-send me-1"></i>
+                    Issue Letter
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@if (ShowIssueModal && Model is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Issue Consolidated Letter</h5>
+                    <button class="btn-close" @onclick="CloseIssue"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        A single letter and Annexure A listing <strong>@Model.Tenders.Count</strong>
+                        tender(s) will be emailed to <strong>@_contactEmail</strong>.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label">Letter Type <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_issueLetterType">
+                            <option value="@LetterType.Instruction">Instructional Letter</option>
+                            <option value="@LetterType.ContraventionNotice">Contravention Notice</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-sm btn-secondary" @onclick="CloseIssue">Cancel</button>
+                    <button class="btn btn-sm btn-cidb-submit" @onclick="Issue" disabled="@_issuing">
+                        @if (_issuing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Issue
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private ClientGroupDetailModel? Model;
+    private string? _contactName;
+    private string? _contactEmail;
+    private string? _ccEmails;
+    private bool _saving;
+    private bool ShowIssueModal;
+    private bool _issuing;
+    private LetterType _issueLetterType = LetterType.Instruction;
+    private string ErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        Model = await GroupRepository.GetDetailAsync(Id);
+
+        if (Model is not null)
+        {
+            _contactName = Model.ContactName;
+            _contactEmail = Model.ContactEmail;
+            _ccEmails = Model.CcEmails;
+        }
+    }
+
+    private async Task SaveRecipient()
+    {
+        if (Model is null || !CurrentUserService.UserId.HasValue) return;
+
+        _saving = true;
+        try
+        {
+            await GroupService.UpdateRecipientAsync(
+                Id, _contactName, _contactEmail, _ccEmails,
+                CurrentUserService.UserId.Value);
+
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RemoveCase(Guid caseId)
+    {
+        await GroupService.RemoveCaseAsync(Id, caseId);
+        await Load();
+    }
+
+    private void OpenIssue() { ErrorMessage = string.Empty; ShowIssueModal = true; }
+    private void CloseIssue() => ShowIssueModal = false;
+
+    private async Task Issue()
+    {
+        if (!CurrentUserService.UserId.HasValue) return;
+
+        _issuing = true;
+        try
+        {
+            await GroupService.IssueGroupAsync(
+                Id,
+                _issueLetterType,
+                CurrentUserService.UserId.Value);
+
+            ShowIssueModal = false;
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            _issuing = false;
+        }
+    }
+}
