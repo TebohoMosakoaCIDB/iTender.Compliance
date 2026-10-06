@@ -16,7 +16,7 @@ namespace iTender.Compliance.Domain.Entities
         public bool IsManager { get; set; }
 
         public bool AutoAssignEnabled { get; set; } = true;
-        public int MaximumOpenCases { get; set; }
+        public int MaximumOpenGroups { get; set; }
         public int DisplayOrder { get; set; }
         public string? Notes { get; set; }
         public AgentLevel Level { get; set; }

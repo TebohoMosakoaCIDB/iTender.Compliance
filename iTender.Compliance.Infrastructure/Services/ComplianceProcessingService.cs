@@ -26,6 +26,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly ICorrespondenceService _correspondenceService;
         private readonly IWorkingDayCalculator _workingDayCalculator;
         private readonly IClientGroupService _clientGroupService;
+        private readonly IAssignmentService _assignmentService;
 
         public ComplianceProcessingService(
             IComplianceCaseRepository caseRepository,
@@ -35,6 +36,7 @@ namespace iTender.Compliance.Infrastructure.Services
             IComplianceActionRepository actionRepository,
             ICaseLetterRepository letterRepository,
             ISystemSettingRepository settingRepository,
+            IAssignmentService assignmentService,
             IAuditService auditService,
             IWorkClassificationValidator classValidator,
             ILetterNumberGenerator letterNumberGenerator,
@@ -48,6 +50,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _letterRepository = letterRepository;
             _settingRepository = settingRepository;
             _clientGroupService = clientGroupService;
+            _assignmentService = assignmentService;
             _auditService = auditService;
             _classValidator = classValidator;
             _letterNumberGenerator = letterNumberGenerator;
@@ -207,9 +210,7 @@ namespace iTender.Compliance.Infrastructure.Services
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // =========================================================
-            // 8b. BR-14: attach the case to a draft client group so
-            // correspondence can be issued once per employer, with an
-            // Annexure A listing every non-compliant tender.
+            // 8b. BR-14: attach the case to a draft client group.
             // =========================================================
             var group = await _clientGroupService.GetOrCreateDraftGroupAsync(
                 employerName: tender.EmployerName,
@@ -222,6 +223,49 @@ namespace iTender.Compliance.Infrastructure.Services
                 group.Id,
                 complianceCase.Id,
                 cancellationToken);
+
+            // =========================================================
+            // 8c. Assignment:
+            // - If the group already has an owner, inherit it.
+            // - Otherwise, run normal assignment and adopt the group owner.
+            // =========================================================
+            if (group.AgentId.HasValue)
+            {
+                complianceCase.AgentId = group.AgentId;
+                complianceCase.AssignedOn = DateTime.UtcNow;
+                complianceCase.Status = CaseStatus.Assigned;
+                complianceCase.ModifiedOn = DateTime.UtcNow;
+
+                await _caseRepository.UpdateAsync(complianceCase, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation(
+                    "Case {CaseId} inherited group owner {AgentId}.",
+                    complianceCase.Id, group.AgentId);
+            }
+            else
+            {
+                try
+                {
+                    await _assignmentService.AssignAsync(complianceCase, cancellationToken);
+
+                    if (complianceCase.AgentId.HasValue)
+                    {
+                        await _clientGroupService.SetOwnerFromCaseAsync(
+                            group.Id, complianceCase.Id, cancellationToken);
+
+                        _logger.LogInformation(
+                            "Case {CaseId} assigned to {AgentId}; client group owner set.",
+                            complianceCase.Id, complianceCase.AgentId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Assignment failed for case {CaseId}. Case will need manual assignment.",
+                        complianceCase.Id);
+                }
+            }
 
             // 9. Audit log
             await _auditService.LogAsync(
@@ -239,16 +283,5 @@ namespace iTender.Compliance.Infrastructure.Services
 
             return complianceCase.Id;
         }
-
-        private ContractModel? FindMatchingContract(
-            Tender tender,
-            List<ContractModel> crmContracts)
-        {
-            // Matching logic will go here once we establish
-            // which CRM field corresponds to Tender.TenderNumber.
-
-            return null;
-        }
-
     }
 }

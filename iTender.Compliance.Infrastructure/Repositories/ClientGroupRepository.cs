@@ -21,6 +21,16 @@ namespace iTender.Compliance.Infrastructure.Repositories
             await Context.ClientGroups.AddAsync(group, cancellationToken);
         }
 
+        public async Task<int> GetOpenGroupCountByAgentAsync(
+            Guid agentId,
+            CancellationToken cancellationToken = default)
+        {
+            return await Context.ClientGroups
+                .CountAsync(g => g.AgentId == agentId
+                              && g.Status != ClientGroupStatus.Closed,
+                             cancellationToken);
+        }
+
         public Task UpdateAsync(
             ClientGroup group,
             CancellationToken cancellationToken = default)
@@ -40,6 +50,21 @@ namespace iTender.Compliance.Infrastructure.Repositories
                         .ThenInclude(cc => cc.Tender)
                 .Include(g => g.ConsolidatedLetter)
                 .FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<ClientGroup>> GetByAgentAsync(
+            Guid agentId,
+            CancellationToken cancellationToken = default)
+        {
+            return await Context.ClientGroups
+                .Include(g => g.Cases)
+                    .ThenInclude(c => c.ComplianceCase)
+                        .ThenInclude(cc => cc.Tender)
+                .Where(g => g.AgentId == agentId
+                         && g.Status != ClientGroupStatus.Closed)
+                .OrderBy(g => g.Status)
+                .ThenByDescending(g => g.CreatedOn)
+                .ToListAsync(cancellationToken);
         }
 
         public Task<ClientGroup?> GetDraftByEmployerAsync(
@@ -140,6 +165,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
             CancellationToken cancellationToken = default)
         {
             return await Context.ClientGroups
+                .Include(g => g.Agent)
                 .Where(g => g.Id == id)
                 .Select(g => new ClientGroupDetailModel
                 {
@@ -153,7 +179,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
                     IssuedOn = g.IssuedOn,
                     AnnexureFileName = g.AnnexureFileName,
                     AnnexureFilePath = g.AnnexureFilePath,
-
+                    AgentId = g.AgentId,
+                    AgentName = g.Agent != null ? g.Agent.FullName : null,
+                    AgentEmail = g.Agent != null ? g.Agent.Email : null,
                     ConsolidatedLetterId = g.ConsolidatedLetterId,
                     ConsolidatedLetterFileName = g.ConsolidatedLetter != null
                         ? g.ConsolidatedLetter.FileName

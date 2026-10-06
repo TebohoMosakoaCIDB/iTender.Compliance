@@ -15,7 +15,6 @@ namespace iTender.Compliance.Infrastructure.Services
     public class SynchronizationService : ISynchronizationService
     {
         private readonly ITenderRepository _tenderRepository;
-        private readonly IAssignmentService _assignmentService;
         private readonly IVerificationService _verificationService;
         private readonly IDuplicateGroupRepository _duplicateGroupRepository;
         private readonly IDuplicateDetectionService _duplicateDetectionService;
@@ -37,7 +36,6 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly EtendersTenderMapper _etendersTenderMapper;
         public SynchronizationService(
             IEnumerable<IScraperService> scrapers,
-            IAssignmentService autoAssignment,
             IVerificationService verificationService,
             IDuplicateGroupRepository duplicateGroupRepository,
             IDuplicateDetectionService duplicateDetectionService,
@@ -60,7 +58,6 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             _scrapers = scrapers;
             _currentUser = currentUser;
-            _assignmentService = autoAssignment;
             _verificationService = verificationService;
             _tenderRepository = tenderRepository;
             _duplicateDetectionService = duplicateDetectionService;
@@ -319,15 +316,18 @@ namespace iTender.Compliance.Infrastructure.Services
                         nonCompliant++;
                         casesCreated++;
 
-                        var complianceCase = await _complianceCaseRepository
-                            .GetByIdAsync(createdCaseId.Value, cancellationToken);
-
-                        if (complianceCase is not null)
+                        if (tender.AwardedDate.HasValue && tender.AwardValue.HasValue)
                         {
-                            // 1. Assign the case
                             try
                             {
-                                await _assignmentService.AssignAsync(complianceCase, cancellationToken);
+                                var complianceCase = await _complianceCaseRepository
+                                    .GetByIdAsync(createdCaseId.Value, cancellationToken);
+
+                                if (complianceCase is not null)
+                                {
+                                    await _verificationService
+                                        .RunAutomatedVerificationAsync(complianceCase, cancellationToken);
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -335,40 +335,12 @@ namespace iTender.Compliance.Infrastructure.Services
                                     sync.Id,
                                     SyncLogType.Error,
                                     SyncLogLevel.Error,
-                                    "Assignment Failed",
-                                    "Case was created but could not be assigned. It will need manual review.",
+                                    "Verification Failed",
+                                    "Case was created but automated verification could not be completed.",
                                     tender.TenderNumber,
                                     cancellationToken);
 
                                 sync.ErrorCount++;
-                            }
-
-                            // 2. Run verification AFTER assignment so the CO is known
-                            if (tender.AwardedDate.HasValue && tender.AwardValue.HasValue)
-                            {
-                                try
-                                {
-                                    // Re-fetch so the Agent navigation is populated after AssignAsync
-                                    complianceCase = await _complianceCaseRepository
-                                        .GetByIdAsync(complianceCase.Id, cancellationToken)
-                                        ?? complianceCase;
-
-                                    await _verificationService
-                                        .RunAutomatedVerificationAsync(complianceCase, cancellationToken);
-                                }
-                                catch (Exception ex)
-                                {
-                                    await LogAsync(
-                                        sync.Id,
-                                        SyncLogType.Error,
-                                        SyncLogLevel.Error,
-                                        "Verification Failed",
-                                        "Case was assigned but automated verification could not be completed.",
-                                        tender.TenderNumber,
-                                        cancellationToken);
-
-                                    sync.ErrorCount++;
-                                }
                             }
                         }
                     }

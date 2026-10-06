@@ -245,7 +245,7 @@ namespace iTender.Compliance.Infrastructure.Identity
 
                             AutoAssignEnabled = true,
 
-                            MaximumOpenCases = 10,
+                            MaximumOpenGroups = 10,
 
                             DisplayOrder = 1,
 

@@ -8,6 +8,7 @@ namespace iTender.Compliance.Infrastructure.Services
     public class RoundRobinStrategy : ICaseDistributionStrategy
     {
         private readonly IAgentRepository _agentRepository;
+        private readonly IClientGroupRepository _clientGroupRepository;
         private readonly ISystemSettingRepository _systemSettingRepository;
         private readonly IUnitOfWork _unitOfWork;
 
@@ -15,10 +16,12 @@ namespace iTender.Compliance.Infrastructure.Services
 
         public RoundRobinStrategy(
             IAgentRepository agentRepository,
+            IClientGroupRepository clientGroupRepository,
             ISystemSettingRepository systemSettingRepository,
             IUnitOfWork unitOfWork)
         {
             _agentRepository = agentRepository;
+            _clientGroupRepository = clientGroupRepository;
             _systemSettingRepository = systemSettingRepository;
             _unitOfWork = unitOfWork;
         }
@@ -27,30 +30,40 @@ namespace iTender.Compliance.Infrastructure.Services
             ComplianceCase complianceCase,
             CancellationToken cancellationToken = default)
         {
-            var agents = (await _agentRepository
-                    .GetActiveAsync(cancellationToken))
-                .Where(x => x.AutoAssignEnabled)
-                .OrderBy(x => x.DisplayOrder)
-                .ThenBy(x => x.Id)
+            var allAgents = (await _agentRepository.GetActiveAsync(cancellationToken))
+                .Where(a => a.AutoAssignEnabled)
+                .OrderBy(a => a.DisplayOrder)
+                .ThenBy(a => a.Id)
                 .ToList();
 
-            if (agents.Count == 0)
+            if (allAgents.Count == 0)
                 return null;
 
-            var settings = await _systemSettingRepository
-                .GetAsync(cancellationToken);
+            // Filter out agents at their open-group cap.
+            var eligible = new List<Agent>();
 
-            var index = settings.RoundRobinCursor % agents.Count;
-            if (index < 0) index = 0; // safety if cursor ever goes negative
+            foreach (var agent in allAgents)
+            {
+                var workload = await _clientGroupRepository
+                    .GetOpenGroupCountByAgentAsync(agent.Id, cancellationToken);
 
-            var selected = agents[index];
+                if (workload < agent.MaximumOpenGroups)
+                    eligible.Add(agent);
+            }
 
-            settings.RoundRobinCursor = (index + 1) % agents.Count;
+            if (eligible.Count == 0)
+                return null;
 
-            await _systemSettingRepository.UpdateAsync(
-                settings,
-                cancellationToken);
+            var settings = await _systemSettingRepository.GetAsync(cancellationToken);
 
+            var index = settings.RoundRobinCursor % eligible.Count;
+            if (index < 0) index = 0;
+
+            var selected = eligible[index];
+
+            settings.RoundRobinCursor = (index + 1) % eligible.Count;
+
+            await _systemSettingRepository.UpdateAsync(settings, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return selected;

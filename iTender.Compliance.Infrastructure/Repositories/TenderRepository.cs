@@ -94,7 +94,6 @@ namespace iTender.Compliance.Infrastructure.Repositories
     CancellationToken cancellationToken = default)
         {
             return Context.Tenders
-                .AsNoTracking()
 
                 .Include(x => x.TenderSync)
 

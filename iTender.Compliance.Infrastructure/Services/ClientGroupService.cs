@@ -353,13 +353,99 @@ namespace iTender.Compliance.Infrastructure.Services
             return letter.Id;
         }
 
-        public async Task UpdateRecipientAsync(
+        public async Task<Guid?> GetOwnerAsync(
+            Guid groupId,
+            CancellationToken cancellationToken = default)
+        {
+            var group = await _clientGroupRepository
+                .GetByIdAsync(groupId, cancellationToken);
+
+            return group?.AgentId;
+        }
+
+        public async Task SetOwnerFromCaseAsync(
+            Guid groupId,
+            Guid complianceCaseId,
+            CancellationToken cancellationToken = default)
+        {
+            var group = await _clientGroupRepository
+                .GetByIdAsync(groupId, cancellationToken)
+                ?? throw new InvalidOperationException("Client group not found.");
+
+            // Already has an owner - nothing to do.
+            if (group.AgentId.HasValue)
+                return;
+
+            var @case = await _complianceCaseRepository
+                .GetByIdAsync(complianceCaseId, cancellationToken);
+
+            if (@case?.AgentId is null)
+                return;
+
+            group.AgentId = @case.AgentId;
+            group.ModifiedOn = DateTime.UtcNow;
+
+            await _clientGroupRepository.UpdateAsync(group, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task ManuallyAssignGroupAsync(
     Guid groupId,
-    string? contactName,
-    string? contactEmail,
-    string? ccEmails,
-    Guid modifiedByUserId,
+    Guid agentId,
+    Guid managerUserId,
+    string? comment,
     CancellationToken cancellationToken = default)
+        {
+            var group = await _clientGroupRepository
+                .GetByIdAsync(groupId, cancellationToken)
+                ?? throw new InvalidOperationException("Client group not found.");
+
+            var previousAgentId = group.AgentId;
+
+            group.AgentId = agentId;
+            group.ModifiedBy = managerUserId;
+            group.ModifiedOn = DateTime.UtcNow;
+
+            await _clientGroupRepository.UpdateAsync(group, cancellationToken);
+
+            foreach (var link in group.Cases)
+            {
+                var @case = link.ComplianceCase;
+
+                if (@case.AgentId == agentId)
+                    continue;
+
+                @case.AgentId = agentId;
+                @case.AssignedOn = DateTime.UtcNow;
+                @case.ModifiedBy = managerUserId;
+                @case.ModifiedOn = DateTime.UtcNow;
+
+                if (@case.Status == CaseStatus.New)
+                    @case.Status = CaseStatus.Assigned;
+
+                await _complianceCaseRepository.UpdateAsync(@case, cancellationToken);
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _auditService.LogAsync(
+                AuditAction.Reassigned,
+                AuditEntity.ComplianceCase,
+                group.Cases.FirstOrDefault()?.ComplianceCaseId ?? Guid.Empty,
+                previousAgentId.HasValue
+                    ? $"Client group for {group.EmployerName} reassigned to a new agent. {comment}"
+                    : $"Client group for {group.EmployerName} assigned to an agent. {comment}",
+                managerUserId,
+                cancellationToken);
+        }
+
+        public async Task UpdateRecipientAsync(
+            Guid groupId,
+            string? contactName,
+            string? contactEmail,
+            string? ccEmails,
+            Guid modifiedByUserId,
+            CancellationToken cancellationToken = default)
         {
             var group = await _clientGroupRepository
                 .GetByIdAsync(groupId, cancellationToken)

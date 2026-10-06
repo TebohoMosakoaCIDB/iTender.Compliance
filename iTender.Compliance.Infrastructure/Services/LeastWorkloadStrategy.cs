@@ -8,32 +8,33 @@ namespace iTender.Compliance.Infrastructure.Services
     public class LeastWorkloadStrategy : ICaseDistributionStrategy
     {
         private readonly IAgentRepository _agentRepository;
-        private readonly IComplianceCaseRepository _caseRepository;
+        private readonly IClientGroupRepository _clientGroupRepository;
         public CaseDistributionMethod Method => CaseDistributionMethod.LeastWorkload;
         public LeastWorkloadStrategy(
             IAgentRepository agentRepository,
-            IComplianceCaseRepository caseRepository)
+            IClientGroupRepository clientGroupRepository)
         {
             _agentRepository = agentRepository;
-            _caseRepository = caseRepository;
+            _clientGroupRepository = clientGroupRepository;
         }
 
-        public async Task<Agent?> SelectAgentAsync(ComplianceCase complianceCase, CancellationToken cancellationToken = default)
+        public async Task<Agent?> SelectAgentAsync(
+            ComplianceCase complianceCase,
+            CancellationToken cancellationToken = default)
         {
-            var agents = await _agentRepository
-                .GetActiveAsync(cancellationToken);
+            var agents = (await _agentRepository.GetActiveAsync(cancellationToken))
+                .Where(a => a.AutoAssignEnabled)
+                .ToList();
 
             Agent? selectedAgent = null;
             var lowestWorkload = int.MaxValue;
 
-            foreach (var agent in agents.Where(a => a.AutoAssignEnabled))
+            foreach (var agent in agents)
             {
-                var workload = await _caseRepository
-                    .GetOpenCaseCountByAgentAsync(
-                        agent.Id,
-                        cancellationToken);
+                var workload = await _clientGroupRepository
+                    .GetOpenGroupCountByAgentAsync(agent.Id, cancellationToken);
 
-                if (workload >= agent.MaximumOpenCases)
+                if (workload >= agent.MaximumOpenGroups)
                     continue;
 
                 if (workload < lowestWorkload)

@@ -86,7 +86,6 @@ namespace iTender.Compliance.Infrastructure.Extensions
 
             //Strategies
             services.AddScoped<LeastWorkloadStrategy>();
-            services.AddScoped<PriorityBasedAssignmentStrategy>();
             services.AddScoped<RandomStrategy>();
             services.AddScoped<RoundRobinStrategy>();
 

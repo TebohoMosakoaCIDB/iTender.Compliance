@@ -11,7 +11,6 @@ namespace iTender.Compliance.Infrastructure.Services
     public class AutoAssignmentService : IAutoAssignmentService
     {
         private readonly LeastWorkloadStrategy _leastWorkloadStrategy;
-        private readonly PriorityBasedAssignmentStrategy _priorityBasedStrategy;
         private readonly RandomStrategy _randomStrategy;
         private readonly RoundRobinStrategy _roundRobinStrategy;
         private readonly ISystemSettingRepository _systemSettingRepository;
@@ -23,7 +22,6 @@ namespace iTender.Compliance.Infrastructure.Services
 
         public AutoAssignmentService(
             LeastWorkloadStrategy leastWorkloadStrategy,
-            PriorityBasedAssignmentStrategy priorityBasedStrategy,
             ISystemSettingRepository systemSettingRepository,
             IComplianceCaseRepository complianceCaseRepository,
             INotificationService notificationService,
@@ -34,7 +32,6 @@ namespace iTender.Compliance.Infrastructure.Services
             RoundRobinStrategy roundRobinStrategy)
         {
             _leastWorkloadStrategy = leastWorkloadStrategy;
-            _priorityBasedStrategy = priorityBasedStrategy;
             _complianceCaseRepository = complianceCaseRepository;
             _systemSettingRepository = systemSettingRepository;
             _roundRobinStrategy = roundRobinStrategy;
@@ -121,11 +118,6 @@ namespace iTender.Compliance.Infrastructure.Services
             {
                 CaseDistributionMethod.LeastWorkload =>
                     await _leastWorkloadStrategy.SelectAgentAsync(
-                        complianceCase,
-                        cancellationToken),
-
-                CaseDistributionMethod.PriorityBased =>
-                    await _priorityBasedStrategy.SelectAgentAsync(
                         complianceCase,
                         cancellationToken),
 

@@ -288,7 +288,7 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<int>("Level")
                         .HasColumnType("int");
 
-                    b.Property<int>("MaximumOpenCases")
+                    b.Property<int>("MaximumOpenGroups")
                         .HasColumnType("int");
 
                     b.Property<Guid?>("ModifiedBy")

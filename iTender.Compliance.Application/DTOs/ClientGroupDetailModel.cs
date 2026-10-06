@@ -24,6 +24,10 @@ namespace iTender.Compliance.Application.DTOs
         public LetterType? LetterType { get; set; }
         public string? AnnexureFileName { get; set; }
         public string? AnnexureFilePath { get; set; }
+
+        public Guid? AgentId { get; set; }
+        public string? AgentName { get; set; }
+        public string? AgentEmail { get; set; }
     }
 
     public class ClientGroupTenderModel

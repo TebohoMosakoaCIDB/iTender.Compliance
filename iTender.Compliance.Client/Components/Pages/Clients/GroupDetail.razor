@@ -9,6 +9,7 @@
 
 @inject IClientGroupRepository GroupRepository
 @inject IClientGroupService GroupService
+@inject IAgentRepository AgentRepository
 @inject ICurrentUserService CurrentUserService
 @inject NavigationManager Navigation
 
@@ -18,20 +19,39 @@
 
 @if (Model is null)
 {
-    <div class="text-center py-5"><div class="spinner-border text-danger"></div></div>
+    <div class="text-center py-5">
+        <div class="spinner-border text-danger"></div>
+    </div>
 }
 else
 {
     <div class="d-flex justify-content-between align-items-start mb-4">
+
         <div>
             <h2 class="mb-1">@Model.EmployerName</h2>
             <span class="badge bg-secondary">@Model.Status</span>
         </div>
-        <button class="btn btn-sm btn-secondary"
-                @onclick='() => Navigation.NavigateTo("/clients/groups")'>
-            <i class="bi bi-arrow-left me-1"></i>
-            Back
-        </button>
+
+        <div class="d-flex gap-2">
+
+            <AuthorizeView Policy="CaseAssignment">
+                <Authorized>
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            @onclick="OpenReassign">
+                        <i class="bi bi-person-plus me-1"></i>
+                        Reassign Group
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+
+            <button class="btn btn-sm btn-secondary"
+                    @onclick='() => Navigation.NavigateTo("/clients/groups")'>
+                <i class="bi bi-arrow-left me-1"></i>
+                Back
+            </button>
+
+        </div>
+
     </div>
 
     @if (!string.IsNullOrWhiteSpace(ErrorMessage))
@@ -40,16 +60,23 @@ else
     }
 
     <div class="row g-4">
+
+        <!-- LEFT COLUMN -->
         <div class="col-lg-8">
+
             <div class="card shadow-sm mb-4">
+
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong><i class="bi bi-list-task me-2"></i>Tenders in this group</strong>
                     <span class="badge bg-secondary">@Model.Tenders.Count</span>
                 </div>
+
                 <div class="card-body p-0">
+
                     @if (Model.Tenders.Any())
                     {
                         <table class="table table-hover mb-0">
+
                             <thead>
                                 <tr>
                                     <th>Tender</th>
@@ -62,6 +89,7 @@ else
                                     }
                                 </tr>
                             </thead>
+
                             <tbody>
                                 @foreach (var t in Model.Tenders)
                                 {
@@ -70,17 +98,21 @@ else
                                             <div class="fw-semibold">@t.TenderNumber</div>
                                             <small class="text-muted">@t.Title</small>
                                         </td>
+
                                         <td>@t.ClosingDate.ToString("dd MMM yyyy")</td>
+
                                         <td>
                                             <span class="badge @(t.IsAdvertised ? "bg-success" : "bg-danger")">
                                                 @(t.IsAdvertised ? "Yes" : "No")
                                             </span>
                                         </td>
+
                                         <td>
                                             <span class="badge @(t.IsRegistered ? "bg-success" : "bg-danger")">
                                                 @(t.IsRegistered ? "Yes" : "No")
                                             </span>
                                         </td>
+
                                         @if (Model.Status == ClientGroupStatus.Draft)
                                         {
                                             <td>
@@ -93,44 +125,89 @@ else
                                     </tr>
                                 }
                             </tbody>
+
                         </table>
                     }
                     else
                     {
-                        <div class="text-center text-muted py-5">No tenders in this group.</div>
+                        <div class="text-center text-muted py-5">
+                            No tenders in this group.
+                        </div>
                     }
+
                 </div>
+
             </div>
+
         </div>
 
+        <!-- RIGHT COLUMN -->
         <div class="col-lg-4">
+
+            <!-- ASSIGNED CO -->
             <div class="card shadow-sm mb-4">
+
+                <div class="card-header">
+                    <strong><i class="bi bi-person-badge me-2"></i>Assigned CO</strong>
+                </div>
+
+                <div class="card-body">
+
+                    @if (string.IsNullOrWhiteSpace(Model.AgentName))
+                    {
+                        <span class="text-muted">Not yet assigned</span>
+                    }
+                    else
+                    {
+                        <div class="fw-semibold">@Model.AgentName</div>
+
+                        @if (!string.IsNullOrWhiteSpace(Model.AgentEmail))
+                        {
+                            <small class="text-muted">@Model.AgentEmail</small>
+                        }
+                    }
+
+                </div>
+
+            </div>
+
+            <!-- RECIPIENT -->
+            <div class="card shadow-sm mb-4">
+
                 <div class="card-header">
                     <strong><i class="bi bi-envelope me-2"></i>Recipient</strong>
                 </div>
+
                 <div class="card-body">
+
                     @if (Model.Status == ClientGroupStatus.Draft)
                     {
                         <div class="mb-3">
                             <label class="form-label">Contact Name</label>
                             <input class="form-control" @bind="_contactName" />
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label">Contact Email</label>
                             <input class="form-control" @bind="_contactEmail" />
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label">CC (semicolon-separated)</label>
                             <textarea class="form-control" rows="3" @bind="_ccEmails"></textarea>
                         </div>
+
                         <button class="btn btn-sm btn-cidb-submit"
                                 @onclick="SaveRecipient"
                                 disabled="@_saving">
+
                             @if (_saving)
                             {
                                 <span class="spinner-border spinner-border-sm me-2"></span>
                             }
+
                             Save
+
                         </button>
                     }
                     else
@@ -138,22 +215,30 @@ else
                         <dl class="row mb-0">
                             <dt class="col-sm-4">Name</dt>
                             <dd class="col-sm-8">@Model.ContactName</dd>
+
                             <dt class="col-sm-4">Email</dt>
                             <dd class="col-sm-8">@Model.ContactEmail</dd>
+
                             <dt class="col-sm-4">CC</dt>
                             <dd class="col-sm-8">@Model.CcEmails</dd>
                         </dl>
                     }
+
                 </div>
+
             </div>
 
+            <!-- ISSUED DOCUMENTS -->
             @if (Model.Status != ClientGroupStatus.Draft)
             {
                 <div class="card shadow-sm">
+
                     <div class="card-header">
                         <strong><i class="bi bi-file-earmark-pdf me-2"></i>Issued Documents</strong>
                     </div>
+
                     <div class="card-body">
+
                         @if (!string.IsNullOrWhiteSpace(Model.ConsolidatedLetterFilePath))
                         {
                             <a href="@Model.ConsolidatedLetterFilePath"
@@ -163,6 +248,7 @@ else
                                 @Model.LetterType Letter
                             </a>
                         }
+
                         @if (!string.IsNullOrWhiteSpace(Model.AnnexureFilePath))
                         {
                             <a href="@Model.AnnexureFilePath"
@@ -172,43 +258,59 @@ else
                                 Annexure A
                             </a>
                         }
+
                     </div>
+
                 </div>
             }
+
         </div>
+
     </div>
 
+    <!-- ISSUE LETTER ACTION -->
     @if (Model.Status == ClientGroupStatus.Draft)
     {
         <div class="card shadow-sm mt-4">
+
             <div class="card-body d-flex justify-content-between align-items-center">
+
                 <div>
                     <strong>Issue Consolidated Letter</strong>
                     <div class="small text-muted">
                         Generates one letter and one Annexure A covering all tenders in this group.
                     </div>
                 </div>
+
                 <button class="btn btn-sm btn-cidb-submit"
                         @onclick="OpenIssue"
                         disabled="@(!Model.Tenders.Any() || string.IsNullOrWhiteSpace(_contactEmail))">
                     <i class="bi bi-send me-1"></i>
                     Issue Letter
                 </button>
+
             </div>
+
         </div>
     }
 }
 
+<!-- ISSUE MODAL -->
 @if (ShowIssueModal && Model is not null)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
+
         <div class="modal-dialog">
+
             <div class="modal-content">
+
                 <div class="modal-header">
                     <h5 class="modal-title">Issue Consolidated Letter</h5>
                     <button class="btn-close" @onclick="CloseIssue"></button>
                 </div>
+
                 <div class="modal-body">
+
                     <p>
                         A single letter and Annexure A listing <strong>@Model.Tenders.Count</strong>
                         tender(s) will be emailed to <strong>@_contactEmail</strong>.
@@ -221,33 +323,146 @@ else
                             <option value="@LetterType.ContraventionNotice">Contravention Notice</option>
                         </select>
                     </div>
+
                 </div>
+
                 <div class="modal-footer">
-                    <button class="btn btn-sm btn-secondary" @onclick="CloseIssue">Cancel</button>
-                    <button class="btn btn-sm btn-cidb-submit" @onclick="Issue" disabled="@_issuing">
+
+                    <button class="btn btn-sm btn-secondary" @onclick="CloseIssue">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-sm btn-cidb-submit"
+                            @onclick="Issue"
+                            disabled="@_issuing">
+
                         @if (_issuing)
                         {
                             <span class="spinner-border spinner-border-sm me-2"></span>
                         }
+
                         Issue
+
                     </button>
+
                 </div>
+
             </div>
+
         </div>
+
+    </div>
+}
+
+<!-- REASSIGN MODAL -->
+@if (ShowReassignModal && Model is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color:rgba(0,0,0,.5)">
+
+        <div class="modal-dialog">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Reassign Client Group</h5>
+                    <button class="btn-close" @onclick="CloseReassign"></button>
+                </div>
+
+                <div class="modal-body">
+
+                    <p class="text-muted">
+                        Reassigns the group and every case in it to the selected Compliance Officer.
+                    </p>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Compliance Officer <span class="text-danger">*</span>
+                        </label>
+
+                        <select class="form-select" @bind="_reassignAgentId">
+                            <option value="">-- Select Agent --</option>
+
+                            @foreach (var agent in _agents.OrderBy(a => a.FullName))
+                            {
+                                <option value="@agent.Id">
+                                    @agent.FullName (@agent.OpenCases open cases)
+                                </option>
+                            }
+
+                        </select>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">Comment</label>
+
+                        <textarea class="form-control"
+                                  rows="3"
+                                  maxlength="500"
+                                  @bind="_reassignComment"></textarea>
+
+                        <small class="text-muted">
+                            Optional notes recorded in the audit trail.
+                        </small>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button class="btn btn-sm btn-secondary" @onclick="CloseReassign">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-sm btn-cidb-submit"
+                            @onclick="SaveReassign"
+                            disabled="@(_reassignAgentId == Guid.Empty || _reassigning)">
+
+                        @if (_reassigning)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+
+                        Reassign
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
 }
 
 @code {
+
     [Parameter] public Guid Id { get; set; }
 
     private ClientGroupDetailModel? Model;
+
+    // Recipient state
     private string? _contactName;
     private string? _contactEmail;
     private string? _ccEmails;
     private bool _saving;
+
+    // Issue state
     private bool ShowIssueModal;
     private bool _issuing;
     private LetterType _issueLetterType = LetterType.Instruction;
+
+    // Reassign state
+    private bool ShowReassignModal;
+    private Guid _reassignAgentId;
+    private string? _reassignComment;
+    private bool _reassigning;
+    private List<AgentLookupModel> _agents = new();
+
     private string ErrorMessage = string.Empty;
 
     protected override async Task OnInitializedAsync() => await Load();
@@ -266,9 +481,11 @@ else
 
     private async Task SaveRecipient()
     {
-        if (Model is null || !CurrentUserService.UserId.HasValue) return;
+        if (Model is null || !CurrentUserService.UserId.HasValue)
+            return;
 
         _saving = true;
+
         try
         {
             await GroupService.UpdateRecipientAsync(
@@ -293,14 +510,21 @@ else
         await Load();
     }
 
-    private void OpenIssue() { ErrorMessage = string.Empty; ShowIssueModal = true; }
+    private void OpenIssue()
+    {
+        ErrorMessage = string.Empty;
+        ShowIssueModal = true;
+    }
+
     private void CloseIssue() => ShowIssueModal = false;
 
     private async Task Issue()
     {
-        if (!CurrentUserService.UserId.HasValue) return;
+        if (!CurrentUserService.UserId.HasValue)
+            return;
 
         _issuing = true;
+
         try
         {
             await GroupService.IssueGroupAsync(
@@ -320,4 +544,51 @@ else
             _issuing = false;
         }
     }
+
+    private async Task OpenReassign()
+    {
+        ErrorMessage = string.Empty;
+
+        _agents = await AgentRepository.GetLookupAsync();
+        _reassignAgentId = Model?.AgentId ?? Guid.Empty;
+        _reassignComment = string.Empty;
+        ShowReassignModal = true;
+    }
+
+    private void CloseReassign()
+    {
+        ShowReassignModal = false;
+        _reassignAgentId = Guid.Empty;
+        _reassignComment = null;
+    }
+
+    private async Task SaveReassign()
+    {
+        if (_reassignAgentId == Guid.Empty
+            || !CurrentUserService.UserId.HasValue)
+            return;
+
+        _reassigning = true;
+
+        try
+        {
+            await GroupService.ManuallyAssignGroupAsync(
+                Id,
+                _reassignAgentId,
+                CurrentUserService.UserId.Value,
+                _reassignComment);
+
+            CloseReassign();
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            _reassigning = false;
+        }
+    }
+
 }

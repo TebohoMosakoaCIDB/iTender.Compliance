@@ -6,6 +6,30 @@ namespace iTender.Compliance.Application.Interfaces.Services
     public interface IClientGroupService
     {
         /// <summary>
+        /// Sets the group owner from the first assigned case, if not already set.
+        /// Called after a case in the group is assigned.
+        /// </summary>
+        Task SetOwnerFromCaseAsync(
+            Guid groupId,
+            Guid complianceCaseId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Returns the group's owner, or null if unassigned.
+        /// </summary>
+        Task<Guid?> GetOwnerAsync(
+            Guid groupId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Manually reassigns a group and all cases in it to a different agent.</summary>
+        Task ManuallyAssignGroupAsync(
+            Guid groupId,
+            Guid agentId,
+            Guid managerUserId,
+            string? comment,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Finds the draft group for the employer, or creates one.
         /// Called automatically when a case is created.
         /// </summary>
