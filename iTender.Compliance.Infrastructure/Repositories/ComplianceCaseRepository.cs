@@ -1,5 +1,6 @@
 ﻿using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
+using iTender.Compliance.Application.Models.Dashboard;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Data;
@@ -12,6 +13,113 @@ namespace iTender.Compliance.Infrastructure.Repositories
         public ComplianceCaseRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
             : base(contextFactory)
         {
+        }
+
+        public async Task<List<ComplianceCase>> GetForAnalysisAsync(
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.ComplianceCases
+                .AsNoTracking()
+                .Include(c => c.Tender)
+                .Include(c => c.Agent)
+                .Include(c => c.ComplianceFindings)
+                .Include(c => c.CaseLetters)
+                .Where(c => c.CreatedOn >= from && c.CreatedOn <= to)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<DashboardAgeingChart> GetAgeingAsync(
+            DateTime now,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            var openDates = await context.ComplianceCases
+                .AsNoTracking()
+                .Where(c => c.Status != CaseStatus.Closed)
+                .Select(c => c.CreatedOn)
+                .ToListAsync(cancellationToken);
+
+            return new DashboardAgeingChart
+            {
+                ZeroToSeven = openDates.Count(d => (now - d).TotalDays <= 7),
+
+                EightToFifteen = openDates.Count(d =>
+                {
+                    var days = (now - d).TotalDays;
+                    return days > 7 && days <= 15;
+                }),
+
+                SixteenToTwentyFive = openDates.Count(d =>
+                {
+                    var days = (now - d).TotalDays;
+                    return days > 15 && days <= 25;
+                }),
+
+                TwentySixToThirty = openDates.Count(d =>
+                {
+                    var days = (now - d).TotalDays;
+                    return days > 25 && days <= 30;
+                }),
+
+                OverThirty = openDates.Count(d => (now - d).TotalDays > 30)
+            };
+        }
+
+        public async Task<DashboardCaseMetrics> GetCaseMetricsAsync(
+            DateTime thirtyDaysAgo,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            var inCorrective = await context.ComplianceCases
+                .AsNoTracking()
+                .CountAsync(c =>
+                    c.Status == CaseStatus.ContraventionNoticeIssued,
+                    cancellationToken);
+
+            var awaitingReferral = await context.ComplianceCases
+                .AsNoTracking()
+                .CountAsync(c =>
+                    c.Status == CaseStatus.ReferredForEnforcement,
+                    cancellationToken);
+
+            var subsequentlyCompliant = await context.ComplianceCases
+                .AsNoTracking()
+                .CountAsync(c =>
+                    c.Outcome == ComplianceOutcome.Compliant
+                    && c.ClosedDate != null
+                    && c.ClosedDate >= thirtyDaysAgo,
+                    cancellationToken);
+
+            var resolvedAfterIL = await context.ComplianceCases
+                .AsNoTracking()
+                .CountAsync(c =>
+                    c.Outcome == ComplianceOutcome.Compliant
+                    && c.ClosureReason == CaseClosureReason.ClientComplied
+                    && !c.CaseLetters.Any(l => l.Type == LetterType.ContraventionNotice),
+                    cancellationToken);
+
+            var resolvedAfterCN = await context.ComplianceCases
+                .AsNoTracking()
+                .CountAsync(c =>
+                    c.Outcome == ComplianceOutcome.Compliant
+                    && c.ClosureReason == CaseClosureReason.ClientComplied
+                    && c.CaseLetters.Any(l => l.Type == LetterType.ContraventionNotice),
+                    cancellationToken);
+
+            return new DashboardCaseMetrics
+            {
+                InCorrectiveAction = inCorrective,
+                AwaitingReferral = awaitingReferral,
+                SubsequentlyCompliant = subsequentlyCompliant,
+                ResolvedAfterIL = resolvedAfterIL,
+                ResolvedAfterCN = resolvedAfterCN
+            };
         }
 
         public async Task<IReadOnlyList<ComplianceCase>> GetInBasketAsync(

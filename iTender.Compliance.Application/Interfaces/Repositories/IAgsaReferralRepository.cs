@@ -1,4 +1,5 @@
 ﻿using iTender.Compliance.Domain.Entities;
+using iTender.Compliance.Domain.Enums;
 
 namespace iTender.Compliance.Application.Interfaces.Repositories
 {
@@ -6,6 +7,10 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
     {
         Task<AGSAReferral?> GetByIdAsync(
             Guid id,
+            CancellationToken cancellationToken = default);
+
+        Task<int> CountByStatusAsync(
+            EnforcementReferralStatus status,
             CancellationToken cancellationToken = default);
 
         Task<AGSAReferral?> GetByCaseIdAsync(

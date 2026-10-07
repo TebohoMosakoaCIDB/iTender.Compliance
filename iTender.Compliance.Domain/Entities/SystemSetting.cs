@@ -67,5 +67,17 @@ namespace iTender.Compliance.Domain.Entities
         /// <summary>How many working days after an Instruction Letter is sent before a reminder is issued.
         /// Must be less than InstructionLetterResponseWorkingDays so the reminder fires before escalation.</summary>
         public int InstructionLetterReminderAfterWorkingDays { get; set; } = 1;
+
+        /// <summary>Whether the monthly compliance report is emailed automatically on the 1st of each month.</summary>
+        public bool SendMonthlyReportAutomatically { get; set; } = false;
+
+        /// <summary>Recipient for the automatic monthly compliance report.</summary>
+        public string? MonthlyReportRecipientEmail { get; set; }
+
+        /// <summary>Hour of day (0-23, UTC) at which the monthly report job runs on the 1st.</summary>
+        public int MonthlyReportHourUtc { get; set; } = 6;
+
+        /// <summary>Last month for which an automatic report was sent. Format: yyyy-MM. Used to prevent double-send.</summary>
+        public string? LastMonthlyReportSent { get; set; }
     }
 }

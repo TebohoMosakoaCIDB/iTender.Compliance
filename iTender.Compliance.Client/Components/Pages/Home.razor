@@ -306,6 +306,269 @@
 
     </div>
 
+    <!-- ===================================================== -->
+    <!-- COMPLIANCE METRICS -->
+    <!-- ===================================================== -->
+
+    <div class="row g-3 mb-4">
+
+        <!-- AWAITING VERIFICATION -->
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small">Awaiting Verification</div>
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.AwaitingVerification
+                            </div>
+                        </div>
+                        <div class="dashboard-icon">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Verification findings to review
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- IN CORRECTIVE ACTION -->
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small">Corrective Action</div>
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.InCorrectiveAction
+                            </div>
+                        </div>
+                        <div class="dashboard-icon">
+                            <i class="bi bi-hourglass-split"></i>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Contravention Notices awaiting response
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AWAITING REFERRAL -->
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small">Awaiting Referral</div>
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.AwaitingReferral
+                            </div>
+                        </div>
+                        <div class="dashboard-icon">
+                            <i class="bi bi-arrow-up-circle"></i>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Cases referred for enforcement
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AGSA REFERRALS -->
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small">AGSA Referrals</div>
+                            <div class="dashboard-value text-danger">
+                                @Dashboard.Cards.AgsaReferrals
+                            </div>
+                        </div>
+                        <div class="dashboard-icon text-danger">
+                            <i class="bi bi-shield-exclamation"></i>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Cases escalated to AGSA
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- ===================================================== -->
+    <!-- COMPLIANCE OUTCOMES -->
+    <!-- ===================================================== -->
+
+    <div class="row g-3 mb-4">
+
+        <!-- RESOLVED AFTER IL -->
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small">Resolved after IL</div>
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.ResolvedAfterIL
+                            </div>
+                        </div>
+                        <div class="dashboard-icon">
+                            <i class="bi bi-envelope-check"></i>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Compliant following Instructional Letter
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RESOLVED AFTER CN -->
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small">Resolved after CN</div>
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.ResolvedAfterCN
+                            </div>
+                        </div>
+                        <div class="dashboard-icon">
+                            <i class="bi bi-envelope-exclamation"></i>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Compliant following Contravention Notice
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RESPONSES RECEIVED -->
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small">Responses Received</div>
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.ResponsesReceived
+                            </div>
+                        </div>
+                        <div class="dashboard-icon">
+                            <i class="bi bi-chat-left-text"></i>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Client responses on record
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RESPONSES OUTSTANDING -->
+        <div class="col-xl-3 col-lg-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small">Responses Outstanding</div>
+                            <div class="dashboard-value">
+                                @Dashboard.Cards.ResponsesOutstanding
+                            </div>
+                        </div>
+                        <div class="dashboard-icon">
+                            <i class="bi bi-clock-history"></i>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Awaiting client response
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- ===================================================== -->
+    <!-- CASE AGEING (SLA) -->
+    <!-- ===================================================== -->
+
+    <div class="card mb-4">
+
+        <div class="card-header bg-white">
+            <h6 class="mb-0">
+                <i class="bi bi-hourglass-split me-2"></i>
+                Case Ageing
+            </h6>
+            <small class="text-muted">
+                Open cases by age bucket
+            </small>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+
+                <div class="col">
+                    <div class="border rounded p-3 text-center h-100">
+                        <div class="text-muted small">0 – 7 days</div>
+                        <div class="dashboard-value text-success">
+                            @Dashboard.AgeingChart.ZeroToSeven
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="border rounded p-3 text-center h-100">
+                        <div class="text-muted small">8 – 15 days</div>
+                        <div class="dashboard-value">
+                            @Dashboard.AgeingChart.EightToFifteen
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="border rounded p-3 text-center h-100">
+                        <div class="text-muted small">16 – 25 days</div>
+                        <div class="dashboard-value text-warning">
+                            @Dashboard.AgeingChart.SixteenToTwentyFive
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="border rounded p-3 text-center h-100">
+                        <div class="text-muted small">26 – 30 days</div>
+                        <div class="dashboard-value text-danger">
+                            @Dashboard.AgeingChart.TwentySixToThirty
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="border rounded p-3 text-center h-100">
+                        <div class="text-muted small">Over 30 days</div>
+                        <div class="dashboard-value"
+                             style="color: #b3202a;">
+                            @Dashboard.AgeingChart.OverThirty
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
 
     <!-- ===================================================== -->
     <!-- QUICK ACTIONS -->

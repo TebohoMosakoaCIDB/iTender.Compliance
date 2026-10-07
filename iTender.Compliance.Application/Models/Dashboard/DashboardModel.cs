@@ -20,6 +20,8 @@ namespace iTender.Compliance.Application.Models.Dashboard
 
         public List<RecentActivity> RecentActivities { get; set; } = [];
 
+        public DashboardAgeingChart AgeingChart { get; set; } = new();
+
         public SyncSummary Sync { get; set; } = new();
     }
 
@@ -45,25 +47,45 @@ namespace iTender.Compliance.Application.Models.Dashboard
         public int CasesCreated { get; set; }
     }
 
-
     public class DashboardCards
     {
         public int OverdueCases { get; set; }
         public int TotalCases { get; set; }
-
         public int NewCases { get; set; }
-
         public int AssignedCases { get; set; }
-
         public int WaitingForResponse { get; set; }
-
         public int Compliant { get; set; }
-
         public int NonCompliant { get; set; }
-
         public int UnassignedCases { get; set; }
-
         public int FailedSyncs { get; set; }
+        public int ConstructionProjects { get; set; }
+        public int AwaitingVerification { get; set; }
+        public int InCorrectiveAction { get; set; }
+        public int AwaitingReferral { get; set; }
+        public int SubsequentlyCompliant { get; set; }
+        public int ResolvedAfterIL { get; set; }
+        public int ResolvedAfterCN { get; set; }
+        public int ResponsesReceived { get; set; }
+        public int ResponsesOutstanding { get; set; }
+        public int AgsaReferrals { get; set; }
+    }
+
+    public class DashboardAgeingChart
+    {
+        public int ZeroToSeven { get; set; }
+        public int EightToFifteen { get; set; }
+        public int SixteenToTwentyFive { get; set; }
+        public int TwentySixToThirty { get; set; }
+        public int OverThirty { get; set; }
+    }
+
+    public class DashboardCaseMetrics
+    {
+        public int InCorrectiveAction { get; set; }
+        public int AwaitingReferral { get; set; }
+        public int SubsequentlyCompliant { get; set; }
+        public int ResolvedAfterIL { get; set; }
+        public int ResolvedAfterCN { get; set; }
     }
 
     public class DashboardOutcomeChart
@@ -96,7 +118,6 @@ namespace iTender.Compliance.Application.Models.Dashboard
 
         public int Value { get; set; }
     }
-
 
     public class RecentActivity
     {

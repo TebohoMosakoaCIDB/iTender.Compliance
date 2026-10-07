@@ -1,5 +1,6 @@
 ﻿using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
+using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,16 @@ namespace iTender.Compliance.Infrastructure.Repositories
         public AgsaReferralRepository(IDbContextFactory<ComplianceDbContext> contextFactory)
             : base(contextFactory)
         {
+        }
+        
+        public async Task<int> CountByStatusAsync(
+            EnforcementReferralStatus status,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.AGSAReferrals
+                .CountAsync(r => r.Status == status, cancellationToken);
         }
 
         public async Task<AGSAReferral?> GetByIdAsync(

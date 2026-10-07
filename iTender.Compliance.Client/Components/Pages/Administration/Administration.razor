@@ -8,6 +8,7 @@
 @using iTender.Compliance.Application.Models.Reports
 @using iTender.Compliance.Domain.Entities
 @using iTender.Compliance.Domain.Enums
+@using System.IO
 
 @attribute [Authorize(Policy = "Administration")]
 
@@ -21,6 +22,9 @@
 @inject IEscalationService EscalationService
 @inject IDocumentSigningService DocumentSigningService
 @inject ICorrespondenceService CorrespondenceService
+@inject IReportPdfService ReportPdfService
+@inject IEmailService EmailService
+
 @inject NavigationManager Navigation
 
 <PageTitle>Administration | CRCIP Monitor</PageTitle>
@@ -256,6 +260,24 @@
                             <i class="bi bi-shield-check me-2"></i>
                         }
                         Run RoP Check Now
+
+                    </button>
+                </div>
+
+                <div>
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            disabled="@_runningMonthlyReport"
+                            @onclick="RunMonthlyReportNow">
+
+                        @if (_runningMonthlyReport)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-calendar-check me-2"></i>
+                        }
+                        Send Monthly Report Now
 
                     </button>
                 </div>
@@ -1140,6 +1162,84 @@
 
                     </div>
 
+                    <hr class="my-4" />
+
+                    <!-- SCHEDULED REPORTS -->
+
+                    <div class="settings-section">
+
+                        <div class="settings-section-title">
+                            <i class="bi bi-calendar-check me-2"></i>
+                            Scheduled Reports
+                        </div>
+
+                        <div class="row g-3">
+
+                            <div class="col-lg-6">
+
+                                <div class="form-check form-switch mt-1">
+
+                                    <InputCheckbox class="form-check-input"
+                                                   @bind-Value="Settings.SendMonthlyReportAutomatically" />
+
+                                    <label class="form-check-label">
+                                        Email Monthly Compliance Report
+                                    </label>
+
+                                </div>
+
+                                <div class="form-text">
+                                    When enabled, the previous month's compliance report is emailed on the 1st of each month
+                                    at the configured hour. Requires the recipient email below.
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-6">
+
+                                <label class="form-label">
+                                    Monthly Report Recipient
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="Settings.MonthlyReportRecipientEmail" />
+
+                                <div class="form-text">
+                                    Who receives the monthly PDF. Typically the Compliance Manager.
+                                </div>
+
+                            </div>
+
+                            <div class="col-lg-4 col-md-6">
+
+                                <label class="form-label">
+                                    Send Hour (UTC)
+                                </label>
+
+                                <InputNumber class="form-control"
+                                             @bind-Value="Settings.MonthlyReportHourUtc" />
+
+                                <div class="form-text">
+                                    Hour of the day (0-23) when the job runs on the 1st. Default: 6 (06:00 UTC).
+                                </div>
+
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(Settings.LastMonthlyReportSent))
+                            {
+                                <div class="col-lg-4 col-md-6 d-flex align-items-end">
+
+                                    <div class="text-muted small">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        Last sent: <strong>@Settings.LastMonthlyReportSent</strong>
+                                    </div>
+
+                                </div>
+                            }
+
+                        </div>
+
+                    </div>
 
                     <hr class="my-4" />
 
@@ -1742,6 +1842,75 @@
     private bool _runningSigningPoll;
     private string? _triggerResultMessage;
     private bool _triggerResultIsError;
+
+    private bool _runningMonthlyReport;
+
+    private async Task RunMonthlyReportNow()
+    {
+        _runningMonthlyReport = true;
+        _triggerResultMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var settings = await SettingService.GetAsync();
+
+            if (string.IsNullOrWhiteSpace(settings.MonthlyReportRecipientEmail))
+            {
+                _triggerResultIsError = true;
+                _triggerResultMessage = "No monthly report recipient configured.";
+                return;
+            }
+
+            var prev = DateTime.UtcNow.AddMonths(-1);
+
+            var report = await ReportingService
+                .GetMonthlyReportAsync(prev.Year, prev.Month);
+
+            var pdfBytes = await ReportPdfService.GenerateAsync(
+                report.PeriodStart,
+                report.PeriodEnd);
+
+            var tempDir = Path.Combine(Path.GetTempPath(), "crcip-reports");
+            Directory.CreateDirectory(tempDir);
+
+            var fileName = $"CRCIP_Monthly_{prev.Year:D4}{prev.Month:D2}.pdf";
+            var tempPath = Path.Combine(tempDir, fileName);
+
+            await File.WriteAllBytesAsync(tempPath, pdfBytes);
+
+            try
+            {
+                await EmailService.SendAsync(new EmailMessageModel
+                {
+                    ToAddress = settings.MonthlyReportRecipientEmail!,
+                    Subject = $"CRCIP Monthly Compliance Report — {report.PeriodLabel}",
+                    Body =
+                        $"<p>Please find attached the compliance report for " +
+                        $"<strong>{report.PeriodLabel}</strong>.</p>" +
+                        "<p>Regards,<br/>iTender Compliance</p>",
+                    AttachmentPaths = new List<string> { tempPath }
+                });
+            }
+            finally
+            {
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+            }
+
+            _triggerResultIsError = false;
+            _triggerResultMessage =
+                $"Monthly report for {report.PeriodLabel} sent to {settings.MonthlyReportRecipientEmail}.";
+        }
+        catch (Exception ex)
+        {
+            _triggerResultIsError = true;
+            _triggerResultMessage = $"Monthly report failed: {ex.Message}";
+        }
+        finally
+        {
+            _runningMonthlyReport = false;
+        }
+    }
 
     private async Task RunRemindersNow()
     {

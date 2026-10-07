@@ -24,22 +24,46 @@ namespace iTender.Compliance.Infrastructure.Services
 
             return new SystemSettingModel
             {
+                // Response Deadlines
                 ResponseDueHours = settings.ResponseDueHours,
                 ReminderDelayHours = settings.ReminderDelayHours,
-                SynchronizationIntervalHours = settings.SynchronizationIntervalHours,
-                MaximumReminders = settings.MaximumReminders,
-                DefaultPageSize = settings.DefaultPageSize,
-                DistributionMethod = settings.DistributionMethod,
                 ClosedTenderResponseDays = settings.ClosedTenderResponseDays,
                 ContraventionNoticeResponseDays = settings.ContraventionNoticeResponseDays,
                 InstructionLetterResponseWorkingDays = settings.InstructionLetterResponseWorkingDays,
+
+                // Reminders & Escalation
+                EnableAutomaticReminders = settings.EnableAutomaticReminders,
                 ReminderAfterWorkingDays = settings.ReminderAfterWorkingDays,
+                InstructionLetterReminderAfterWorkingDays = settings.InstructionLetterReminderAfterWorkingDays,
+                ReminderCheckIntervalMinutes = settings.ReminderCheckIntervalMinutes,
+                MaximumReminders = settings.MaximumReminders,
+
+                // AGSA Referral & RoP
                 AgsaReferralDeadlineDays = settings.AgsaReferralDeadlineDays,
                 RopCheckAfterDays = settings.RopCheckAfterDays,
                 RopRegistrationGraceDays = settings.RopRegistrationGraceDays,
                 AgsaReferralEmail = settings.AgsaReferralEmail,
                 EnforcementUnitEmail = settings.EnforcementUnitEmail,
-                RequireManagerApproval = settings.RequireManagerApproval
+
+                // Approval Workflow
+                RequireManagerApproval = settings.RequireManagerApproval,
+
+                // Synchronization
+                SynchronizationIntervalHours = settings.SynchronizationIntervalHours,
+
+                // Scheduled Reports
+                SendMonthlyReportAutomatically = settings.SendMonthlyReportAutomatically,
+                MonthlyReportRecipientEmail = settings.MonthlyReportRecipientEmail,
+                MonthlyReportHourUtc = settings.MonthlyReportHourUtc,
+                LastMonthlyReportSent = settings.LastMonthlyReportSent,
+
+                // Group Assignment
+                AutoAssignmentEnabled = settings.AutoAssignmentEnabled,
+                DistributionMethod = settings.DistributionMethod,
+                DefaultMaximumOpenCases = settings.DefaultMaximumOpenCases,
+
+                // Pagination
+                DefaultPageSize = settings.DefaultPageSize
             };
         }
 
@@ -47,23 +71,61 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             var settings = await _repository.GetAsync();
 
+            // ---------------------------------------------------
+            // Deadlines
+            // ---------------------------------------------------
             settings.ResponseDueHours = model.ResponseDueHours;
             settings.ReminderDelayHours = model.ReminderDelayHours;
-            settings.SynchronizationIntervalHours = model.SynchronizationIntervalHours;
-            settings.MaximumReminders = model.MaximumReminders;
-            settings.DefaultPageSize = model.DefaultPageSize;
-            settings.AutoAssignmentEnabled = model.AutoAssignmentEnabled;
-            settings.DistributionMethod = model.DistributionMethod;
             settings.ClosedTenderResponseDays = model.ClosedTenderResponseDays;
             settings.ContraventionNoticeResponseDays = model.ContraventionNoticeResponseDays;
             settings.InstructionLetterResponseWorkingDays = model.InstructionLetterResponseWorkingDays;
+
+            // ---------------------------------------------------
+            // Reminders & Escalation
+            // ---------------------------------------------------
+            settings.EnableAutomaticReminders = model.EnableAutomaticReminders;
             settings.ReminderAfterWorkingDays = model.ReminderAfterWorkingDays;
+            settings.InstructionLetterReminderAfterWorkingDays = model.InstructionLetterReminderAfterWorkingDays;
+            settings.ReminderCheckIntervalMinutes = model.ReminderCheckIntervalMinutes;
+            settings.MaximumReminders = model.MaximumReminders;
+
+            // ---------------------------------------------------
+            // AGSA Referral & RoP
+            // ---------------------------------------------------
             settings.AgsaReferralDeadlineDays = model.AgsaReferralDeadlineDays;
             settings.RopCheckAfterDays = model.RopCheckAfterDays;
             settings.RopRegistrationGraceDays = model.RopRegistrationGraceDays;
             settings.AgsaReferralEmail = model.AgsaReferralEmail;
             settings.EnforcementUnitEmail = model.EnforcementUnitEmail;
+
+            // ---------------------------------------------------
+            // Approval Workflow
+            // ---------------------------------------------------
             settings.RequireManagerApproval = model.RequireManagerApproval;
+
+            // ---------------------------------------------------
+            // Synchronization
+            // ---------------------------------------------------
+            settings.SynchronizationIntervalHours = model.SynchronizationIntervalHours;
+
+            // ---------------------------------------------------
+            // Scheduled Reports
+            // ---------------------------------------------------
+            settings.SendMonthlyReportAutomatically = model.SendMonthlyReportAutomatically;
+            settings.MonthlyReportRecipientEmail = model.MonthlyReportRecipientEmail;
+            settings.MonthlyReportHourUtc = model.MonthlyReportHourUtc;
+            // Do NOT touch settings.LastMonthlyReportSent - it's managed by the
+            // MonthlyReportBackgroundService and must not be reset from the UI.
+
+            // ---------------------------------------------------
+            // Group Assignment
+            // ---------------------------------------------------
+            settings.AutoAssignmentEnabled = model.AutoAssignmentEnabled;
+            settings.DistributionMethod = model.DistributionMethod;
+            settings.DefaultMaximumOpenCases = model.DefaultMaximumOpenCases;
+            // Do NOT touch settings.RoundRobinCursor - it's managed by RoundRobinStrategy.
+
+            settings.DefaultPageSize = model.DefaultPageSize;
 
             await _repository.UpdateAsync(settings);
 

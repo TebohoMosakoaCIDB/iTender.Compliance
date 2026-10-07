@@ -5,6 +5,16 @@ namespace iTender.Compliance.Application.Interfaces.Services
 {
     public interface IReportingService
     {
+        Task<ComplianceAnalysisModel> GetComplianceAnalysisAsync(
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default);
+
+        Task<MonthlyReportModel> GetMonthlyReportAsync(
+            int year,
+            int month,
+            CancellationToken cancellationToken = default);
+
         Task<ComplianceReportModel> GetComplianceReportAsync(
             DateTime from,
             DateTime to,

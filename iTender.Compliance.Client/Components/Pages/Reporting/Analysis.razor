@@ -1,0 +1,428 @@
+﻿@page "/reports/analysis"
+@rendermode InteractiveServer
+
+@using iTender.Compliance.Application.DTOs
+@using iTender.Compliance.Application.Interfaces.Services
+@using iTender.Compliance.Domain.Enums
+@using Microsoft.AspNetCore.Authorization
+
+@inject IReportingService ReportingService
+@inject NavigationManager Navigation
+
+@attribute [Authorize(Policy = "Reporting")]
+
+<PageTitle>Compliance Analysis | CRCIP Monitor</PageTitle>
+
+<div class="container-fluid px-4">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-4">
+
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-graph-up-arrow me-2"></i>
+                Compliance Analysis
+            </h2>
+            <p class="text-muted mb-0">
+                Breakdown of compliance cases across multiple dimensions.
+            </p>
+        </div>
+
+        <button class="btn btn-sm btn-secondary"
+                @onclick='() => Navigation.NavigateTo("/reports")'>
+            <i class="bi bi-arrow-left me-1"></i>
+            Back to Reports
+        </button>
+
+    </div>
+
+    <!-- FILTERS -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+
+                <div class="col-md-3">
+                    <label class="form-label">From Date</label>
+                    <input type="date" class="form-control" @bind="_fromDate" />
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">To Date</label>
+                    <input type="date" class="form-control" @bind="_toDate" />
+                </div>
+
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-cidb-submit w-100"
+                            @onclick="LoadAsync"
+                            disabled="@_loading">
+                        <i class="bi bi-arrow-clockwise me-1"></i>
+                        Refresh
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-danger"></div>
+        </div>
+    }
+    else if (Model is null)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            No analysis data available. Choose a date range and click Refresh.
+        </div>
+    }
+    else
+    {
+        <!-- SUMMARY -->
+        <div class="row g-3 mb-4">
+
+            <div class="col-xl-3 col-md-6">
+                <div class="card dashboard-card h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Total Cases</div>
+                        <div class="dashboard-value">@Model.TotalCases</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6">
+                <div class="card dashboard-card h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Compliant</div>
+                        <div class="dashboard-value text-success">@Model.TotalCompliant</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6">
+                <div class="card dashboard-card h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Non-Compliant</div>
+                        <div class="dashboard-value text-danger">@Model.TotalNonCompliant</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6">
+                <div class="card dashboard-card h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Open</div>
+                        <div class="dashboard-value text-warning">@Model.TotalOpen</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ROW 1: STATUS & OUTCOME -->
+        <div class="row g-4 mb-4">
+
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header bg-white">
+                        <h6 class="mb-0">
+                            <i class="bi bi-list-check me-2"></i>
+                            By Status
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        @if (Model.ByStatus.Any())
+                        {
+                            @foreach (var row in Model.ByStatus)
+                            {
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>@row.Status</span>
+                                        <span class="fw-bold">
+                                            @row.Count
+                                            <span class="text-muted small">(@row.Percentage%)</span>
+                                        </span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar" style="width: @row.Percentage%"></div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-3">No data.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header bg-white">
+                        <h6 class="mb-0">
+                            <i class="bi bi-clipboard-check me-2"></i>
+                            By Outcome
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        @if (Model.ByOutcome.Any())
+                        {
+                            @foreach (var row in Model.ByOutcome)
+                            {
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>@row.Outcome</span>
+                                        <span class="fw-bold">
+                                            @row.Count
+                                            <span class="text-muted small">(@row.Percentage%)</span>
+                                        </span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar" style="width: @row.Percentage%"></div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-3">No data.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ROW 2: OFFICER -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-people me-2"></i>
+                    By Compliance Officer
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.ByOfficer.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Officer</th>
+                                    <th class="text-end">Total Cases</th>
+                                    <th class="text-end">Resolved</th>
+                                    <th class="text-end">Outstanding</th>
+                                    <th class="text-end">Resolution Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.ByOfficer)
+                                {
+                                    <tr>
+                                        <td>@row.OfficerName</td>
+                                        <td class="text-end">@row.TotalCases</td>
+                                        <td class="text-end text-success">@row.Resolved</td>
+                                        <td class="text-end text-warning">@row.Outstanding</td>
+                                        <td class="text-end">
+                                            <span class="badge @(row.ResolvedPercentage >= 75 ? "bg-success" : row.ResolvedPercentage >= 50 ? "bg-warning text-dark" : "bg-danger")">
+                                                @row.ResolvedPercentage%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-muted text-center py-4">No officer data.</div>
+                }
+            </div>
+        </div>
+
+        <!-- ROW 3: PROVINCE -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-geo-alt me-2"></i>
+                    By Province
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.ByProvince.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Province</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-end">Compliant</th>
+                                    <th class="text-end">Non-Compliant</th>
+                                    <th class="text-end">Open</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.ByProvince)
+                                {
+                                    <tr>
+                                        <td>@row.Province</td>
+                                        <td class="text-end">@row.TotalCases</td>
+                                        <td class="text-end text-success">@row.Compliant</td>
+                                        <td class="text-end text-danger">@row.NonCompliant</td>
+                                        <td class="text-end text-warning">@row.Open</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-muted text-center py-4">No province data.</div>
+                }
+            </div>
+        </div>
+
+        <!-- ROW 4: EMPLOYER (top 20) -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-building me-2"></i>
+                    Top 20 Employers by Case Volume
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.ByEmployer.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Employer</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-end">Compliant</th>
+                                    <th class="text-end">Non-Compliant</th>
+                                    <th class="text-end">Open</th>
+                                    <th class="text-end">Non-Compliance Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.ByEmployer)
+                                {
+                                    <tr>
+                                        <td>@row.EmployerName</td>
+                                        <td class="text-end">@row.TotalCases</td>
+                                        <td class="text-end text-success">@row.Compliant</td>
+                                        <td class="text-end text-danger">@row.NonCompliant</td>
+                                        <td class="text-end text-warning">@row.Open</td>
+                                        <td class="text-end">
+                                            <span class="badge @(row.NonComplianceRate >= 50 ? "bg-danger" : row.NonComplianceRate >= 25 ? "bg-warning text-dark" : "bg-success")">
+                                                @row.NonComplianceRate%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-muted text-center py-4">No employer data.</div>
+                }
+            </div>
+        </div>
+
+        <!-- ROW 5: MONTHLY TREND -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-calendar3 me-2"></i>
+                    Monthly Activity
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.ByMonth.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Month</th>
+                                    <th class="text-end">Opened</th>
+                                    <th class="text-end">Closed</th>
+                                    <th class="text-end">Compliant</th>
+                                    <th class="text-end">Non-Compliant</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.ByMonth)
+                                {
+                                    <tr>
+                                        <td>@row.Month</td>
+                                        <td class="text-end">@row.Opened</td>
+                                        <td class="text-end text-success">@row.Closed</td>
+                                        <td class="text-end text-success">@row.Compliant</td>
+                                        <td class="text-end text-danger">@row.NonCompliant</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-muted text-center py-4">No monthly data.</div>
+                }
+            </div>
+        </div>
+
+        <!-- NOT CAPTURED -->
+        <div class="alert alert-secondary small mb-4">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Not analysed:</strong>
+            Sector, response category, intervention type — these dimensions
+            are not captured in the current data model.
+        </div>
+    }
+
+</div>
+
+@code {
+
+    private DateTime _fromDate = new DateTime(DateTime.Today.Year, 1, 1);
+    private DateTime _toDate = DateTime.Today;
+
+    private bool _loading;
+    private ComplianceAnalysisModel? Model;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_fromDate > _toDate)
+            return;
+
+        _loading = true;
+
+        try
+        {
+            var from = _fromDate.Date;
+            var to = _toDate.Date.AddDays(1).AddTicks(-1);
+
+            Model = await ReportingService.GetComplianceAnalysisAsync(from, to);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+}

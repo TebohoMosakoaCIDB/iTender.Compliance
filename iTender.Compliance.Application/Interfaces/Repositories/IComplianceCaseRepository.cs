@@ -1,4 +1,5 @@
 ﻿using iTender.Compliance.Application.DTOs;
+using iTender.Compliance.Application.Models.Dashboard;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 
@@ -6,24 +7,23 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface IComplianceCaseRepository
     {
+        Task<List<ComplianceCase>> GetForAnalysisAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
+
         Task<List<ComplianceCase>> GetCasesAwaitingReminderAsync(int reminderAfterHours, CancellationToken cancellationToken = default);
+
+        Task<DashboardAgeingChart> GetAgeingAsync(DateTime now, CancellationToken cancellationToken = default);
+
+        Task<DashboardCaseMetrics> GetCaseMetricsAsync(DateTime thirtyDaysAgo, CancellationToken cancellationToken = default);
 
         Task<int> GetOpenCaseCountByAgentAsync(Guid agentId, CancellationToken cancellationToken = default);
 
-        Task<IReadOnlyList<ComplianceCase>> GetInBasketAsync(
-            WorkBasket basket,
-            Guid? agentId,
-            CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<ComplianceCase>> GetInBasketAsync(WorkBasket basket, Guid? agentId, CancellationToken cancellationToken = default);
 
         Task<ComplianceCase?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-        Task<IReadOnlyList<ComplianceCase>> GetByIdsAsync(
-            IEnumerable<Guid> ids,
-            CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<ComplianceCase>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken cancellationToken = default);
 
-        Task<CaseLetter?> GetLatestOutstandingAsync(
-            Guid complianceCaseId,
-            CancellationToken cancellationToken = default);
+        Task<CaseLetter?> GetLatestOutstandingAsync(Guid complianceCaseId, CancellationToken cancellationToken = default);
 
         Task<PagedResult<ComplianceCase>> SearchAsync(
             ComplianceCaseSearchModel search,

@@ -7,6 +7,11 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<List<CaseLetter>> GetByComplianceCaseIdAsync(
             Guid complianceCaseId,
             CancellationToken cancellationToken = default);
+
+        Task<(int Received, int Outstanding)> CountResponsesAsync(
+            DateTime now,
+            CancellationToken cancellationToken = default);
+
         Task<CaseLetter?> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken = default);

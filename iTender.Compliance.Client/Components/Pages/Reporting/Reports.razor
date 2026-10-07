@@ -35,6 +35,12 @@
         </div>
 
         <div>
+            <button class="btn btn-sm btn-cidb-submit-outline me-2"
+                    @onclick='() => Navigation.NavigateTo("/reports/analysis")'>
+                <i class="bi bi-graph-up-arrow me-1"></i>
+                Compliance Analysis
+            </button>
+
             <button class="btn btn-sm btn-cidb-submit me-2"
                     @onclick="GenerateReport"
                     disabled="@_isGenerating">
@@ -119,6 +125,19 @@
         </div>
 
         <div class="col-md-3">
+            <div class="card h-100 report-type-card @(_selectedReportType == "Monthly2" ? "border-cidb" : "")"
+                 @onclick="SelectMonthlyReport2">
+
+                <div class="card-body text-center">
+                    <i class="bi bi-calendar-check report-icon"></i>
+                    <h6 class="mt-2 mb-1">Monthly Compliance</h6>
+                    <small class="text-muted">BR-9.4 formatted report</small>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="col-md-3">
             <div class="card h-100 report-type-card @(_selectedReportType == "LateReg" ? "border-cidb" : "")"
                  @onclick="SelectLateRegistrationReport">
 
@@ -187,6 +206,146 @@
 
     </div>
 
+    @if (_selectedReportType == "Monthly2" && _monthlyReport is not null)
+    {
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="bi bi-calendar-check me-2"></i>
+                    @_monthlyReport.PeriodLabel — Compliance Report
+                </h6>
+                <div class="d-flex gap-2">
+
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            @onclick="GenerateMonthlyPdf"
+                            disabled="@_isGenerating">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>
+                        PDF
+                    </button>
+
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            @onclick="GenerateMonthlyExcel"
+                            disabled="@_isGenerating">
+                        <i class="bi bi-file-earmark-excel me-1"></i>
+                        Excel
+                    </button>
+
+                </div>
+            </div>
+
+            <div class="card-body">
+
+                <h6 class="table-header-brand mb-3">Projects</h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Identified</div>
+                            <div class="dashboard-value">@_monthlyReport.ProjectsIdentified</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Verified</div>
+                            <div class="dashboard-value">@_monthlyReport.ProjectsVerified</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Registered on RoP</div>
+                            <div class="dashboard-value text-success">@_monthlyReport.ProjectsRegistered</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Not Registered</div>
+                            <div class="dashboard-value text-danger">@_monthlyReport.ProjectsNotRegistered</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="table-header-brand mb-3">Compliance Outcomes</h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Initially Non-Compliant</div>
+                            <div class="dashboard-value">@_monthlyReport.InitiallyNonCompliant</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Resolved</div>
+                            <div class="dashboard-value text-success">@_monthlyReport.Resolved</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Resolved after IL</div>
+                            <div class="dashboard-value text-success">@_monthlyReport.ResolvedAfterIL</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Resolved after CN</div>
+                            <div class="dashboard-value text-success">@_monthlyReport.ResolvedAfterCN</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Remaining Non-Compliant</div>
+                            <div class="dashboard-value text-danger">@_monthlyReport.RemainingNonCompliant</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Referred to Enforcement</div>
+                            <div class="dashboard-value text-danger">@_monthlyReport.ReferredToEnforcement</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Escalated to AGSA</div>
+                            <div class="dashboard-value text-danger">@_monthlyReport.EscalatedToAgsa</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Corrective Actions</div>
+                            <div class="dashboard-value">@_monthlyReport.CorrectiveActionsTaken</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="table-header-brand mb-3">SLA &amp; Ageing</h6>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Cases Opened</div>
+                            <div class="dashboard-value">@_monthlyReport.CasesOpened</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Cases Closed</div>
+                            <div class="dashboard-value text-success">@_monthlyReport.CasesClosed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Average Case Age</div>
+                            <div class="dashboard-value">@_monthlyReport.AverageCaseAgeDays<span class="fs-6"> d</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Past SLA Deadline</div>
+                            <div class="dashboard-value text-danger">@_monthlyReport.CasesPastSlaDeadline</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    }
 
     @if (_isLoading)
     {
@@ -817,6 +976,68 @@
     private List<ReportTenderModel> _nonCompliantTenders = new();
     private List<LateRopRegistrationModel> _lateRopRegistrations = new();
 
+    private MonthlyReportModel? _monthlyReport;
+
+    private async Task SelectMonthlyReport2()
+    {
+        _selectedReportType = "Monthly2";
+
+        var today = DateTime.Today;
+        _fromDate = new DateTime(today.Year, today.Month, 1);
+        _toDate = today;
+
+        _monthlyReport = await ReportingService
+            .GetMonthlyReportAsync(today.Year, today.Month);
+
+        // Also refresh the standard summary blocks so the top of the page is consistent.
+        await RefreshReport();
+    }
+
+    private async Task GenerateMonthlyPdf()
+    {
+        if (_monthlyReport is null) return;
+
+        _isGenerating = true;
+        try
+        {
+            var bytes = await ReportPdfService.GenerateAsync(
+                _monthlyReport.PeriodStart,
+                _monthlyReport.PeriodEnd);
+
+            var fileName = $"CRCIP_Monthly_{_monthlyReport.Year}{_monthlyReport.Month:D2}.pdf";
+            await DownloadAsync(fileName, bytes);
+        }
+        finally { _isGenerating = false; }
+    }
+
+    private async Task GenerateMonthlyExcel()
+    {
+        if (_monthlyReport is null) return;
+
+        _isGenerating = true;
+        try
+        {
+            var bytes = await ReportExcelService.GenerateAsync(
+                _monthlyReport.PeriodStart,
+                _monthlyReport.PeriodEnd);
+
+            var fileName = $"CRCIP_Monthly_{_monthlyReport.Year}{_monthlyReport.Month:D2}.xlsx";
+            await DownloadAsync(fileName, bytes);
+        }
+        finally { _isGenerating = false; }
+    }
+
+    private async Task DownloadAsync(string fileName, byte[] fileBytes)
+    {
+        using var stream = new MemoryStream(fileBytes);
+        using var streamRef = new DotNetStreamReference(stream);
+
+        await JS.InvokeVoidAsync(
+            "downloadFileFromStream",
+            fileName,
+            streamRef);
+    }
+
     private async Task SelectLateRegistrationReport()
     {
         _selectedReportType = "LateReg";
@@ -832,7 +1053,6 @@
         await RefreshReport();
     }
 
-
     private async Task SelectDailyReport()
     {
         _selectedReportType = "Daily";
@@ -843,7 +1063,6 @@
         await RefreshReport();
     }
 
-
     private async Task SelectWeeklyReport()
     {
         _selectedReportType = "Weekly";
@@ -853,7 +1072,6 @@
 
         await RefreshReport();
     }
-
 
     private async Task SelectMonthlyReport()
     {
@@ -868,12 +1086,10 @@
         await RefreshReport();
     }
 
-
     private void SelectCustomReport()
     {
         _selectedReportType = "Custom";
     }
-
 
     private async Task RefreshReport()
     {
@@ -884,28 +1100,18 @@
 
         try
         {
-            // Include the entire "To" day.
             var fromDate = _fromDate.Date;
+            var toDate = _toDate.Date.AddDays(1).AddTicks(-1);
 
-            var toDate = _toDate.Date
-                .AddDays(1)
-                .AddTicks(-1);
+            _reportSummary = await ReportService.GetReportAsync(fromDate, toDate);
+            _nonCompliantTenders = await ReportService.GetNonCompliantTendersAsync(fromDate, toDate);
+            _lateRopRegistrations = (await ReportingService.GetLateRopRegistrationsAsync(fromDate, toDate)).ToList();
 
-            _reportSummary =
-                await ReportService.GetReportAsync(
-                    fromDate,
-                    toDate);
-
-            _nonCompliantTenders =
-                await ReportService.GetNonCompliantTendersAsync(
-                    fromDate,
-                    toDate);
-
-            _lateRopRegistrations =
-                (await ReportingService.GetLateRopRegistrationsAsync(
-                fromDate,
-                toDate))
-                .ToList();
+            if (_selectedReportType == "Monthly2")
+            {
+                _monthlyReport = await ReportingService
+                    .GetMonthlyReportAsync(_fromDate.Year, _fromDate.Month);
+            }
         }
         finally
         {
@@ -913,12 +1119,10 @@
         }
     }
 
-
     private void ViewTender(Guid tenderId)
     {
         Navigation.NavigateTo($"/tenders/{tenderId}");
     }
-
 
     private string GetPriorityClass(CasePriority priority)
     {
@@ -933,7 +1137,6 @@
             _ => "bg-secondary"
         };
     }
-
 
     private async Task GenerateReport()
     {
@@ -974,7 +1177,6 @@
             _isGenerating = false;
         }
     }
-
 
     private async Task ExportExcel()
     {

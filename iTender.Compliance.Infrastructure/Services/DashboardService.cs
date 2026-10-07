@@ -12,24 +12,73 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IAuditLogRepository _auditLogRepository;
         private readonly IAgentRepository _agentRepository;
 
+        private readonly IWorkBasketService _workBasketService;
+        private readonly IAgsaReferralRepository _agsaReferralRepository;
+        private readonly ICaseLetterRepository _caseLetterRepository;
+        private readonly ITenderRepository _tenderRepository;
+
         public DashboardService(
             IComplianceCaseRepository complianceCaseRepository,
             ITenderSyncRepository tenderSyncRepository,
             IAuditLogRepository auditLogRepository,
-            IAgentRepository agentRepository)
+            IAgentRepository agentRepository,
+            IWorkBasketService workBasketService,
+            IAgsaReferralRepository agsaReferralRepository,
+            ICaseLetterRepository caseLetterRepository,
+            ITenderRepository tenderRepository)
         {
             _complianceCaseRepository = complianceCaseRepository;
             _tenderSyncRepository = tenderSyncRepository;
             _auditLogRepository = auditLogRepository;
             _agentRepository = agentRepository;
+            _workBasketService = workBasketService;
+            _agsaReferralRepository = agsaReferralRepository;
+            _caseLetterRepository = caseLetterRepository;
+            _tenderRepository = tenderRepository;
         }
 
 
-        public async Task<DashboardModel> GetDashboardAsync(CancellationToken cancellationToken = default)
+        public async Task<DashboardModel> GetDashboardAsync(
+    CancellationToken cancellationToken = default)
         {
+            var now = DateTime.UtcNow;
+            var thirtyDaysAgo = now.AddDays(-30);
+
+            var cards = await GetCardsAsync(cancellationToken);
+
+            var workBasketCounts = await _workBasketService
+                .GetCountsAsync(null, cancellationToken);
+
+            var metrics = await _complianceCaseRepository
+                .GetCaseMetricsAsync(thirtyDaysAgo, cancellationToken);
+
+            var (received, outstanding) = await _caseLetterRepository
+                .CountResponsesAsync(now, cancellationToken);
+
+            var agsaReferrals = await _agsaReferralRepository
+                .CountByStatusAsync(EnforcementReferralStatus.Referred, cancellationToken);
+
+            cards.ConstructionProjects = await _tenderRepository
+                .CountConstructionTendersAsync(cancellationToken);
+
+            cards.AwaitingVerification =
+                workBasketCounts.TryGetValue(WorkBasket.VerificationRequired, out var av)
+                    ? av
+                    : 0;
+
+            cards.InCorrectiveAction = metrics.InCorrectiveAction;
+            cards.AwaitingReferral = metrics.AwaitingReferral;
+            cards.SubsequentlyCompliant = metrics.SubsequentlyCompliant;
+            cards.ResolvedAfterIL = metrics.ResolvedAfterIL;
+            cards.ResolvedAfterCN = metrics.ResolvedAfterCN;
+            cards.ResponsesReceived = received;
+            cards.ResponsesOutstanding = outstanding;
+            cards.AgsaReferrals = agsaReferrals;
+
             return new DashboardModel
             {
-                Cards = await GetCardsAsync(cancellationToken),
+                Cards = cards,
+                AgeingChart = await _complianceCaseRepository.GetAgeingAsync(now, cancellationToken),
                 StatusChart = await GetStatusChartAsync(cancellationToken),
                 AgentWorkloads = await GetAgentWorkloadsAsync(cancellationToken),
                 ComplianceTrend = await GetComplianceTrendAsync(cancellationToken),

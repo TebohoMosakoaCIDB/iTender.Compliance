@@ -11,6 +11,9 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             string? notes,
             CancellationToken cancellationToken = default);
 
+        Task<int> CountConstructionTendersAsync(
+            CancellationToken cancellationToken = default);
+
         Task<List<Tender>> GetUnregisteredAwardedTendersAsync(
             int minimumDaysSinceClosing,
             CancellationToken cancellationToken = default);

@@ -40,11 +40,9 @@ namespace iTender.Compliance.Infrastructure.Extensions
 
             services.AddScoped<ICrmServiceFactory, CrmServiceFactory>();
 
-            services.Configure<SigningHubOptions>(
-                configuration.GetSection(SigningHubOptions.SectionName));
+            services.Configure<SigningHubOptions>(configuration.GetSection(SigningHubOptions.SectionName));
 
-            services.Configure<SmtpOptions>(
-                configuration.GetSection(SmtpOptions.SectionName));
+            services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
 
             services.AddHttpClient<ISigningHubApiProvider, SigningHubApiProvider>((sp, client) =>
             {
@@ -58,8 +56,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
 
             services.AddScoped<ICategoryMappingService, CategoryMappingService>();
 
-            services.Configure<EtendersOptions>(
-                configuration.GetSection(EtendersOptions.SectionName));
+            services.Configure<EtendersOptions>(configuration.GetSection(EtendersOptions.SectionName));
 
             services.AddHttpClient<IEtendersClient, EtendersClient>((serviceProvider, client) =>
             {
@@ -75,9 +72,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<EtendersConstructionFilter>();
             services.AddScoped<EtendersTenderMapper>();
 
-            services.AddScoped<
-                    ITenderDiscoveryAgent,
-                    TenderDiscoveryAgent>();
+            services.AddScoped<ITenderDiscoveryAgent, TenderDiscoveryAgent>();
 
             QuestPDF.Settings.License = LicenseType.Evaluation;
             services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -112,7 +107,6 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IDuplicateGroupRepository, DuplicateGroupRepository>();
             services.AddScoped<IClientGroupRepository, ClientGroupRepository>();
 
-
             //Services
             services.AddScoped<IDuplicateDetectionService, DuplicateDetectionService>();
             services.AddScoped<IDuplicateVerificationService, DuplicateVerificationService>();
@@ -132,7 +126,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddHostedService<RoPComplianceBackgroundService>();
             services.AddHostedService<ComplianceWorkflowBackgroundService>();
             services.AddHostedService<SigningApprovalBackgroundService>();
-
+            services.AddHostedService<MonthlyReportBackgroundService>();
             services.AddScoped<IAutoAssignmentService, AutoAssignmentService>();
             services.AddScoped<ITenderService, TenderService>();
             services.AddScoped<IReportService, ReportService>();

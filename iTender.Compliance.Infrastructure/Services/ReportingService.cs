@@ -31,6 +31,237 @@ namespace iTender.Compliance.Infrastructure.Services
             _tenderRepository = tenderRepository;
         }
 
+        public async Task<ComplianceAnalysisModel> GetComplianceAnalysisAsync(
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default)
+        {
+            var cases = await _complianceCaseRepository.GetForAnalysisAsync(
+                from, to, cancellationToken);
+
+            var total = cases.Count;
+
+            var compliant = cases.Count(c => c.Outcome == ComplianceOutcome.Compliant);
+            var nonCompliant = cases.Count(c => c.Outcome == ComplianceOutcome.NonCompliant);
+            var open = cases.Count(c => c.Status != CaseStatus.Closed);
+
+            var model = new ComplianceAnalysisModel
+            {
+                FromDate = from,
+                ToDate = to,
+                TotalCases = total,
+                TotalCompliant = compliant,
+                TotalNonCompliant = nonCompliant,
+                TotalOpen = open
+            };
+
+            // ---- By Status ----
+            model.ByStatus = cases
+                .GroupBy(c => c.Status)
+                .Select(g => new AnalysisByStatus
+                {
+                    Status = g.Key.ToString(),
+                    Count = g.Count(),
+                    Percentage = total == 0 ? 0 : Math.Round((decimal)g.Count() / total * 100, 1)
+                })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+
+            // ---- By Outcome ----
+            model.ByOutcome = cases
+                .GroupBy(c => c.Outcome)
+                .Select(g => new AnalysisByOutcome
+                {
+                    Outcome = g.Key.HasValue ? g.Key.Value.ToString() : "Pending",
+                    Count = g.Count(),
+                    Percentage = total == 0 ? 0 : Math.Round((decimal)g.Count() / total * 100, 1)
+                })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+
+            // ---- By Officer ----
+            model.ByOfficer = cases
+                .Where(c => c.AgentId.HasValue && c.Agent != null)
+                .GroupBy(c => c.Agent!.FullName)
+                .Select(g =>
+                {
+                    var groupTotal = g.Count();
+                    var resolved = g.Count(c => c.Status == CaseStatus.Closed);
+
+                    return new AnalysisByOfficer
+                    {
+                        OfficerName = g.Key,
+                        TotalCases = groupTotal,
+                        Resolved = resolved,
+                        Outstanding = groupTotal - resolved,
+                        ResolvedPercentage = groupTotal == 0
+                            ? 0
+                            : Math.Round((decimal)resolved / groupTotal * 100, 1)
+                    };
+                })
+                .OrderByDescending(x => x.TotalCases)
+                .ToList();
+
+            // ---- By Province ----
+            model.ByProvince = cases
+                .Where(c => c.Tender != null)
+                .GroupBy(c => string.IsNullOrWhiteSpace(c.Tender!.Province)
+                    ? "Not specified"
+                    : c.Tender.Province!)
+                .Select(g => new AnalysisByProvince
+                {
+                    Province = g.Key,
+                    TotalCases = g.Count(),
+                    Compliant = g.Count(c => c.Outcome == ComplianceOutcome.Compliant),
+                    NonCompliant = g.Count(c => c.Outcome == ComplianceOutcome.NonCompliant),
+                    Open = g.Count(c => c.Status != CaseStatus.Closed)
+                })
+                .OrderByDescending(x => x.TotalCases)
+                .ToList();
+
+            // ---- By Employer (top 20) ----
+            model.ByEmployer = cases
+                .Where(c => c.Tender != null && !string.IsNullOrWhiteSpace(c.Tender!.EmployerName))
+                .GroupBy(c => c.Tender!.EmployerName)
+                .Select(g =>
+                {
+                    var groupTotal = g.Count();
+                    var nonCompliantCount = g.Count(c => c.Outcome == ComplianceOutcome.NonCompliant);
+
+                    return new AnalysisByEmployer
+                    {
+                        EmployerName = g.Key,
+                        TotalCases = groupTotal,
+                        Compliant = g.Count(c => c.Outcome == ComplianceOutcome.Compliant),
+                        NonCompliant = nonCompliantCount,
+                        Open = g.Count(c => c.Status != CaseStatus.Closed),
+                        NonComplianceRate = groupTotal == 0
+                            ? 0
+                            : Math.Round((decimal)nonCompliantCount / groupTotal * 100, 1)
+                    };
+                })
+                .OrderByDescending(x => x.TotalCases)
+                .Take(20)
+                .ToList();
+
+            // ---- By Month ----
+            model.ByMonth = cases
+                .GroupBy(c => new { c.CreatedOn.Year, c.CreatedOn.Month })
+                .OrderBy(g => g.Key.Year)
+                .ThenBy(g => g.Key.Month)
+                .Select(g => new AnalysisByMonth
+                {
+                    Month = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                    Opened = g.Count(),
+                    Closed = g.Count(c => c.Status == CaseStatus.Closed),
+                    Compliant = g.Count(c => c.Outcome == ComplianceOutcome.Compliant),
+                    NonCompliant = g.Count(c => c.Outcome == ComplianceOutcome.NonCompliant)
+                })
+                .ToList();
+
+            return model;
+        }
+
+        public async Task<MonthlyReportModel> GetMonthlyReportAsync(
+            int year,
+            int month,
+            CancellationToken cancellationToken = default)
+        {
+            var periodStart = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var periodEnd = periodStart.AddMonths(1).AddTicks(-1);
+
+            // Load all cases for open-state metrics; use case letters for IL/CN detection.
+            var allCases = await _complianceCaseRepository.GetAllAsync(cancellationToken);
+
+            // For the monthly period, we need to know findings and letters.
+            // GetAllAsync in the current repo doesn't include them, so use the case-detail
+            // path or add a specialised method. For now, filter and load per-case.
+            var periodCases = new List<Domain.Entities.ComplianceCase>();
+
+            foreach (var c in allCases.Where(x =>
+                x.CreatedOn >= periodStart && x.CreatedOn <= periodEnd))
+            {
+                var detail = await _complianceCaseRepository.GetByIdAsync(c.Id, cancellationToken);
+                if (detail is not null)
+                    periodCases.Add(detail);
+            }
+
+            var tenders = await _tenderRepository.GetAllAsync(cancellationToken);
+            var periodTenders = tenders
+                .Where(t => t.AdvertisedDate >= periodStart && t.AdvertisedDate <= periodEnd)
+                .ToList();
+
+            var settings = await _settingRepository.GetAsync(cancellationToken);
+            var slaDays = settings?.AgsaReferralDeadlineDays ?? 30;
+
+            var openCases = allCases
+                .Where(c => c.Status != CaseStatus.Closed)
+                .ToList();
+
+            var averageAgeDays = openCases.Count == 0
+                ? 0m
+                : (decimal)openCases.Average(c => (DateTime.UtcNow - c.CreatedOn).TotalDays);
+
+            return new MonthlyReportModel
+            {
+                Year = year,
+                Month = month,
+                PeriodLabel = periodStart.ToString("MMMM yyyy"),
+                PeriodStart = periodStart,
+                PeriodEnd = periodEnd,
+
+                ProjectsIdentified = periodTenders.Count(t => t.IsConstruction),
+                ProjectsVerified = periodCases.Count(c =>
+                    c.ComplianceFindings != null &&
+                    c.ComplianceFindings.Any(f => f.IsResolved)),
+                ProjectsRegistered = periodTenders.Count(t => t.IsRegisteredOnRoP),
+                ProjectsNotRegistered = periodTenders.Count(t => !t.IsRegisteredOnRoP),
+
+                InitiallyNonCompliant = periodCases.Count,
+
+                Resolved = periodCases.Count(c =>
+                    c.Outcome == ComplianceOutcome.Compliant),
+
+                ResolvedAfterIL = periodCases.Count(c =>
+                    c.Outcome == ComplianceOutcome.Compliant &&
+                    c.ClosureReason == CaseClosureReason.ClientComplied &&
+                    (c.CaseLetters == null ||
+                     !c.CaseLetters.Any(l => l.Type == LetterType.ContraventionNotice))),
+
+                ResolvedAfterCN = periodCases.Count(c =>
+                    c.Outcome == ComplianceOutcome.Compliant &&
+                    c.ClosureReason == CaseClosureReason.ClientComplied &&
+                    c.CaseLetters != null &&
+                    c.CaseLetters.Any(l => l.Type == LetterType.ContraventionNotice)),
+
+                RemainingNonCompliant = allCases.Count(c =>
+                    c.Status != CaseStatus.Closed &&
+                    c.Status != CaseStatus.ReferredForEnforcement &&
+                    c.ComplianceFindings != null &&
+                    c.ComplianceFindings.Any(f => !f.IsResolved)),
+
+                ReferredToEnforcement = allCases.Count(c =>
+                    c.Status == CaseStatus.ReferredForEnforcement),
+
+                EscalatedToAgsa = allCases.Count(c =>
+                    c.Status == CaseStatus.ReferredForEnforcement),
+
+                CorrectiveActionsTaken = periodCases.Count(c =>
+                    c.ComplianceActions != null &&
+                    c.ComplianceActions.Any(a => a.Status == ComplianceActionStatus.Completed)),
+
+                CasesOpened = periodCases.Count,
+
+                CasesClosed = periodCases.Count(c => c.Status == CaseStatus.Closed),
+
+                AverageCaseAgeDays = Math.Round(averageAgeDays, 1),
+
+                CasesPastSlaDeadline = openCases.Count(c =>
+                    c.AssignedOn.HasValue &&
+                    (DateTime.UtcNow - c.AssignedOn.Value).TotalDays > slaDays)
+            };
+        }
+
         public async Task<ComplianceReportModel> GetComplianceReportAsync(
             DateTime from,
             DateTime to,

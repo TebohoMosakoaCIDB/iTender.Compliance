@@ -13,6 +13,14 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
+        public async Task<int> CountConstructionTendersAsync( CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.Tenders
+                .CountAsync(t => t.IsConstruction, cancellationToken);
+        }
+
         public async Task<int> CountAwaitingClassificationReviewAsync(
             CancellationToken cancellationToken = default)
         {

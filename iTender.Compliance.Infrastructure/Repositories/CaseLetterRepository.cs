@@ -12,6 +12,24 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
+        public async Task<(int Received, int Outstanding)> CountResponsesAsync(
+            DateTime now,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            var received = await context.CaseLetters
+                .CountAsync(l => l.RespondedOn != null, cancellationToken);
+
+            var outstanding = await context.CaseLetters
+                .CountAsync(l =>
+                    l.RespondedOn == null &&
+                    l.ResponseDueOn > now,
+                    cancellationToken);
+
+            return (received, outstanding);
+        }
+
         public async Task AddAsync(
             CaseLetter letter,
             CancellationToken cancellationToken = default)
