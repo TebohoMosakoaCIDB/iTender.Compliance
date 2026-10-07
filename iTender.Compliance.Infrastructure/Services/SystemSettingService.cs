@@ -37,6 +37,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 InstructionLetterReminderAfterWorkingDays = settings.InstructionLetterReminderAfterWorkingDays,
                 ReminderCheckIntervalMinutes = settings.ReminderCheckIntervalMinutes,
                 MaximumReminders = settings.MaximumReminders,
+                SlaWarningDays = settings.SlaWarningDays,
 
                 // AGSA Referral & RoP
                 AgsaReferralDeadlineDays = settings.AgsaReferralDeadlineDays,
@@ -88,6 +89,7 @@ namespace iTender.Compliance.Infrastructure.Services
             settings.InstructionLetterReminderAfterWorkingDays = model.InstructionLetterReminderAfterWorkingDays;
             settings.ReminderCheckIntervalMinutes = model.ReminderCheckIntervalMinutes;
             settings.MaximumReminders = model.MaximumReminders;
+            settings.SlaWarningDays = model.SlaWarningDays;
 
             // ---------------------------------------------------
             // AGSA Referral & RoP

@@ -17,7 +17,8 @@
             CancellationToken cancellationToken = default);
 
         /// <summary>Runs all escalation passes. Intended to be called on a schedule.</summary>
-        Task RunEscalationCycleAsync(
-            CancellationToken cancellationToken = default);
+        Task RunEscalationCycleAsync(CancellationToken cancellationToken = default);
+
+        Task<int> RunSlaWarningsAsync(CancellationToken cancellationToken = default);
     }
 }

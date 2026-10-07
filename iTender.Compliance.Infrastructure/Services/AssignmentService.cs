@@ -9,6 +9,7 @@ namespace iTender.Compliance.Infrastructure.Services
 {
     public class AssignmentService : IAssignmentService
     {
+        private readonly IUserService _userService;
         private readonly IAutoAssignmentService _autoAssignmentService;
         private readonly ISystemSettingService _systemSettingService;
         private readonly IComplianceCaseRepository _caseRepository;
@@ -23,6 +24,7 @@ namespace iTender.Compliance.Infrastructure.Services
             IComplianceCaseRepository caseRepository,
             ISystemSettingService systemSettingService,
             IAgentRepository agentRepository,
+            IUserService userService,
             INotificationService notificationService,
             IAuditService auditService,
             IUnitOfWork unitOfWork,
@@ -32,38 +34,48 @@ namespace iTender.Compliance.Infrastructure.Services
             _systemSettingService = systemSettingService;
             _caseRepository = caseRepository;
             _agentRepository = agentRepository;
+            _userService = userService;
             _notificationService = notificationService;
             _auditService = auditService;
             _unitOfWork = unitOfWork;
             _logger = logger;
         }
 
-        public async Task AssignAsync(
-            ComplianceCase @case,
-            CancellationToken cancellationToken = default)
+        public async Task AssignAsync(ComplianceCase @case, CancellationToken cancellationToken = default)
         {
-            if (@case.AgentId.HasValue)
-                return; // idempotent
+            if (@case.AgentId.HasValue) return; 
 
             var settings = await _settingsOrDefaultsAsync(cancellationToken);
 
             if (!settings.AutoAssignmentEnabled)
             {
-                _logger.LogInformation(
-                    "Auto-assignment disabled. Case {CaseId} left unassigned for manual allocation.",
-                    @case.Id);
+                _logger.LogInformation("Auto-assignment disabled. Case {CaseId} left unassigned for manual allocation.", @case.Id);
+
+                await NotifyManagersManualAssignmentRequiredAsync(@case, "Automatic assignment is disabled in system settings.", cancellationToken);
 
                 return;
             }
 
-            var agent = await _autoAssignmentService
-                .SelectAgentAsync(@case, settings.DistributionMethod, cancellationToken);
+            Agent? agent;
+
+            try
+            {
+                agent = await _autoAssignmentService.SelectAgentAsync(@case, settings.DistributionMethod, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Auto-assignment threw for case {CaseId}. Routing to manual.", @case.Id);
+
+                await NotifyManagersManualAssignmentRequiredAsync(@case, $"Automatic assignment failed: {ex.Message}", cancellationToken);
+
+                return;
+            }
 
             if (agent is null)
             {
-                _logger.LogInformation(
-                    "No eligible agent for case {CaseId}. Left unassigned for manual allocation.",
-                    @case.Id);
+                _logger.LogInformation("No eligible agent for case {CaseId}. Left unassigned for manual allocation.", @case.Id);
+
+                await NotifyManagersManualAssignmentRequiredAsync(@case, "No eligible agent was available (all at capacity or none active).", cancellationToken);
 
                 return;
             }
@@ -91,7 +103,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 Message = $"Tender {@case.Tender.TenderNumber} has been assigned to you.",
                 Type = NotificationType.Information,
                 Url = $"/cases/{@case.Id}"
-            });
+            }, cancellationToken);
         }
 
         public async Task ManuallyAssignAsync(
@@ -142,12 +154,39 @@ namespace iTender.Compliance.Infrastructure.Services
             });
         }
 
-        private async Task<SystemSettingModel> _settingsOrDefaultsAsync(
-            CancellationToken cancellationToken)
+        private async Task<SystemSettingModel> _settingsOrDefaultsAsync(CancellationToken cancellationToken)
         {
             // Adjust to whatever ISystemSettingService / ISystemSettingRepository exposes.
             var settings = await _systemSettingService.GetAsync();
             return settings;
+        }
+
+        private async Task NotifyManagersManualAssignmentRequiredAsync(ComplianceCase @case, string reason, CancellationToken cancellationToken)
+        {
+            var managerIds = await _userService
+                .GetManagerUserIdsAsync(cancellationToken);
+
+            if (managerIds.Count == 0)
+            {
+                _logger.LogWarning(
+                    "No manager or administrator users found to notify about " +
+                    "manual assignment for case {CaseId}.", @case.Id);
+                return;
+            }
+
+            foreach (var managerId in managerIds)
+            {
+                await _notificationService.NotifyAsync(new CreateNotificationModel
+                {
+                    UserId = managerId,
+                    Title = "Manual Assignment Required",
+                    Message =
+                        $"Case {@case.Id} could not be auto-assigned. " +
+                        $"Reason: {reason}. Please assign it manually.",
+                    Type = NotificationType.Warning,
+                    Url = $"/cases/{@case.Id}"
+                }, cancellationToken);
+            }
         }
     }
 }

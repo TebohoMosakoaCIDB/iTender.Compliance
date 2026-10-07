@@ -1189,6 +1189,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<bool>("SendMonthlyReportAutomatically")
                         .HasColumnType("bit");
 
+                    b.Property<int>("SlaWarningDays")
+                        .HasColumnType("int");
+
                     b.Property<int>("SynchronizationIntervalHours")
                         .HasColumnType("int");
 

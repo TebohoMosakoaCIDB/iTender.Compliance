@@ -16,25 +16,25 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IComplianceCaseRepository _caseRepository;
         private readonly IComplianceFindingRepository _findingRepository;
         private readonly IComplianceActionRepository _actionRepository;
-        private readonly ICaseLetterRepository _letterRepository;
+        private readonly IAgentRepository _agentRepository;
         private readonly ISystemSettingRepository _settingRepository;
         private readonly IAuditService _auditService;
         private readonly IWorkClassificationValidator _classValidator;
         private readonly ILetterNumberGenerator _letterNumberGenerator;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<ComplianceProcessingService> _logger;
-        private readonly ICorrespondenceService _correspondenceService;
+        private readonly INotificationService _notificationService;
         private readonly IWorkingDayCalculator _workingDayCalculator;
         private readonly IClientGroupService _clientGroupService;
         private readonly IAssignmentService _assignmentService;
 
         public ComplianceProcessingService(
             IComplianceCaseRepository caseRepository,
-            ICorrespondenceService correspondenceService,
+            INotificationService notificationService,
             IWorkingDayCalculator workingDayCalculator,
             IComplianceFindingRepository findingRepository,
             IComplianceActionRepository actionRepository,
-            ICaseLetterRepository letterRepository,
+            IAgentRepository agentRepository,
             ISystemSettingRepository settingRepository,
             IAssignmentService assignmentService,
             IAuditService auditService,
@@ -47,7 +47,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _caseRepository = caseRepository;
             _findingRepository = findingRepository;
             _actionRepository = actionRepository;
-            _letterRepository = letterRepository;
+            _agentRepository = agentRepository;
             _settingRepository = settingRepository;
             _clientGroupService = clientGroupService;
             _assignmentService = assignmentService;
@@ -56,7 +56,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _letterNumberGenerator = letterNumberGenerator;
             _unitOfWork = unitOfWork;
             _logger = logger;
-            _correspondenceService = correspondenceService;
+            _notificationService = notificationService;
             _workingDayCalculator = workingDayCalculator;
         }
 
@@ -267,6 +267,12 @@ namespace iTender.Compliance.Infrastructure.Services
                 }
             }
 
+            await NotifyAssignedCoAsync(
+                complianceCase,
+                tender,
+                findings.Count,
+                cancellationToken);
+
             // 9. Audit log
             await _auditService.LogAsync(
                 AuditAction.Created,
@@ -282,6 +288,29 @@ namespace iTender.Compliance.Infrastructure.Services
                 tender.TenderNumber);
 
             return complianceCase.Id;
+        }
+
+        private async Task NotifyAssignedCoAsync(ComplianceCase complianceCase, Tender tender, int findingCount, CancellationToken cancellationToken)
+        {
+            if (!complianceCase.AgentId.HasValue)
+                return;
+
+            var coUserId = await _agentRepository
+                .GetUserIdByAgentIdAsync(complianceCase.AgentId.Value, cancellationToken);
+
+            if (!coUserId.HasValue)
+                return;
+
+            await _notificationService.NotifyAsync(new CreateNotificationModel
+            {
+                UserId = coUserId.Value,
+                Title = "New Compliance Case Assigned",
+                Message =
+                    $"Tender {tender.TenderNumber} — {tender.EmployerName} has been " +
+                    $"assigned to you. {findingCount} open finding(s) require attention.",
+                Type = NotificationType.Information,
+                Url = $"/cases/{complianceCase.Id}"
+            }, cancellationToken);
         }
     }
 }

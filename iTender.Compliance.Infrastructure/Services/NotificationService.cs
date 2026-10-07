@@ -22,10 +22,21 @@ namespace iTender.Compliance.Infrastructure.Services
             _hub = hub;
         }
 
-        public async Task NotifyAsync(
-            CreateNotificationModel model,
-            CancellationToken cancellationToken = default)
+        public async Task NotifyAsync(CreateNotificationModel model, CancellationToken cancellationToken = default)
         {
+            // Don't re-notify for the same unread event.
+            if (model.UserId.HasValue)
+            {
+                var exists = await _notificationRepository.ExistsUnreadAsync(
+                    model.UserId.Value,
+                    model.Title,
+                    model.Url,
+                    cancellationToken);
+
+                if (exists)
+                    return;
+            }
+
             var notification = new Notification
             {
                 UserId = model.UserId,
@@ -37,11 +48,9 @@ namespace iTender.Compliance.Infrastructure.Services
                 CreatedOn = DateTime.UtcNow
             };
 
-            await _notificationRepository.AddAsync(
-                notification,
-                cancellationToken);
-
+            await _notificationRepository.AddAsync(notification, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
             await _hub.Clients
                 .User(model.UserId.ToString())
                 .SendAsync("NotificationReceived");

@@ -101,5 +101,15 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 })
                 .ToListAsync(cancellationToken);
         }
+
+        public async Task<Guid?> GetUserIdByAgentIdAsync(Guid agentId, CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.Agents
+                .Where(a => a.Id == agentId && a.IsActive)
+                .Select(a => (Guid?)a.UserId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
     }
 }

@@ -47,5 +47,6 @@ namespace iTender.Compliance.Application.DTOs
         public int MaximumReminders { get; set; } = 3;
         public int ReminderAfterHours { get; set; } = 48;
         public int DefaultMaximumOpenCases { get; set; }
+        public int SlaWarningDays { get; set; } = 25;
     }
 }

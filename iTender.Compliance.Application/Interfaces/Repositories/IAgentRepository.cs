@@ -32,5 +32,9 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 
         Task<List<AgentLookupModel>> GetLookupAsync(
             CancellationToken cancellationToken = default);
+
+        Task<Guid?> GetUserIdByAgentIdAsync(
+            Guid agentId,
+            CancellationToken cancellationToken = default);
     }
 }

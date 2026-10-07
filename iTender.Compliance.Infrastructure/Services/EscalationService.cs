@@ -1,4 +1,5 @@
-﻿using iTender.Compliance.Application.DTOs;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
@@ -10,6 +11,7 @@ namespace iTender.Compliance.Infrastructure.Services
     public class EscalationService : IEscalationService
     {
         private readonly ICaseLetterRepository _caseLetterRepository;
+        private readonly IUserService _userService;
         private readonly IComplianceCaseRepository _complianceCaseRepository;
         private readonly IAgsaReferralRepository _agsaReferralRepository;
         private readonly IAgentRepository _agentRepository;
@@ -25,6 +27,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly ILogger<EscalationService> _logger;
 
         public EscalationService(
+            IUserService userService,
             ICaseLetterRepository caseLetterRepository,
             IComplianceCaseRepository complianceCaseRepository,
             IAgsaReferralRepository agsaReferralRepository,
@@ -53,6 +56,7 @@ namespace iTender.Compliance.Infrastructure.Services
             _auditService = auditService;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
+            _userService = userService;
             _logger = logger;
         }
 
@@ -134,14 +138,20 @@ namespace iTender.Compliance.Infrastructure.Services
 
                     if (complianceCase.AgentId.HasValue)
                     {
-                        await _notificationService.NotifyAsync(new CreateNotificationModel
+                        var coUserId = await _agentRepository
+                            .GetUserIdByAgentIdAsync(complianceCase.AgentId.Value, cancellationToken);
+
+                        if (coUserId.HasValue)
                         {
-                            UserId = complianceCase.AgentId,
-                            Title = "Case Escalated to Contravention Notice",
-                            Message = $"Tender {tender.TenderNumber} received no response to the Instruction Letter and has been escalated.",
-                            Type = NotificationType.Warning,
-                            Url = $"/cases/{complianceCase.Id}"
-                        }, cancellationToken);
+                            await _notificationService.NotifyAsync(new CreateNotificationModel
+                            {
+                                UserId = coUserId.Value,
+                                Title = "Case Escalated to Contravention Notice",
+                                Message = $"Tender {tender.TenderNumber} received no response to the Instruction Letter and has been escalated.",
+                                Type = NotificationType.Warning,
+                                Url = $"/cases/{complianceCase.Id}"
+                            }, cancellationToken);
+                        }
                     }
 
                     count++;
@@ -204,6 +214,33 @@ namespace iTender.Compliance.Infrastructure.Services
 
                 try
                 {
+                    // -----------------------------------------------------
+                    // BR-12 + workflow: notify the CO that the corrective
+                    // period has expired and a compliance outcome must be
+                    // verified before enforcement referral.
+                    // -----------------------------------------------------
+                    if (complianceCase.AgentId.HasValue)
+                    {
+                        var coUserId = await _agentRepository
+                            .GetUserIdByAgentIdAsync(complianceCase.AgentId.Value, cancellationToken);
+
+                        if (coUserId.HasValue)
+                        {
+                            await _notificationService.NotifyAsync(new CreateNotificationModel
+                            {
+                                UserId = coUserId.Value,
+                                Title = "Post-Corrective Verification Required",
+                                Message =
+                                    $"Tender {complianceCase.Tender.TenderNumber} " +
+                                    $"({complianceCase.Tender.EmployerName}) has reached the end of the " +
+                                    "Contravention Notice corrective period. Verify the outcome: " +
+                                    "Full, Partial or No Compliance.",
+                                Type = NotificationType.Warning,
+                                Url = $"/cases/{complianceCase.Id}"
+                            }, cancellationToken);
+                        }
+                    }
+
                     var referred = await CreateAgsaReferralAsync(
                         letter.ComplianceCase,
                         "No response received to the Contravention Notice within the required period.",
@@ -304,10 +341,7 @@ namespace iTender.Compliance.Infrastructure.Services
         /// notifies managers, and emails the referral to AGSA (with the CIDB enforcement unit cc'd). Returns
         /// false without doing anything if the case already has a referral, so both trigger paths can safely
         /// call this without double-referring the same case.</summary>
-        private async Task<bool> CreateAgsaReferralAsync(
-            ComplianceCase complianceCase,
-            string reason,
-            CancellationToken cancellationToken)
+        private async Task<bool> CreateAgsaReferralAsync(ComplianceCase complianceCase, string reason, CancellationToken cancellationToken)
         {
             var existing = await _agsaReferralRepository.GetByCaseIdAsync(
                 complianceCase.Id,
@@ -398,18 +432,18 @@ namespace iTender.Compliance.Infrastructure.Services
                     cancellationToken);
             }
 
-            var managers = (await _agentRepository.GetActiveAsync(cancellationToken))
-                .Where(a => a.IsManager)
-                .ToList();
+            var managerIds = await _userService.GetManagerUserIdsAsync(cancellationToken);
 
-            foreach (var manager in managers)
+            foreach (var managerId in managerIds)
             {
                 await _notificationService.NotifyAsync(new CreateNotificationModel
                 {
-                    UserId = manager.Id,
-                    Title = "Case Referred for Enforcement",
-                    Message = $"Tender {tender.TenderNumber} has been referred to AGSA ({referralNumber}). {reason}",
-                    Type = NotificationType.Warning,
+                    UserId = managerId,
+                    Title = "Case Referred for Enforcement (SLA Breach)",
+                    Message =
+                        $"Tender {tender.TenderNumber} has been referred to AGSA ({referralNumber}). " +
+                        $"The {settings.AgsaReferralDeadlineDays}-day SLA target was exceeded. {reason}",
+                    Type = NotificationType.Error,
                     Url = $"/cases/{complianceCase.Id}"
                 }, cancellationToken);
             }
@@ -435,6 +469,91 @@ namespace iTender.Compliance.Infrastructure.Services
                 return false;
 
             return true;
+        }
+
+        public async Task<int> RunSlaWarningsAsync(CancellationToken cancellationToken = default)
+        {
+            var settings = await _systemSettingService.GetAsync();
+
+            var warningCutoff = DateTime.UtcNow.AddDays(-settings.SlaWarningDays);
+            var breachCutoff = DateTime.UtcNow.AddDays(-settings.AgsaReferralDeadlineDays);
+
+            // Cases past the warning cutoff.
+            var cases = await _complianceCaseRepository
+                .GetOpenCasesAssignedBeforeAsync(warningCutoff, cancellationToken);
+
+            // Exclude cases that are already past the breach cutoff - those go
+            // through the breach/AGSA path instead.
+            var toWarn = cases
+                .Where(c => c.AssignedOn.HasValue && c.AssignedOn.Value > breachCutoff)
+                .ToList();
+
+            var managerIds = await _userService
+                .GetManagerUserIdsAsync(cancellationToken);
+
+            var count = 0;
+
+            foreach (var complianceCase in toWarn)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    var daysOpen = complianceCase.AssignedOn.HasValue
+                        ? (DateTime.UtcNow - complianceCase.AssignedOn.Value).Days
+                        : 0;
+
+                    var recipients = new HashSet<Guid>(managerIds);
+
+                    if (complianceCase.AgentId.HasValue)
+                    {
+                        var coUserId = await _agentRepository
+                            .GetUserIdByAgentIdAsync(
+                                complianceCase.AgentId.Value, cancellationToken);
+
+                        if (coUserId.HasValue)
+                            recipients.Add(coUserId.Value);
+                    }
+
+                    foreach (var userId in recipients)
+                    {
+                        await _notificationService.NotifyAsync(new CreateNotificationModel
+                        {
+                            UserId = userId,
+                            Title = "SLA Warning",
+                            Message =
+                                $"Case {complianceCase.Tender.TenderNumber} " +
+                                $"({complianceCase.Tender.EmployerName}) has been open for " +
+                                $"{daysOpen} days. The {settings.AgsaReferralDeadlineDays}-day " +
+                                "target is approaching.",
+                            Type = NotificationType.Warning,
+                            Url = $"/cases/{complianceCase.Id}"
+                        }, cancellationToken);
+                    }
+
+                    count++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to send SLA warning for case {CaseId}.",
+                        complianceCase.Id);
+
+                    await _auditService.LogAsync(
+                        AuditAction.Error,
+                        AuditEntity.ComplianceCase,
+                        complianceCase.Id,
+                        $"SLA warning notification failed: {ex.Message}",
+                        _currentUser.UserId,
+                        cancellationToken);
+                }
+            }
+
+            _logger.LogInformation(
+                "SLA warning pass complete - {Count} case(s) warned.", count);
+
+            return count;
         }
     }
 }

@@ -350,9 +350,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 cancellationToken);
         }
 
-        public async Task CaptureResponseAsync(
-    CaptureResponseModel model,
-    CancellationToken cancellationToken = default)
+        public async Task CaptureResponseAsync(CaptureResponseModel model, CancellationToken cancellationToken = default)
         {
             var complianceCase = await _complianceCaseRepository.GetByIdAsync(
                 model.ComplianceCaseId,
@@ -404,6 +402,32 @@ namespace iTender.Compliance.Infrastructure.Services
                 "Compliance case closed.",
                 _currentUser.UserId,
                 cancellationToken);
+
+            // -----------------------------------------------------
+            // Notify the assigned CO that a response is available
+            // for review, if the case has one and it isn't the CO
+            // who just recorded it.
+            // -----------------------------------------------------
+            if (complianceCase.AgentId.HasValue)
+            {
+                var coUserId = await _agentRepository
+                    .GetUserIdByAgentIdAsync(complianceCase.AgentId.Value, cancellationToken);
+
+                // Don't notify the CO about their own action.
+                if (coUserId.HasValue && coUserId.Value != _currentUser.UserId)
+                {
+                    await _notificationService.NotifyAsync(new CreateNotificationModel
+                    {
+                        UserId = coUserId.Value,
+                        Title = "Client Response Submitted",
+                        Message =
+                            $"Tender {complianceCase.Tender.TenderNumber} has received a " +
+                            $"client response ({model.Outcome}). Review and verify.",
+                        Type = NotificationType.Information,
+                        Url = $"/cases/{complianceCase.Id}"
+                    }, cancellationToken);
+                }
+            }
         }
 
         /// <summary>Routes a generated letter to the active Manager for sign-off via SigningHub if

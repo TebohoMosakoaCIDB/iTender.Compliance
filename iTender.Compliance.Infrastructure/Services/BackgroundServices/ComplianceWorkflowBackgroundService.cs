@@ -59,6 +59,15 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
 
                         var escalationService = provider.GetRequiredService<IEscalationService>();
                         await escalationService.RunEscalationCycleAsync(stoppingToken);
+
+                        var slaWarnings = await escalationService.RunSlaWarningsAsync(stoppingToken);
+
+                        if (slaWarnings > 0)
+                        {
+                            _logger.LogInformation(
+                                "SLA warning pass complete - {Count} case(s) warned.",
+                                slaWarnings);
+                        }
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {

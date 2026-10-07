@@ -398,4 +398,28 @@ public class UserService : IUserService
 
         return ServiceResult.Success();
     }
+
+    public async Task<List<Guid>> GetUserIdsInRoleAsync(
+    string role,
+    CancellationToken cancellationToken = default)
+    {
+        var users = await _userManager.GetUsersInRoleAsync(role);
+        return users
+            .Where(u => u.IsActive)
+            .Select(u => u.Id)
+            .ToList();
+    }
+
+    public async Task<List<Guid>> GetManagerUserIdsAsync(CancellationToken cancellationToken = default)
+    {
+        var managerIds = await GetUserIdsInRoleAsync(
+            Roles.ComplianceManager, cancellationToken);
+
+        if (managerIds.Count > 0)
+            return managerIds;
+
+        // Fallback so a notification is never silently dropped.
+        return await GetUserIdsInRoleAsync(
+            Roles.ComplianceAdministrator, cancellationToken);
+    }
 }

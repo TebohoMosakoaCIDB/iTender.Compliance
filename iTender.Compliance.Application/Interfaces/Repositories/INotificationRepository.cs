@@ -40,5 +40,11 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             CancellationToken cancellationToken = default);
 
         Task<NotificationDetailModel?> GetByIdAsync(Guid id);
+
+        Task<bool> ExistsUnreadAsync(
+            Guid userId,
+            string title,
+            string? url,
+            CancellationToken cancellationToken = default);
     }
 }

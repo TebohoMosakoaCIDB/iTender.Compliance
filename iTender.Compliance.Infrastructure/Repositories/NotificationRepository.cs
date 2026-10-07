@@ -156,5 +156,18 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 })
                 .FirstOrDefaultAsync();
         }
+
+        public async Task<bool> ExistsUnreadAsync(Guid userId, string title, string? url, CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.Notifications
+                .AnyAsync(n =>
+                    n.UserId == userId &&
+                    !n.IsRead &&
+                    n.Title == title &&
+                    n.Url == url,
+                    cancellationToken);
+        }
     }
 }

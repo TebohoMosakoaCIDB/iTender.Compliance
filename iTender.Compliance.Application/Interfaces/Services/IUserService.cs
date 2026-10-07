@@ -23,5 +23,11 @@ namespace iTender.Compliance.Application.Interfaces.Services
         Task<ServiceResult> UpdateAsync(
             UpdateUserModel model,
             CancellationToken cancellationToken = default);
+
+        Task<List<Guid>> GetUserIdsInRoleAsync(
+            string role,
+            CancellationToken cancellationToken = default);
+
+        Task<List<Guid>> GetManagerUserIdsAsync(CancellationToken cancellationToken = default);
     }
 }
