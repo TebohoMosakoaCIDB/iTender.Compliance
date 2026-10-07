@@ -25,6 +25,35 @@
     </small>
 </div>
 
+<div class="d-flex justify-content-between align-items-center mb-3">
+
+    <div class="btn-group" role="group">
+
+        <button class="btn btn-sm @(_scope == "Mine" ? "btn-cidb-submit" : "btn-cidb-submit-outline")"
+                @onclick='() => ChangeScopeAsync("Mine")'>
+            <i class="bi bi-person me-1"></i>
+            My Baskets
+        </button>
+
+        <button class="btn btn-sm @(_scope == "All" ? "btn-cidb-submit" : "btn-cidb-submit-outline")"
+                @onclick='() => ChangeScopeAsync("All")'
+                disabled="@(!_canViewAll)">
+            <i class="bi bi-people me-1"></i>
+            Team Baskets
+        </button>
+
+    </div>
+
+    @if (!_canViewAll)
+    {
+        <small class="text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            You are viewing your own baskets.
+        </small>
+    }
+
+</div>
+
 <ul class="nav nav-tabs mb-4">
 
     @foreach (var basket in Enum.GetValues<WorkBasket>())
@@ -82,6 +111,11 @@ else
                                 <th>Findings</th>
                                 <th>Agent</th>
                                 <th>Age</th>
+                                <th>Response Due</th>
+                                @if (_selectedBasket == WorkBasket.ReferralPending)
+                                {
+                                    <th>Days Awaiting</th>
+                                }
                                 <th style="width:100px;"></th>
                             </tr>
                         </thead>
@@ -115,9 +149,59 @@ else
                                     <td>@(item.Agent?.FullName ?? "-")</td>
                                     <td>
                                         <span class="badge @(age > 25 ? "bg-danger" : age > 15 ? "bg-warning text-dark" : "bg-secondary")">
-                                            @age d
+                                            @age day(s)
                                         </span>
                                     </td>
+                                    <td>
+                                        @{
+                                            var nearestDue = item.CaseLetters?
+                                                .Where(l => l.RespondedOn == null && l.ResponseDueOn > DateTime.UtcNow)
+                                                .OrderBy(l => l.ResponseDueOn)
+                                                .FirstOrDefault();
+
+                                            var overdue = item.CaseLetters?
+                                                .Where(l => l.RespondedOn == null && l.ResponseDueOn <= DateTime.UtcNow)
+                                                .OrderByDescending(l => l.ResponseDueOn)
+                                                .FirstOrDefault();
+
+                                            var responseToShow = overdue ?? nearestDue;
+                                        }
+
+                                        @if (responseToShow is null)
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                        else
+                                        {
+                                            var isOverdue = responseToShow.ResponseDueOn <= DateTime.UtcNow;
+                                            var daysLeft = (responseToShow.ResponseDueOn - DateTime.UtcNow).TotalDays;
+
+                                            <span class="badge @(isOverdue ? "bg-danger" : daysLeft < 2 ? "bg-warning text-dark" : "bg-secondary")">
+                                                @(isOverdue ? "Overdue" : $"{Math.Max(0, (int)daysLeft)} d")
+                                            </span>
+
+                                            <div class="text-muted small">
+                                                @responseToShow.ResponseDueOn.ToString("dd MMM HH:mm")
+                                            </div>
+                                        }
+                                    </td>
+
+                                    @if (_selectedBasket == WorkBasket.ReferralPending)
+                                    {
+                                        var overdueLetter = item.CaseLetters?
+                                            .Where(l => l.RespondedOn == null && l.ResponseDueOn <= DateTime.UtcNow)
+                                            .OrderBy(l => l.ResponseDueOn)
+                                            .FirstOrDefault();
+
+                                        var daysAwaiting = overdueLetter is null
+                                            ? 0
+                                            : (DateTime.UtcNow - overdueLetter.ResponseDueOn).Days;
+
+                                        <td>
+                                            <span class="badge bg-danger">@daysAwaiting day(s)</span>
+                                        </td>
+                                    }
+
                                     <td>
                                         <button class="btn btn-sm btn-cidb-submit"
                                                 @onclick="() => OpenCase(item.Id)">
@@ -141,16 +225,45 @@ else
     private Dictionary<WorkBasket, int> _counts = new();
     private bool _loading = true;
     private Guid? _agentFilter;
+    private Guid? _currentAgentId;
+    private string _scope = "Mine";
+    private bool _canViewAll;
 
     protected override async Task OnInitializedAsync()
     {
-        var canViewAll = await CaseAuthorizationService.CanViewAllCasesAsync();
+        _canViewAll = await CaseAuthorizationService.CanViewAllCasesAsync();
+        _currentAgentId = await CaseAuthorizationService.GetCurrentAgentIdAsync();
 
-        _agentFilter = canViewAll
-            ? null
-            : await CaseAuthorizationService.GetCurrentAgentIdAsync();
+        _scope = "Mine";
+
+        RecomputeFilter();
 
         await RefreshAsync();
+    }
+
+    private async Task ChangeScopeAsync(string scope)
+    {
+        _scope = scope;
+        RecomputeFilter();
+        await RefreshAsync();
+    }
+
+    private void RecomputeFilter()
+    {
+        if (_scope == "Mine")
+        {
+            _agentFilter = _currentAgentId;
+        }
+        else if (_canViewAll)
+        {
+            _agentFilter = null;
+        }
+        else
+        {
+            // Non-manager trying to see "All" - fall back to Mine.
+            _agentFilter = _currentAgentId;
+            _scope = "Mine";
+        }
     }
 
     private async Task SelectBasket(WorkBasket basket)
@@ -191,6 +304,7 @@ else
             WorkBasket.NonCompliant => "Non-Compliant",
             WorkBasket.Referral => "Referral",
             WorkBasket.ClearedResolved => "Cleared / Resolved",
+            WorkBasket.ReferralPending => "Referral Pending",
             _ => basket.ToString()
         };
 }

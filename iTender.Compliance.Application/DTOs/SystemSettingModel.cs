@@ -48,5 +48,12 @@ namespace iTender.Compliance.Application.DTOs
         public int ReminderAfterHours { get; set; } = 48;
         public int DefaultMaximumOpenCases { get; set; }
         public int SlaWarningDays { get; set; } = 25;
+
+        public string? LastQuarterlyReportSent { get; set; }
+        /// <summary>Whether the quarterly compliance report is emailed on the 1st of Jan/Apr/Jul/Oct.</summary>
+        public bool SendQuarterlyReportAutomatically { get; set; } = false;
+
+        /// <summary>Recipient for the automatic quarterly compliance report.</summary>
+        public string? QuarterlyReportRecipientEmail { get; set; }
     }
 }

@@ -187,6 +187,14 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 WorkBasket.ClearedResolved =>
                     query.Where(c => c.Status == CaseStatus.Closed),
 
+                WorkBasket.ReferralPending =>
+                    query.Where(c =>
+                        c.Status == CaseStatus.ContraventionNoticeIssued &&
+                        c.CaseLetters.Any(l =>
+                            l.Type == LetterType.ContraventionNotice &&
+                            l.RespondedOn == null &&
+                            l.ResponseDueOn <= DateTime.UtcNow)),
+
                 _ => query
             };
 

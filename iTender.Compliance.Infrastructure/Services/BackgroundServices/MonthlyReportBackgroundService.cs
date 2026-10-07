@@ -8,7 +8,8 @@ using Microsoft.Extensions.Logging;
 namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
 {
     /// <summary>
-    /// BR-9.4: emails the previous month's compliance report on the 1st of each month.
+    /// BR-9.4: emails the previous month's compliance report on the 1st of each month
+    /// and the previous quarter's report on the 1st of Jan, Apr, Jul and Oct.
     /// Runs hourly and checks the configured send hour.
     /// </summary>
     public class MonthlyReportBackgroundService : BackgroundService
@@ -38,15 +39,24 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                try
-                {
-                    using var scope = _scopeFactory.CreateScope();
+                var now = DateTime.UtcNow;
 
-                    await TrySendMonthlyReportAsync(scope.ServiceProvider, stoppingToken);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                using (var scope = _scopeFactory.CreateScope())
                 {
-                    _logger.LogError(ex, "Monthly report background pass failed.");
+                    try
+                    {
+                        await TrySendMonthlyReportAsync(
+                            scope.ServiceProvider, now, stoppingToken);
+
+                        await TrySendQuarterlyReportAsync(
+                            scope.ServiceProvider, now, stoppingToken);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogError(
+                            ex,
+                            "Scheduled reports background pass failed.");
+                    }
                 }
 
                 try
@@ -60,12 +70,15 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
             }
         }
 
+        // ---------------------------------------------------------------------
+        // MONTHLY
+        // ---------------------------------------------------------------------
+
         private async Task TrySendMonthlyReportAsync(
             IServiceProvider services,
+            DateTime now,
             CancellationToken cancellationToken)
         {
-            var now = DateTime.UtcNow;
-
             // Only attempt on the 1st of the month.
             if (now.Day != 1)
                 return;
@@ -112,7 +125,6 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
                 report.PeriodStart,
                 report.PeriodEnd);
 
-            // Write to a temp file for the email attachment.
             var tempDir = Path.Combine(Path.GetTempPath(), "crcip-reports");
             Directory.CreateDirectory(tempDir);
 
@@ -165,6 +177,117 @@ namespace iTender.Compliance.Infrastructure.Services.BackgroundServices
             _logger.LogInformation(
                 "Monthly report {Marker} sent to {Recipient}.",
                 marker, settings.MonthlyReportRecipientEmail);
+        }
+
+        // ---------------------------------------------------------------------
+        // QUARTERLY
+        // ---------------------------------------------------------------------
+
+        private async Task TrySendQuarterlyReportAsync(
+            IServiceProvider services,
+            DateTime now,
+            CancellationToken cancellationToken)
+        {
+            // Only on the 1st of Jan, Apr, Jul, Oct.
+            if (now.Day != 1 ||
+                (now.Month != 1 && now.Month != 4 && now.Month != 7 && now.Month != 10))
+                return;
+
+            var settingsService = services.GetRequiredService<ISystemSettingService>();
+            var settings = await settingsService.GetAsync();
+
+            if (!settings.SendQuarterlyReportAutomatically)
+                return;
+
+            if (string.IsNullOrWhiteSpace(settings.QuarterlyReportRecipientEmail))
+            {
+                _logger.LogWarning(
+                    "Quarterly report is enabled but no recipient is configured. Skipping.");
+                return;
+            }
+
+            // Only run at the configured hour.
+            if (now.Hour != settings.MonthlyReportHourUtc)
+                return;
+
+            // Previous quarter.
+            var prevMonth = now.AddMonths(-1);
+            var quarter = ((prevMonth.Month - 1) / 3) + 1;
+            var marker = $"{prevMonth.Year:D4}-Q{quarter}";
+
+            // Already sent for this quarter?
+            if (string.Equals(settings.LastQuarterlyReportSent, marker, StringComparison.Ordinal))
+                return;
+
+            _logger.LogInformation(
+                "Generating scheduled quarterly report for {Marker}.", marker);
+
+            var reportingService = services.GetRequiredService<IReportingService>();
+            var pdfService = services.GetRequiredService<IReportPdfService>();
+            var emailService = services.GetRequiredService<IEmailService>();
+            var auditService = services.GetRequiredService<IAuditService>();
+            var settingRepo = services.GetRequiredService<ISystemSettingRepository>();
+            var unitOfWork = services.GetRequiredService<IUnitOfWork>();
+
+            var report = await reportingService
+                .GetQuarterlyReportAsync(prevMonth.Year, quarter, cancellationToken);
+
+            var pdfBytes = await pdfService.GenerateAsync(
+                report.PeriodStart,
+                report.PeriodEnd);
+
+            var tempDir = Path.Combine(Path.GetTempPath(), "crcip-reports");
+            Directory.CreateDirectory(tempDir);
+
+            var fileName = $"CRCIP_Quarterly_{prevMonth.Year:D4}Q{quarter}.pdf";
+            var tempPath = Path.Combine(tempDir, fileName);
+
+            await File.WriteAllBytesAsync(tempPath, pdfBytes, cancellationToken);
+
+            try
+            {
+                await emailService.SendAsync(new EmailMessageModel
+                {
+                    ToAddress = settings.QuarterlyReportRecipientEmail!,
+                    Subject = $"CRCIP Quarterly Compliance Report — {report.PeriodLabel}",
+                    Body =
+                        $"<p>Please find attached the quarterly compliance report for " +
+                        $"<strong>{report.PeriodLabel}</strong>.</p>" +
+                        "<p>Regards,<br/>iTender Compliance</p>",
+                    AttachmentPaths = new List<string> { tempPath }
+                }, cancellationToken);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+                }
+                catch
+                {
+                    // Best-effort cleanup.
+                }
+            }
+
+            // Mark as sent.
+            var freshSettings = await settingRepo.GetAsync(cancellationToken);
+            freshSettings.LastQuarterlyReportSent = marker;
+            await settingRepo.UpdateAsync(freshSettings, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await auditService.LogAsync(
+                Domain.Enums.AuditAction.SyncCompleted,
+                Domain.Enums.AuditEntity.TenderSync,
+                Guid.Empty,
+                $"Quarterly compliance report for {report.PeriodLabel} " +
+                $"sent to {settings.QuarterlyReportRecipientEmail}.",
+                null,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Quarterly report {Marker} sent to {Recipient}.",
+                marker, settings.QuarterlyReportRecipientEmail);
         }
     }
 }

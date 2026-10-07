@@ -10,6 +10,7 @@
         CorrectiveAction = 6,
         NonCompliant = 7,
         Referral = 8,
-        ClearedResolved = 9
+        ClearedResolved = 9,
+        ReferralPending = 10
     }
 }

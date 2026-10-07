@@ -297,6 +297,24 @@
 
                     </button>
                 </div>
+
+                <div>
+                    <button class="btn btn-sm btn-cidb-submit-outline"
+                            disabled="@_runningQuarterlyReport"
+                            @onclick="RunQuarterlyReportNow">
+
+                        @if (_runningQuarterlyReport)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-calendar3 me-2"></i>
+                        }
+                        Send Quarterly Report Now
+
+                    </button>
+                </div>
             </div>
 
             @if (!string.IsNullOrWhiteSpace(_triggerResultMessage))
@@ -1243,6 +1261,25 @@
 
                             </div>
 
+                            <div class="col-lg-6">
+                                <div class="form-check form-switch mt-1">
+                                    <InputCheckbox class="form-check-input"
+                                                   @bind-Value="Settings.SendQuarterlyReportAutomatically" />
+                                    <label class="form-check-label">
+                                        Email Quarterly Compliance Report
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    Emailed on the 1st of January, April, July and October, covering the previous quarter.
+                                </div>
+                            </div>
+
+                            <div class="col-lg-6">
+                                <label class="form-label">Quarterly Report Recipient</label>
+                                <InputText class="form-control"
+                                           @bind-Value="Settings.QuarterlyReportRecipientEmail" />
+                            </div>
+
                             <div class="col-lg-4 col-md-6">
 
                                 <label class="form-label">
@@ -1877,6 +1914,7 @@
     private bool _triggerResultIsError;
 
     private bool _runningMonthlyReport;
+    private bool _runningQuarterlyReport;
     private bool _runningSlaWarning;
 
     private async Task RunSlaWarningNow()
@@ -2065,6 +2103,73 @@
         }
     }
 
+    private async Task RunQuarterlyReportNow()
+    {
+        _runningQuarterlyReport = true;
+        _triggerResultMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var settings = await SettingService.GetAsync();
+
+            if (string.IsNullOrWhiteSpace(settings.QuarterlyReportRecipientEmail))
+            {
+                _triggerResultIsError = true;
+                _triggerResultMessage = "No quarterly report recipient configured.";
+                return;
+            }
+
+            var prevMonth = DateTime.UtcNow.AddMonths(-1);
+            var quarter = ((prevMonth.Month - 1) / 3) + 1;
+
+            var report = await ReportingService
+                .GetQuarterlyReportAsync(prevMonth.Year, quarter);
+
+            var pdfBytes = await ReportPdfService.GenerateAsync(
+                report.PeriodStart,
+                report.PeriodEnd);
+
+            var tempDir = Path.Combine(Path.GetTempPath(), "crcip-reports");
+            Directory.CreateDirectory(tempDir);
+
+            var fileName = $"CRCIP_Quarterly_{prevMonth.Year:D4}Q{quarter}.pdf";
+            var tempPath = Path.Combine(tempDir, fileName);
+
+            await File.WriteAllBytesAsync(tempPath, pdfBytes);
+
+            try
+            {
+                await EmailService.SendAsync(new EmailMessageModel
+                {
+                    ToAddress = settings.QuarterlyReportRecipientEmail!,
+                    Subject = $"CRCIP Quarterly Compliance Report — {report.PeriodLabel}",
+                    Body =
+                        $"<p>Please find attached the quarterly compliance report for " +
+                        $"<strong>{report.PeriodLabel}</strong>.</p>" +
+                        "<p>Regards,<br/>iTender Compliance</p>",
+                    AttachmentPaths = new List<string> { tempPath }
+                });
+            }
+            finally
+            {
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+            }
+
+            _triggerResultIsError = false;
+            _triggerResultMessage =
+                $"Quarterly report for {report.PeriodLabel} sent to {settings.QuarterlyReportRecipientEmail}.";
+        }
+        catch (Exception ex)
+        {
+            _triggerResultIsError = true;
+            _triggerResultMessage = $"Quarterly report failed: {ex.Message}";
+        }
+        finally
+        {
+            _runningQuarterlyReport = false;
+        }
+    }
 
     private bool ShowSyncDetailModal;
 

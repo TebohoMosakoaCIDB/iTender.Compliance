@@ -31,6 +31,10 @@ namespace iTender.Compliance.Infrastructure.Services
             _tenderRepository = tenderRepository;
         }
 
+        // ---------------------------------------------------------------------
+        // COMPLIANCE ANALYSIS
+        // ---------------------------------------------------------------------
+
         public async Task<ComplianceAnalysisModel> GetComplianceAnalysisAsync(
             DateTime from,
             DateTime to,
@@ -162,6 +166,10 @@ namespace iTender.Compliance.Infrastructure.Services
             return model;
         }
 
+        // ---------------------------------------------------------------------
+        // MONTHLY REPORT
+        // ---------------------------------------------------------------------
+
         public async Task<MonthlyReportModel> GetMonthlyReportAsync(
             int year,
             int month,
@@ -170,10 +178,51 @@ namespace iTender.Compliance.Infrastructure.Services
             var periodStart = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
             var periodEnd = periodStart.AddMonths(1).AddTicks(-1);
 
+            var report = await BuildPeriodReportAsync(
+                periodStart, periodEnd, cancellationToken);
+
+            report.PeriodLabel = periodStart.ToString("MMMM yyyy");
+
+            return report;
+        }
+
+        // ---------------------------------------------------------------------
+        // QUARTERLY REPORT
+        // ---------------------------------------------------------------------
+
+        public async Task<MonthlyReportModel> GetQuarterlyReportAsync(
+            int year,
+            int quarter,
+            CancellationToken cancellationToken = default)
+        {
+            if (quarter < 1 || quarter > 4)
+                throw new ArgumentOutOfRangeException(nameof(quarter));
+
+            var startMonth = ((quarter - 1) * 3) + 1;
+            var periodStart = new DateTime(year, startMonth, 1, 0, 0, 0, DateTimeKind.Utc);
+            var periodEnd = periodStart.AddMonths(3).AddTicks(-1);
+
+            var report = await BuildPeriodReportAsync(
+                periodStart, periodEnd, cancellationToken);
+
+            report.PeriodLabel = $"Q{quarter} {year}";
+
+            return report;
+        }
+
+        // ---------------------------------------------------------------------
+        // SHARED PERIOD REPORT (used by monthly and quarterly)
+        // ---------------------------------------------------------------------
+
+        private async Task<MonthlyReportModel> BuildPeriodReportAsync(
+            DateTime periodStart,
+            DateTime periodEnd,
+            CancellationToken cancellationToken)
+        {
             // Load all cases for open-state metrics; use case letters for IL/CN detection.
             var allCases = await _complianceCaseRepository.GetAllAsync(cancellationToken);
 
-            // For the monthly period, we need to know findings and letters.
+            // For the period, we need to know findings and letters.
             // GetAllAsync in the current repo doesn't include them, so use the case-detail
             // path or add a specialised method. For now, filter and load per-case.
             var periodCases = new List<Domain.Entities.ComplianceCase>();
@@ -204,9 +253,9 @@ namespace iTender.Compliance.Infrastructure.Services
 
             return new MonthlyReportModel
             {
-                Year = year,
-                Month = month,
-                PeriodLabel = periodStart.ToString("MMMM yyyy"),
+                Year = periodStart.Year,
+                Month = periodStart.Month,
+                PeriodLabel = string.Empty,
                 PeriodStart = periodStart,
                 PeriodEnd = periodEnd,
 
@@ -261,6 +310,10 @@ namespace iTender.Compliance.Infrastructure.Services
                     (DateTime.UtcNow - c.AssignedOn.Value).TotalDays > slaDays)
             };
         }
+
+        // ---------------------------------------------------------------------
+        // OTHER REPORTS
+        // ---------------------------------------------------------------------
 
         public async Task<ComplianceReportModel> GetComplianceReportAsync(
             DateTime from,
@@ -371,6 +424,5 @@ namespace iTender.Compliance.Infrastructure.Services
                     : 0
             }).ToList();
         }
-
     }
 }

@@ -80,6 +80,12 @@ namespace iTender.Compliance.Domain.Entities
         /// <summary>Last month for which an automatic report was sent. Format: yyyy-MM. Used to prevent double-send.</summary>
         public string? LastMonthlyReportSent { get; set; }
 
+        /// <summary>Whether the quarterly compliance report is emailed on the 1st of Jan/Apr/Jul/Oct.</summary>
+        public bool SendQuarterlyReportAutomatically { get; set; } = false;
+
+        /// <summary>Recipient for the automatic quarterly compliance report.</summary>
+        public string? QuarterlyReportRecipientEmail { get; set; }
+        public string? LastQuarterlyReportSent { get; set; }
         /// <summary>Days into a case's life at which an SLA warning is issued before the 30-day deadline.
         /// CIDB finalized rule: 25 days (5-day warning window).</summary>
         public int SlaWarningDays { get; set; } = 25;

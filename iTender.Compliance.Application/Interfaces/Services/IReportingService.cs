@@ -35,5 +35,10 @@ namespace iTender.Compliance.Application.Interfaces.Services
 
         Task<IReadOnlyList<LateRopRegistrationModel>> GetLateRopRegistrationsAsync(
             DateTime from, DateTime to, CancellationToken cancellationToken = default);
+
+        Task<MonthlyReportModel> GetQuarterlyReportAsync(
+            int year,
+            int quarter,
+            CancellationToken cancellationToken = default);
     }
 }

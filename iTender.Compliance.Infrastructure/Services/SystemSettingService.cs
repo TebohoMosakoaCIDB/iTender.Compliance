@@ -63,6 +63,10 @@ namespace iTender.Compliance.Infrastructure.Services
                 DistributionMethod = settings.DistributionMethod,
                 DefaultMaximumOpenCases = settings.DefaultMaximumOpenCases,
 
+                SendQuarterlyReportAutomatically = settings.SendQuarterlyReportAutomatically,
+                QuarterlyReportRecipientEmail = settings.QuarterlyReportRecipientEmail,
+                LastQuarterlyReportSent = settings.LastQuarterlyReportSent,
+
                 // Pagination
                 DefaultPageSize = settings.DefaultPageSize
             };
@@ -126,6 +130,10 @@ namespace iTender.Compliance.Infrastructure.Services
             settings.DistributionMethod = model.DistributionMethod;
             settings.DefaultMaximumOpenCases = model.DefaultMaximumOpenCases;
             // Do NOT touch settings.RoundRobinCursor - it's managed by RoundRobinStrategy.
+
+            settings.SendQuarterlyReportAutomatically = model.SendQuarterlyReportAutomatically;
+            settings.QuarterlyReportRecipientEmail = model.QuarterlyReportRecipientEmail;
+            // Do NOT touch settings.LastQuarterlyReportSent - managed by the background service.
 
             settings.DefaultPageSize = model.DefaultPageSize;
 

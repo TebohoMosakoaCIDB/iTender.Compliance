@@ -1141,6 +1141,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<string>("LastMonthlyReportSent")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("LastQuarterlyReportSent")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("MaximumReminders")
                         .HasColumnType("int");
 
@@ -1158,6 +1161,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
                     b.Property<int>("OpenTenderResponseHours")
                         .HasColumnType("int");
+
+                    b.Property<string>("QuarterlyReportRecipientEmail")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ReminderAfterHours")
                         .HasColumnType("int");
@@ -1187,6 +1193,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<bool>("SendMonthlyReportAutomatically")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("SendQuarterlyReportAutomatically")
                         .HasColumnType("bit");
 
                     b.Property<int>("SlaWarningDays")
