@@ -1,5 +1,6 @@
 ﻿using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Domain.Entities;
+using iTender.Compliance.Domain.Enums;
 
 namespace iTender.Compliance.Application.Interfaces.Repositories
 {
@@ -43,6 +44,15 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             string? contactEmail,
             string? ccEmails,
             Guid modifiedByUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<bool> CaseLinkExistsAsync(
+            Guid groupId,
+            Guid caseId,
+            CancellationToken cancellationToken = default);
+
+        Task AddCaseLinkAsync(
+            ClientGroupCase link,
             CancellationToken cancellationToken = default);
     }
 }

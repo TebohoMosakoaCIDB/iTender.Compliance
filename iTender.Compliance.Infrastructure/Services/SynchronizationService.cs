@@ -15,6 +15,8 @@ namespace iTender.Compliance.Infrastructure.Services
     public class SynchronizationService : ISynchronizationService
     {
         private readonly ITenderRepository _tenderRepository;
+        private readonly IEtendersScraperClient _etendersScraperClient;
+        private readonly ScrapedTenderMapper _scrapedTenderMapper;
         private readonly IVerificationService _verificationService;
         private readonly IDuplicateGroupRepository _duplicateGroupRepository;
         private readonly IDuplicateDetectionService _duplicateDetectionService;
@@ -28,6 +30,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly ICurrentUserService _currentUser;
         private readonly ITenderSyncLogRepository _syncLogRepository;
         private readonly IConfiguration _configuration;
+        private readonly IClassOfWorksResolver _classOfWorksResolver;
         private readonly IAutoAssignmentService _autoAssignmentService;
         private readonly ISystemSettingRepository _systemSettingRepository;
         private readonly IComplianceProcessingService _complianceProcessingService;
@@ -35,7 +38,9 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly EtendersConstructionFilter _etendersConstructionFilter;
         private readonly EtendersTenderMapper _etendersTenderMapper;
         public SynchronizationService(
+            IEtendersScraperClient etendersScraperClient,
             IEnumerable<IScraperService> scrapers,
+            ScrapedTenderMapper scrapedTenderMapper,
             IVerificationService verificationService,
             IDuplicateGroupRepository duplicateGroupRepository,
             IDuplicateDetectionService duplicateDetectionService,
@@ -54,11 +59,13 @@ namespace iTender.Compliance.Infrastructure.Services
             IAutoAssignmentService autoAssignmentService,
             IEtendersClient etendersClient,
             EtendersConstructionFilter etendersConstructionFilter,
+            IClassOfWorksResolver classOfWorksResolver,
             EtendersTenderMapper etendersTenderMapper)
         {
             _scrapers = scrapers;
             _currentUser = currentUser;
             _verificationService = verificationService;
+            _etendersScraperClient = etendersScraperClient;
             _tenderRepository = tenderRepository;
             _duplicateDetectionService = duplicateDetectionService;
             _duplicateGroupRepository = duplicateGroupRepository;
@@ -75,12 +82,12 @@ namespace iTender.Compliance.Infrastructure.Services
             _openAI = openAI;
             _etendersClient = etendersClient;
             _etendersConstructionFilter = etendersConstructionFilter;
+            _classOfWorksResolver = classOfWorksResolver;
             _etendersTenderMapper = etendersTenderMapper;
+            _scrapedTenderMapper = scrapedTenderMapper;
         }
 
-        public async Task SynchronizeAsync(
-    bool isManual,
-    CancellationToken cancellationToken = default)
+        public async Task SynchronizeAsync(bool isManual, CancellationToken cancellationToken = default)
         {
             var executionUserId = GetExecutionUserId(isManual);
 
@@ -128,25 +135,108 @@ namespace iTender.Compliance.Infrastructure.Services
                 // }
 
                 // ---------------------------------------------------------
-                // Get eTenders releases
+                // Get eTenders tenders - API first, scraper fallback
                 // ---------------------------------------------------------
-                var etendersReleases = await _etendersClient.GetAllReleasesAsync(
-                    DateTime.UtcNow.Date.AddMonths(-1),
-                    DateTime.UtcNow.Date,
-                    cancellationToken: cancellationToken);
+                var apiSucceeded = false;
 
-                var constructionReleases =
-                    _etendersConstructionFilter.Filter(etendersReleases);
-
-                foreach (var release in constructionReleases)
+                try
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    var releases = await _etendersClient.GetAllReleasesAsync(
+                        DateTime.UtcNow.Date.AddMonths(-1),
+                        DateTime.UtcNow.Date,
+                        cancellationToken: cancellationToken);
 
-                    var tender = _etendersTenderMapper.Map(
-                        release,
-                        sync.Id);
+                    var constructionReleases = _etendersConstructionFilter.Filter(releases);
 
-                    scrapedTenders.Add(tender);
+                    foreach (var release in constructionReleases)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        var tender = _etendersTenderMapper.Map(release, sync.Id);
+                        scrapedTenders.Add(tender);
+                    }
+
+                    apiSucceeded = true;
+
+                    await LogAsync(
+                        sync.Id,
+                        SyncLogType.Information,
+                        SyncLogLevel.Information,
+                        "eTenders API Retrieved",
+                        $"API returned {scrapedTenders.Count} construction tenders.",
+                        cancellationToken: cancellationToken);
+                }
+                catch (Exception apiEx)
+                {
+                    await LogAsync(
+                        sync.Id,
+                        SyncLogType.Information,
+                        SyncLogLevel.Warning,
+                        "eTenders API Failed - Trying Scraper",
+                        $"API error: {apiEx.Message}. Falling back to scraper.",
+                        cancellationToken: cancellationToken);
+                }
+
+                if (!apiSucceeded)
+                {
+                    try
+                    {
+                        var scraped = await _etendersScraperClient
+                            .ScrapeAsync(status: 1, cancellationToken);
+
+                        if (scraped is not null && scraped.Tenders.Count > 0)
+                        {
+                            foreach (var dto in scraped.Tenders)
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+
+                                var tender = _scrapedTenderMapper.Map(dto, sync.Id);
+                                if (tender is null)
+                                    continue;
+
+                                // Only include tenders that pass the construction filter.
+                                if (!IsConstructionCategory(dto.Category))
+                                    continue;
+
+                                // Resolve class of works from the tender description/title.
+                                if (string.IsNullOrWhiteSpace(tender.ClassOfWorks))
+                                {
+                                    tender.ClassOfWorks = await _classOfWorksResolver
+                                        .ResolveAsync(tender, cancellationToken);
+                                }
+
+                                scrapedTenders.Add(tender);
+                            }
+
+                            await LogAsync(
+                                sync.Id,
+                                SyncLogType.Information,
+                                SyncLogLevel.Warning,
+                                "Scraper Fallback Succeeded",
+                                $"Scraper returned {scraped.Count} tenders; {scrapedTenders.Count} construction tenders kept.",
+                                cancellationToken: cancellationToken);
+                        }
+                        else
+                        {
+                            await LogAsync(
+                                sync.Id,
+                                SyncLogType.Error,
+                                SyncLogLevel.Error,
+                                "Scraper Fallback Failed",
+                                "Scraper returned no tenders. Sync will continue with zero eTenders results.",
+                                cancellationToken: cancellationToken);
+                        }
+                    }
+                    catch (Exception scraperEx)
+                    {
+                        await LogAsync(
+                            sync.Id,
+                            SyncLogType.Error,
+                            SyncLogLevel.Error,
+                            "Scraper Fallback Error",
+                            $"Scraper failed: {scraperEx.Message}.",
+                            cancellationToken: cancellationToken);
+                    }
                 }
 
                 sync.TotalRetrieved = scrapedTenders.Count;
@@ -166,9 +256,18 @@ namespace iTender.Compliance.Infrastructure.Services
                     .GetAdvertisedTendersAsync(cancellationToken);
 
                 var crmTenderNumbers = crmTenders
-                    .Where(x => !string.IsNullOrWhiteSpace(x.TenderNumber))
-                    .Select(x => x.TenderNumber.Trim())
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                     .Where(x => !string.IsNullOrWhiteSpace(x.TenderNumber))
+                     .Select(x => x.TenderNumber.Trim())
+                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                // NEW: keyed by normalized employer + normalized title, so we can spot
+                // "same tender advertised under a different number" across the two sources.
+                var crmTendersByScope = crmTenders
+                    .Where(x => !string.IsNullOrWhiteSpace(x.TenderNumber)
+                             && !string.IsNullOrWhiteSpace(x.EmployerName)
+                             && !string.IsNullOrWhiteSpace(x.Title))
+                    .GroupBy(x => TenderMatchKeyBuilder.Build(x.EmployerName, x.Title))
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
                 // ---------------------------------------------------------
                 // Identify Stream 3 tenders
@@ -230,7 +329,7 @@ namespace iTender.Compliance.Infrastructure.Services
                     // Save tender
                     // -----------------------------------------------------
                     tender.TenderSyncId = sync.Id;
-                    tender.NormalizedTitle = TenderTitleNormalizer.Normalize(tender.Title);
+                    tender.NormalizedTitle = Domain.Utilities.TenderTitleNormalizer.Normalize(tender.Title);
                     tender.NormalizedEmployerName = EmployerNameNormalizer.Normalize(tender.EmployerName);
 
                     await _tenderRepository.AddAsync(tender, cancellationToken);
@@ -248,8 +347,7 @@ namespace iTender.Compliance.Infrastructure.Services
                     // -----------------------------------------------------
                     // D05: Detect potential duplicates and group for CO
                     // -----------------------------------------------------
-                    var detectedDuplicates = await _duplicateDetectionService
-    .FindPotentialDuplicatesAsync(tender, cancellationToken);
+                    var detectedDuplicates = await _duplicateDetectionService.FindPotentialDuplicatesAsync(tender, cancellationToken);
 
                     if (detectedDuplicates.Count > 0)
                     {
@@ -294,8 +392,15 @@ namespace iTender.Compliance.Infrastructure.Services
 
                     try
                     {
+
                         createdCaseId = await _complianceProcessingService.ProcessTenderAsync(
-                            tender, crmTenderNumbers, crmContracts, sync.Id, executionUserId, cancellationToken);
+                            tender,
+                            crmTenderNumbers,
+                            crmTendersByScope,       
+                            crmContracts,
+                            sync.Id,
+                            executionUserId,
+                            cancellationToken);
                     }
                     catch (Exception)
                     {
@@ -474,6 +579,28 @@ namespace iTender.Compliance.Infrastructure.Services
 
             return _configuration.GetValue<Guid?>(
                 "Synchronization:SystemUserId");
+        }
+
+        private static readonly HashSet<string> ConstructionCategories = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Civil engineering",
+            "Construction",
+            "Construction of buildings",
+            "Specialised construction activities",
+            "Services: Building",
+            "Services: Civil",
+            "Services: Electrical",
+            "Services: General",
+            "Electrical",
+            "Electricity, gas, steam and air conditioning"
+        };
+
+        private static bool IsConstructionCategory(string? category)
+        {
+            if (string.IsNullOrWhiteSpace(category))
+                return false;
+
+            return ConstructionCategories.Contains(category.Trim());
         }
     }
 }

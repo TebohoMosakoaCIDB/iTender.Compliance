@@ -4,6 +4,7 @@
     {
         IncorrectClassOfWorks = 1,
         AdvertisementNotOnITender = 2,
-        AwardNotRegisteredOnRop = 3
+        AwardNotRegisteredOnRop = 3, 
+        TenderNumberMismatch = 4
     }
 }

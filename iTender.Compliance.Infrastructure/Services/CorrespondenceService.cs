@@ -142,6 +142,31 @@ namespace iTender.Compliance.Infrastructure.Services
                     $"A response is required by {model.ResponseDueOn:dd MMM yyyy}.",
                     cancellationToken);
             }
+
+            // -----------------------------------------------------
+            // Notify the assigned CO that an Instruction Letter was issued
+            // on their case, unless they're the one who sent it.
+            // -----------------------------------------------------
+            if (complianceCase.AgentId.HasValue)
+            {
+                var coUserId = await _agentRepository
+                    .GetUserIdByAgentIdAsync(complianceCase.AgentId.Value, cancellationToken);
+
+                if (coUserId.HasValue && coUserId.Value != _currentUser.UserId)
+                {
+                    await _notificationService.NotifyAsync(new CreateNotificationModel
+                    {
+                        UserId = coUserId.Value,
+                        Title = "Instruction Letter Issued",
+                        Message =
+                            $"Instruction Letter #{letter.LetterNumber} was issued to " +
+                            $"{letter.RecipientName} for tender {model.TenderNumber}. " +
+                            $"Response due {model.ResponseDueOn:dd MMM yyyy}.",
+                        Type = NotificationType.Information,
+                        Url = $"/cases/{complianceCase.Id}"
+                    }, cancellationToken);
+                }
+            }
         }
 
         public async Task SendReminderLetterAsync(SendReminderLetterModel model, CancellationToken cancellationToken = default)
@@ -310,6 +335,31 @@ namespace iTender.Compliance.Infrastructure.Services
                     $"A response is required by {model.ResponseDueOn:dd MMM yyyy}. Failure to respond may result in " +
                     "referral for enforcement action.",
                     cancellationToken);
+            }
+
+            // -----------------------------------------------------
+            // Notify the assigned CO that a Contravention Notice was issued
+            // on their case, unless they're the one who sent it.
+            // -----------------------------------------------------
+            if (complianceCase.AgentId.HasValue)
+            {
+                var coUserId = await _agentRepository
+                    .GetUserIdByAgentIdAsync(complianceCase.AgentId.Value, cancellationToken);
+
+                if (coUserId.HasValue && coUserId.Value != _currentUser.UserId)
+                {
+                    await _notificationService.NotifyAsync(new CreateNotificationModel
+                    {
+                        UserId = coUserId.Value,
+                        Title = "Contravention Notice Issued",
+                        Message =
+                            $"Contravention Notice #{letter.LetterNumber} was issued to " +
+                            $"{letter.RecipientName} for tender {model.TenderNumber}. " +
+                            $"Response due {model.ResponseDueOn:dd MMM yyyy}.",
+                        Type = NotificationType.Warning,
+                        Url = $"/cases/{complianceCase.Id}"
+                    }, cancellationToken);
+                }
             }
 
             return letter.Id;

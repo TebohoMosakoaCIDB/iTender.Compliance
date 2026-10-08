@@ -154,6 +154,24 @@ namespace iTender.Compliance.Infrastructure.Services
                         }
                     }
 
+                    // Also notify managers that an IL expired without a response.
+                    var managerIds = await _userService.GetManagerUserIdsAsync(cancellationToken);
+
+                    foreach (var managerId in managerIds)
+                    {
+                        await _notificationService.NotifyAsync(new CreateNotificationModel
+                        {
+                            UserId = managerId,
+                            Title = "Instruction Letter Expired",
+                            Message =
+                                $"Tender {tender.TenderNumber} received no response to the " +
+                                $"Instruction Letter by the deadline. A Contravention Notice has " +
+                                "been issued.",
+                            Type = NotificationType.Warning,
+                            Url = $"/cases/{complianceCase.Id}"
+                        }, cancellationToken);
+                    }
+
                     count++;
                 }
                 catch (Exception ex)
@@ -221,8 +239,7 @@ namespace iTender.Compliance.Infrastructure.Services
                     // -----------------------------------------------------
                     if (complianceCase.AgentId.HasValue)
                     {
-                        var coUserId = await _agentRepository
-                            .GetUserIdByAgentIdAsync(complianceCase.AgentId.Value, cancellationToken);
+                        var coUserId = await _agentRepository.GetUserIdByAgentIdAsync(complianceCase.AgentId.Value, cancellationToken);
 
                         if (coUserId.HasValue)
                         {

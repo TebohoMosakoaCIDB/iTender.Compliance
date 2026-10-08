@@ -7,4 +7,7 @@
   <Project Path="iTender.Compliance.Client/iTender.Compliance.Client.csproj" />
   <Project Path="iTender.Compliance.Domain/iTender.Compliance.Domain.csproj" />
   <Project Path="iTender.Compliance.Infrastructure/iTender.Compliance.Infrastructure.csproj" />
+  <Project Path="iTender.Compliance.Scrapper/iTender.Compliance.Scrapper.pyproj" Type="888888a0-9f3d-457c-b088-3a5042f75d52" Id="dd6bfa1b-31ce-44c3-8e83-e27eadf2b4d1">
+    <Build Project="false" />
+  </Project>
 </Solution>

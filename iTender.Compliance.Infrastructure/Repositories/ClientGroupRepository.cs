@@ -264,7 +264,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
             return await context.ComplianceCases
                 .Include(c => c.Tender)
                 .Where(c => c.Tender.NormalizedEmployerName == normalizedEmployerName)
-                .Where(c => !context.ClientGroupCases.Any(g => g.ComplianceCaseId == c.Id))
+                .Where(c => !context.ClientGroupCases
+                    .Any(g => g.ComplianceCaseId == c.Id
+                           && g.ClientGroupId != excludeGroupId))
                 .OrderByDescending(c => c.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
@@ -290,6 +292,30 @@ namespace iTender.Compliance.Infrastructure.Repositories
             group.ModifiedOn = DateTime.UtcNow;
 
             await context.SaveChangesAsync(cancellationToken);
+        }
+
+        // ClientGroupRepository
+        public async Task AddCaseLinkAsync(
+            ClientGroupCase link,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            await context.ClientGroupCases.AddAsync(link, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task<bool> CaseLinkExistsAsync(
+            Guid groupId,
+            Guid caseId,
+            CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            return await context.ClientGroupCases
+                .AnyAsync(gc => gc.ClientGroupId == groupId
+                             && gc.ComplianceCaseId == caseId,
+                          cancellationToken);
         }
     }
 }

@@ -143,6 +143,14 @@ namespace iTender.Compliance.Infrastructure.Identity
             LastName = "Rasivhaga",
             EmployeeNumber = "OFF001",
             Role = Roles.ComplianceOfficer
+        },
+        new
+        {
+            Email = "TebohoM@cidb.org.za",
+            FirstName = "Teboho",
+            LastName = "Mosakoa",
+            EmployeeNumber = "OFF002",
+            Role = Roles.ComplianceOfficer
         }
     };
 

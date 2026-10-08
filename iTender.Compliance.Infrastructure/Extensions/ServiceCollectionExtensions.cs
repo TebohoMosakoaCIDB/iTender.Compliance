@@ -38,6 +38,16 @@ namespace iTender.Compliance.Infrastructure.Extensions
                 .Bind(configuration.GetSection(EncryptionOptions.SectionName))
                 .ValidateOnStart();
 
+            services.Configure<ScraperOptions>(configuration.GetSection(ScraperOptions.SectionName));
+
+            services.AddHttpClient<IEtendersScraperClient, EtendersScraperClient>(
+                (sp, http) =>
+                {
+                    var options = sp.GetRequiredService<IOptions<ScraperOptions>>().Value;
+                    http.BaseAddress = new Uri(options.BaseUrl);
+                    http.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+                });
+
             services.AddScoped<ICrmServiceFactory, CrmServiceFactory>();
 
             services.Configure<SigningHubOptions>(configuration.GetSection(SigningHubOptions.SectionName));
@@ -71,6 +81,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
 
             services.AddScoped<EtendersConstructionFilter>();
             services.AddScoped<EtendersTenderMapper>();
+            services.AddScoped<ScrapedTenderMapper>();
 
             services.AddScoped<ITenderDiscoveryAgent, TenderDiscoveryAgent>();
 

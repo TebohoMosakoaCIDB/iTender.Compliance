@@ -129,8 +129,18 @@
         align-items: center;
         line-height: 3rem;
         width: 100%;
+        position: relative;
     }
-
+.nav-badge {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.5rem;
+    min-width: 1.25rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.65rem;
+    line-height: 1;
+    text-align: center;
+}
 .nav-item ::deep a.active {
     background-color: rgba(255,255,255,0.37);
     color: white;

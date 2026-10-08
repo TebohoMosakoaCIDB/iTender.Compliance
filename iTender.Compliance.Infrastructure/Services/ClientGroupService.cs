@@ -90,32 +90,31 @@ namespace iTender.Compliance.Infrastructure.Services
         // -----------------------------------------------------------------
 
         public async Task AddCaseAsync(
-            Guid groupId,
-            Guid complianceCaseId,
-            CancellationToken cancellationToken = default)
+    Guid groupId,
+    Guid complianceCaseId,
+    CancellationToken cancellationToken = default)
         {
-            var group = await _clientGroupRepository
-                .GetByIdAsync(groupId, cancellationToken)
+            var group = await _clientGroupRepository.GetByIdAsync(groupId, cancellationToken)
                 ?? throw new InvalidOperationException("Client group not found.");
 
             if (group.Status != ClientGroupStatus.Draft)
-                throw new InvalidOperationException(
-                    "Cases can only be added to a draft client group.");
+                throw new InvalidOperationException("Cases can only be added to a draft client group.");
 
-            // Idempotent - if the case is already in the group, do nothing.
-            if (group.Cases.Any(c => c.ComplianceCaseId == complianceCaseId))
+            var exists = await _clientGroupRepository
+                .CaseLinkExistsAsync(groupId, complianceCaseId, cancellationToken);
+
+            if (exists)
                 return;
 
-            group.Cases.Add(new ClientGroupCase
-            {
-                Id = Guid.NewGuid(),
-                ClientGroupId = groupId,
-                ComplianceCaseId = complianceCaseId,
-                AddedOn = DateTime.UtcNow
-            });
-
-            await _clientGroupRepository.UpdateAsync(group, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _clientGroupRepository.AddCaseLinkAsync(
+                new ClientGroupCase
+                {
+                    Id = Guid.NewGuid(),
+                    ClientGroupId = groupId,
+                    ComplianceCaseId = complianceCaseId,
+                    AddedOn = DateTime.UtcNow
+                },
+                cancellationToken);
         }
 
         public async Task RemoveCaseAsync(

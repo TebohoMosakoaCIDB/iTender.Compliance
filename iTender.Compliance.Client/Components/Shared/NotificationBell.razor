@@ -3,6 +3,10 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using iTender.Compliance.Application.DTOs
 @using iTender.Compliance.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Components.Authorization
+
+@implements IAsyncDisposable
+
 @inject INotificationService NotificationService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
@@ -110,11 +114,47 @@
         if (id is null)
             return;
 
-        var userId = Guid.Parse(id.Value);
+        _userId = Guid.Parse(id.Value);
 
-        Notifications = new List<NotificationModel>();//await NotificationService.GetRecentAsync(userId);
-        UnreadCount = 0; // await NotificationService.GetUnreadCountAsync(userId);
+        Notifications = await NotificationService.GetRecentAsync(_userId);
+        UnreadCount = await NotificationService.GetUnreadCountAsync(_userId);
+
+        // Wire up SignalR so new notifications appear without a page refresh.
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/hubs/notifications"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On("NotificationReceived", async () =>
+            {
+                if (_userId == Guid.Empty)
+                    return;
+
+                Notifications = await NotificationService.GetRecentAsync(_userId);
+                UnreadCount = await NotificationService.GetUnreadCountAsync(_userId);
+
+                await InvokeAsync(StateHasChanged);
+            });
+
+            await _hubConnection.StartAsync();
+        }
+        catch
+        {
+            // SignalR is best-effort - if it fails, the user still sees
+            // notifications on the next page load.
+        }
 
         StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+            _hubConnection = null;
+        }
     }
 }

@@ -6,6 +6,7 @@ using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Domain.Utilities;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
@@ -42,6 +43,8 @@ namespace iTender.Compliance.Infrastructure.Services
             ILetterNumberGenerator letterNumberGenerator,
             IUnitOfWork unitOfWork,
             IClientGroupService clientGroupService,
+            ITenderRepository tenderRepository,
+            IClassOfWorksResolver classOfWorksResolver,
             ILogger<ComplianceProcessingService> logger)
         {
             _caseRepository = caseRepository;
@@ -58,15 +61,18 @@ namespace iTender.Compliance.Infrastructure.Services
             _logger = logger;
             _notificationService = notificationService;
             _workingDayCalculator = workingDayCalculator;
+            _classOfWorksResolver = classOfWorksResolver;
+            _tenderRepository = tenderRepository;
         }
 
         public async Task<Guid?> ProcessTenderAsync(
-                Tender tender,
-                HashSet<string> iTenderNumbers,
-                List<ContractModel> crmContracts,
-                Guid syncId,
-                Guid? userId,
-                CancellationToken cancellationToken = default)
+            Tender tender,
+            HashSet<string> iTenderNumbers,
+            IReadOnlyDictionary<string, Tender> iTenderLookup,   // NEW: key = normalized employer+title
+            List<ContractModel> crmContracts,
+            Guid syncId,
+            Guid? userId,
+            CancellationToken cancellationToken = default)
         {
             // 1. Skip if not construction
             if (!tender.IsConstruction)
@@ -158,7 +164,6 @@ namespace iTender.Compliance.Infrastructure.Services
             tender.NormalizedEmployerName = EmployerNameNormalizer.Normalize(tender.EmployerName);
 
             await _tenderRepository.UpdateAsync(tender, cancellationToken);
-            // no SaveChanges yet - it'll be persisted by the next SaveChanges call
 
             if (!isOnITender)
             {
@@ -172,6 +177,30 @@ namespace iTender.Compliance.Infrastructure.Services
                     TenderStatusAtCheck = tenderStatus,
                     IsResolved = false
                 });
+            }
+            else
+            {
+                // It IS on i-Tender, but under a different number -> mismatch finding
+                var key = TenderMatchKeyBuilder.Build(tender.EmployerName, tender.Title);
+
+                if (iTenderLookup.TryGetValue(key, out var iTenderMatch) &&
+                    !string.Equals(iTenderMatch.TenderNumber?.Trim(), tender.TenderNumber?.Trim(),
+                                   StringComparison.OrdinalIgnoreCase))
+                {
+                    findings.Add(new ComplianceFinding
+                    {
+                        Stream = ComplianceStream.Advertisement,
+                        FindingType = ComplianceFindingType.TenderNumberMismatch,
+                        Description =
+                            $"Same tender advertised under two different numbers: " +
+                            $"e-Tender='{tender.TenderNumber}', i-Tender='{iTenderMatch.TenderNumber}'. " +
+                            $"Employer='{tender.EmployerName}', Title='{tender.Title}'.",
+                        RegulatoryReference = "CIDB Regulation 26 / SFU",
+                        IdentifiedAt = DateTime.UtcNow,
+                        TenderStatusAtCheck = tenderStatus,
+                        IsResolved = false
+                    });
+                }
             }
 
             // ---- STREAM 3: RoP / Award registration ----

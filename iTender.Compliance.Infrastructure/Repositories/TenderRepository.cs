@@ -146,7 +146,6 @@ namespace iTender.Compliance.Infrastructure.Repositories
             await using var context = await CreateContextAsync();
 
             return await context.Tenders
-                .AsNoTracking()
                 .Include(x => x.ComplianceCase)
                 .OrderByDescending(x => x.AdvertisedDate)
                 .ToListAsync(cancellationToken);
