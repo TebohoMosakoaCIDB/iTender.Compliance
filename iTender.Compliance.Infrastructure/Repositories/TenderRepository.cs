@@ -105,12 +105,41 @@ namespace iTender.Compliance.Infrastructure.Repositories
         }
 
         public async Task UpdateAsync(
-            Tender tender,
-            CancellationToken cancellationToken = default)
+    Tender tender,
+    CancellationToken cancellationToken = default)
         {
             await using var context = await CreateContextAsync();
 
-            context.Tenders.Update(tender);
+            var existing = await context.Tenders
+                .FirstOrDefaultAsync(t => t.Id == tender.Id, cancellationToken);
+
+            if (existing is null)
+                throw new InvalidOperationException($"Tender {tender.Id} not found.");
+
+            // Copy only the fields the compliance pipeline mutates.
+            existing.ClassOfWorks = tender.ClassOfWorks;
+            existing.ClassOfWorksSource = tender.ClassOfWorksSource;
+            existing.ClaimedClassOfWorks = tender.ClaimedClassOfWorks;
+            existing.IsAdvertised = tender.IsAdvertised;
+            existing.NormalizedEmployerName = tender.NormalizedEmployerName;
+            existing.NormalizedTitle = tender.NormalizedTitle;
+            existing.IsConstruction = tender.IsConstruction;
+
+            // Award / RoP fields (Stream 3 / verification)
+            existing.AwardedDate = tender.AwardedDate;
+            existing.AwardValue = tender.AwardValue;
+            existing.WinningContractor = tender.WinningContractor;
+            existing.IsRegisteredOnRoP = tender.IsRegisteredOnRoP;
+            existing.RoPRegistrationDate = tender.RoPRegistrationDate;
+
+            // Classification review fields
+            existing.ClassificationReviewedByUserId = tender.ClassificationReviewedByUserId;
+            existing.ClassificationReviewedOn = tender.ClassificationReviewedOn;
+            existing.ClassificationReviewNotes = tender.ClassificationReviewNotes;
+            existing.ClassificationOverridden = tender.ClassificationOverridden;
+
+            existing.ModifiedOn = DateTime.UtcNow;
+
             await context.SaveChangesAsync(cancellationToken);
         }
 

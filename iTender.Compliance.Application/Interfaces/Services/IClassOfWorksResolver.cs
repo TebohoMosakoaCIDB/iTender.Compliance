@@ -15,5 +15,10 @@ namespace iTender.Compliance.Application.Interfaces.Services
         Task<string?> ResolveAsync(
             Tender tender,
             CancellationToken cancellationToken = default);
+
+        Task<bool> DescriptionSupportsClassAsync(
+    Tender tender,
+    string classOfWorks,
+    CancellationToken ct = default);
     }
 }

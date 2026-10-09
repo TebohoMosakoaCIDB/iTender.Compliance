@@ -13,6 +13,7 @@ namespace iTender.Compliance.Infrastructure.Services
     public class ComplianceProcessingService : IComplianceProcessingService
     {
         private readonly IClassOfWorksResolver _classOfWorksResolver;
+        private readonly ICategoryMappingService _categoryMappingService;
         private readonly ITenderRepository _tenderRepository;
         private readonly IComplianceCaseRepository _caseRepository;
         private readonly IComplianceFindingRepository _findingRepository;
@@ -30,6 +31,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly IAssignmentService _assignmentService;
 
         public ComplianceProcessingService(
+            ICategoryMappingService categoryMappingService,
             IComplianceCaseRepository caseRepository,
             INotificationService notificationService,
             IWorkingDayCalculator workingDayCalculator,
@@ -47,6 +49,7 @@ namespace iTender.Compliance.Infrastructure.Services
             IClassOfWorksResolver classOfWorksResolver,
             ILogger<ComplianceProcessingService> logger)
         {
+            _categoryMappingService = categoryMappingService;
             _caseRepository = caseRepository;
             _findingRepository = findingRepository;
             _actionRepository = actionRepository;
@@ -104,57 +107,122 @@ namespace iTender.Compliance.Infrastructure.Services
             var findings = new List<ComplianceFinding>();
 
             // ---- STREAM 1: Class of Works ----
-            // OCDS/eTenders never carries a CIDB-specific class-of-works code directly - only a
-            // generic works/goods/services category, already used upstream to filter to construction
-            // tenders in the first place. Try to resolve a real class from the advert's own text
-            // against CIDB's class list first.
-            if (string.IsNullOrWhiteSpace(tender.ClassOfWorks))
+            // Strategy:
+            //  1. The category claims a class (or nothing).
+            //  2. If it claims a class, verify the advert text supports it via keywords.
+            //  3. If supported -> use it. If not -> null it out and raise a finding.
+            //  4. If the category claims nothing, fall back to the text resolver.
+            var (isConstructionFromCategory, categoryClaim) = await _categoryMappingService
+                .MapCategoryAsync(tender.ProcurementCategory, cancellationToken);
+
+            // Sanity: if the category says non-construction but the tender is here, trust the tender flag.
+            if (!isConstructionFromCategory && tender.IsConstruction)
             {
-                tender.ClassOfWorks = await _classOfWorksResolver
+                _logger.LogWarning(
+                    "Category '{Category}' maps to non-construction but tender {TenderNumber} is flagged construction. " +
+                    "Continuing with construction processing.",
+                    tender.ProcurementCategory, tender.TenderNumber);
+            }
+
+            string? resolvedClass = categoryClaim;
+            ClassOfWorksSource source = string.IsNullOrWhiteSpace(categoryClaim)
+                ? ClassOfWorksSource.NotSpecified
+                : ClassOfWorksSource.InferredByCategory;
+
+            // If the category didn't give a class, try the text resolver.
+            if (string.IsNullOrWhiteSpace(resolvedClass))
+            {
+                resolvedClass = await _classOfWorksResolver
                     .ResolveAsync(tender, cancellationToken);
 
-                if (!string.IsNullOrWhiteSpace(tender.ClassOfWorks))
-                {
-                    // Persist the resolved class onto the Tender record itself so future passes
-                    // (and anyone looking at the tender directly) see it without re-resolving.
-                    await _tenderRepository.UpdateAsync(tender, cancellationToken);
-                    await _unitOfWork.SaveChangesAsync(cancellationToken);
-                }
+                if (!string.IsNullOrWhiteSpace(resolvedClass))
+                    source = ClassOfWorksSource.InferredByKeywords;
             }
 
-            if (string.IsNullOrWhiteSpace(tender.ClassOfWorks))
+            // If we have a class, verify the advert text supports it.
+            if (!string.IsNullOrWhiteSpace(resolvedClass))
             {
-                findings.Add(new ComplianceFinding
-                {
-                    Stream = ComplianceStream.ClassOfWorks,
-                    FindingType = ComplianceFindingType.IncorrectClassOfWorks,
-                    Description = "No class of works specified in the tender advertisement, and none could be inferred from the advert text.",
-                    RegulatoryReference = "CIDB Regulation 25 / SFU",
-                    IdentifiedAt = DateTime.UtcNow,
-                    TenderStatusAtCheck = tenderStatus,
-                    IsResolved = false
-                });
-            }
-            else
-            {
-                bool classIsValid = await _classValidator.ValidateAsync(
-                    tender.ClassOfWorks,
-                    tender.Description ?? tender.Title,
-                    cancellationToken);
+                bool supported = await _classOfWorksResolver
+                    .DescriptionSupportsClassAsync(tender, resolvedClass, cancellationToken);
 
-                if (!classIsValid)
+                if (!supported)
                 {
+                    // Category claimed X, description disagrees. Trust neither.
+                    tender.ClaimedClassOfWorks = resolvedClass;
+                    tender.ClassOfWorks = null;
+                    tender.ClassOfWorksSource = ClassOfWorksSource.UnresolvedConflict;
+
                     findings.Add(new ComplianceFinding
                     {
                         Stream = ComplianceStream.ClassOfWorks,
                         FindingType = ComplianceFindingType.IncorrectClassOfWorks,
-                        Description = $"Tender advert specifies class '{tender.ClassOfWorks}' which is invalid or does not match the project scope.",
+                        Description =
+                            $"Category '{tender.ProcurementCategory}' implies class '{resolvedClass}', " +
+                            $"but the advert text does not contain any keywords supporting that class. " +
+                            $"Class of works left unset for CO review.",
                         RegulatoryReference = "CIDB Regulation 25 / SFU",
                         IdentifiedAt = DateTime.UtcNow,
                         TenderStatusAtCheck = tenderStatus,
                         IsResolved = false
                     });
+
+                    await _tenderRepository.UpdateAsync(tender, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
                 }
+                else
+                {
+                    // Description agrees (or class came from the text resolver).
+                    tender.ClassOfWorks = resolvedClass;
+                    tender.ClassOfWorksSource = source;
+                    tender.ClaimedClassOfWorks = null;
+
+                    await _tenderRepository.UpdateAsync(tender, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                    bool classIsValid = await _classValidator.ValidateAsync(
+                        tender.ClassOfWorks,
+                        tender.Description ?? tender.Title,
+                        cancellationToken);
+
+                    if (!classIsValid)
+                    {
+                        findings.Add(new ComplianceFinding
+                        {
+                            Stream = ComplianceStream.ClassOfWorks,
+                            FindingType = ComplianceFindingType.IncorrectClassOfWorks,
+                            Description =
+                                $"Class '{tender.ClassOfWorks}' does not match the project scope. " +
+                                $"Category='{tender.ProcurementCategory}'.",
+                            RegulatoryReference = "CIDB Regulation 25 / SFU",
+                            IdentifiedAt = DateTime.UtcNow,
+                            TenderStatusAtCheck = tenderStatus,
+                            IsResolved = false
+                        });
+                    }
+                }
+            }
+            else
+            {
+                // Nothing to go on: no category claim, no text match.
+                tender.ClassOfWorks = null;
+                tender.ClassOfWorksSource = ClassOfWorksSource.NotSpecified;
+
+                findings.Add(new ComplianceFinding
+                {
+                    Stream = ComplianceStream.ClassOfWorks,
+                    FindingType = ComplianceFindingType.IncorrectClassOfWorks,
+                    Description =
+                        $"No class of works could be determined. " +
+                        $"Category='{tender.ProcurementCategory}'. " +
+                        $"Advert text did not match any CIDB class keywords.",
+                    RegulatoryReference = "CIDB Regulation 25 / SFU",
+                    IdentifiedAt = DateTime.UtcNow,
+                    TenderStatusAtCheck = tenderStatus,
+                    IsResolved = false
+                });
+
+                await _tenderRepository.UpdateAsync(tender, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
 
             // ---- STREAM 2: Advertised on i-Tender ----
@@ -207,29 +275,51 @@ namespace iTender.Compliance.Infrastructure.Services
             // Removed from inline. Handled by IVerificationService below so it can
             // record VerificationStatus and route failed checks to a CO for review (D03).
 
-            // 5. If no findings, return null (no case created)
+            // 5. Compute the initial status from the BRS work baskets (BR-8.1).
+            //
+            //  - No findings             -> Cleared (verified, no issues)
+            //  - Findings on advertisement -> NotAdvertised
+            //  - Other findings            -> VerificationRequired (CO to review)
+            //
+            // Priority is derived from findings count so the CO's queue is ordered.
+            CaseStatus initialStatus;
+            CasePriority priority;
+
             if (!findings.Any())
             {
-                _logger.LogInformation(
-                    "No compliance findings for tender {TenderNumber}.",
-                    tender.TenderNumber);
-                return null;
+                initialStatus = CaseStatus.Cleared;
+                priority = CasePriority.Low;
+            }
+            else if (findings.Any(f => f.Stream == ComplianceStream.Advertisement))
+            {
+                initialStatus = CaseStatus.NotAdvertised;
+                priority = CasePriority.Normal;
+            }
+            else
+            {
+                initialStatus = CaseStatus.VerificationRequired;
+                priority = CasePriority.Normal;
             }
 
-            // 6. Create the ComplianceCase
+            _logger.LogInformation(
+                "Tender {TenderNumber}: {FindingCount} finding(s); creating case with status {Status}.",
+                tender.TenderNumber, findings.Count, initialStatus);
+
+            // 6. Create the ComplianceCase for EVERY construction tender.
             var complianceCase = new ComplianceCase
             {
                 TenderId = tender.Id,
-                Status = CaseStatus.New,
-                Priority = CasePriority.Normal,
+                //Tender = tender,
+                Status = initialStatus,
+                Priority = priority,
                 CreatedOn = DateTime.UtcNow,
                 CreatedBy = userId
             };
 
             await _caseRepository.AddAsync(complianceCase, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken); // to get Id
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // 7. Link findings to the case and save
+            // 7. Link findings (may be zero).
             foreach (var finding in findings)
             {
                 finding.ComplianceCaseId = complianceCase.Id;
@@ -262,7 +352,16 @@ namespace iTender.Compliance.Infrastructure.Services
             {
                 complianceCase.AgentId = group.AgentId;
                 complianceCase.AssignedOn = DateTime.UtcNow;
-                complianceCase.Status = CaseStatus.Assigned;
+
+                // Only promote to Assigned if the case isn't already in a terminal or cleared state.
+                if (complianceCase.Status == CaseStatus.NewlyIdentified
+                    || complianceCase.Status == CaseStatus.VerificationRequired
+                    || complianceCase.Status == CaseStatus.NotAdvertised
+                    || complianceCase.Status == CaseStatus.New)
+                {
+                    complianceCase.Status = CaseStatus.Assigned;
+                }
+
                 complianceCase.ModifiedOn = DateTime.UtcNow;
 
                 await _caseRepository.UpdateAsync(complianceCase, cancellationToken);
@@ -291,9 +390,23 @@ namespace iTender.Compliance.Infrastructure.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex,
-                        "Assignment failed for case {CaseId}. Case will need manual assignment.",
+                        "Assignment failed for case {CaseId}. Notifying managers.",
                         complianceCase.Id);
+
+                    await _assignmentService.NotifyManagersManualAssignmentRequiredAsync(
+                        complianceCase,
+                        $"Assignment threw: {ex.Message}",
+                        cancellationToken);
                 }
+            }
+
+            // If still no agent after all attempts, make sure managers are notified.
+            if (!complianceCase.AgentId.HasValue)
+            {
+                await _assignmentService.NotifyManagersManualAssignmentRequiredAsync(
+                    complianceCase,
+                    "No agent was assigned automatically or inherited from the client group.",
+                    cancellationToken);
             }
 
             await NotifyAssignedCoAsync(
@@ -330,13 +443,17 @@ namespace iTender.Compliance.Infrastructure.Services
             if (!coUserId.HasValue)
                 return;
 
+            var message = findingCount > 0
+    ? $"Tender {tender.TenderNumber} — {tender.EmployerName} has been assigned to you. " +
+      $"{findingCount} open finding(s) require attention."
+    : $"Tender {tender.TenderNumber} — {tender.EmployerName} has been assigned to you. " +
+      $"No compliance findings; confirmation required.";
+
             await _notificationService.NotifyAsync(new CreateNotificationModel
             {
                 UserId = coUserId.Value,
-                Title = "New Compliance Case Assigned",
-                Message =
-                    $"Tender {tender.TenderNumber} — {tender.EmployerName} has been " +
-                    $"assigned to you. {findingCount} open finding(s) require attention.",
+                Title = findingCount > 0 ? "New Compliance Case Assigned" : "New Tender Assigned for Review",
+                Message = message,
                 Type = NotificationType.Information,
                 Url = $"/cases/{complianceCase.Id}"
             }, cancellationToken);

@@ -1224,8 +1224,14 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<DateTime?>("AwardedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ClaimedClassOfWorks")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ClassOfWorks")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ClassOfWorksSource")
+                        .HasColumnType("int");
 
                     b.Property<bool>("ClassificationOverridden")
                         .HasColumnType("bit");

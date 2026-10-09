@@ -249,6 +249,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .Include(x => x.Tender)
                 .Include(x => x.Agent)
                 .Include(x => x.CaseLetters)
+                .Include(x => x.ComplianceFindings)
                 .Include(x => x.AuditLogs)
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }

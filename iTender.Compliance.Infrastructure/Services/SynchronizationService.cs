@@ -14,6 +14,7 @@ namespace iTender.Compliance.Infrastructure.Services
 {
     public class SynchronizationService : ISynchronizationService
     {
+        private readonly IComplianceFindingRepository _findingRepository;
         private readonly ITenderRepository _tenderRepository;
         private readonly IEtendersScraperClient _etendersScraperClient;
         private readonly ScrapedTenderMapper _scrapedTenderMapper;
@@ -38,6 +39,7 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly EtendersConstructionFilter _etendersConstructionFilter;
         private readonly EtendersTenderMapper _etendersTenderMapper;
         public SynchronizationService(
+            IComplianceFindingRepository findingRepository,
             IEtendersScraperClient etendersScraperClient,
             IEnumerable<IScraperService> scrapers,
             ScrapedTenderMapper scrapedTenderMapper,
@@ -64,6 +66,7 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             _scrapers = scrapers;
             _currentUser = currentUser;
+            _findingRepository = findingRepository;
             _verificationService = verificationService;
             _etendersScraperClient = etendersScraperClient;
             _tenderRepository = tenderRepository;
@@ -195,7 +198,7 @@ namespace iTender.Compliance.Infrastructure.Services
                                     continue;
 
                                 // Only include tenders that pass the construction filter.
-                                if (!IsConstructionCategory(dto.Category))
+                                if (!IsConstructionTender(dto.Category, dto.TenderNumber, dto.Title))
                                     continue;
 
                                 // Resolve class of works from the tender description/title.
@@ -297,6 +300,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 var compliant = 0;
                 var nonCompliant = 0;
                 var casesCreated = 0;
+                var skipped = 0;
 
                 foreach (var tender in scrapedTenders)
                 {
@@ -345,9 +349,13 @@ namespace iTender.Compliance.Infrastructure.Services
                         cancellationToken);
 
                     // -----------------------------------------------------
-                    // D05: Detect potential duplicates and group for CO
+                    // D05: Detect potential duplicates and group for CO.
+                    // NOTE: we still create the compliance case below so the
+                    // tender appears in the CO's work baskets per BR-8.1.
+                    // The duplicate group is an additional signal for the CO.
                     // -----------------------------------------------------
-                    var detectedDuplicates = await _duplicateDetectionService.FindPotentialDuplicatesAsync(tender, cancellationToken);
+                    var detectedDuplicates = await _duplicateDetectionService
+                        .FindPotentialDuplicatesAsync(tender, cancellationToken);
 
                     if (detectedDuplicates.Count > 0)
                     {
@@ -362,7 +370,7 @@ namespace iTender.Compliance.Infrastructure.Services
                             })
                             .ToList();
 
-                        var group = new DuplicateGroup
+                        var duplicateGroup = new DuplicateGroup
                         {
                             Id = Guid.NewGuid(),
                             TenderSyncId = sync.Id,
@@ -370,7 +378,7 @@ namespace iTender.Compliance.Infrastructure.Services
                             Candidates = candidates
                         };
 
-                        await _duplicateGroupRepository.AddAsync(group, cancellationToken);
+                        await _duplicateGroupRepository.AddAsync(duplicateGroup, cancellationToken);
                         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                         await LogAsync(
@@ -378,38 +386,38 @@ namespace iTender.Compliance.Infrastructure.Services
                             SyncLogType.Duplicate,
                             SyncLogLevel.Warning,
                             "Potential Duplicate Detected",
-                            $"Tender was grouped with {candidates.Count - 1} potential duplicate(s) for CO verification.",
+                            $"Tender was grouped with {candidates.Count - 1} potential duplicate(s) for CO verification. " +
+                            $"Compliance processing will still run so the tender appears in the work baskets.",
                             tender.TenderNumber,
                             cancellationToken);
 
-                        continue;
+                        // NO continue — fall through to ProcessTenderAsync.
                     }
 
                     // -----------------------------------------------------
-                    // Process compliance (unchanged)
+                    // Process compliance
                     // -----------------------------------------------------
                     Guid? createdCaseId = null;
 
                     try
                     {
-
                         createdCaseId = await _complianceProcessingService.ProcessTenderAsync(
                             tender,
                             crmTenderNumbers,
-                            crmTendersByScope,       
+                            crmTendersByScope,
                             crmContracts,
                             sync.Id,
                             executionUserId,
                             cancellationToken);
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
                         await LogAsync(
                             sync.Id,
                             SyncLogType.Error,
                             SyncLogLevel.Error,
                             "Tender Compliance Check Failed",
-                            "The tender was imported, but its compliance check could not be completed.",
+                            $"The tender was imported, but its compliance check could not be completed. Error: {ex.Message}",
                             tender.TenderNumber,
                             cancellationToken);
 
@@ -418,30 +426,49 @@ namespace iTender.Compliance.Infrastructure.Services
 
                     if (createdCaseId.HasValue)
                     {
-                        nonCompliant++;
                         casesCreated++;
 
+                        // Count findings via a direct query — do not rely on navigation loading.
+                        var findingCount = await _findingRepository
+                            .CountByCaseIdAsync(createdCaseId.Value, cancellationToken);
+
+                        if (findingCount > 0)
+                            nonCompliant++;
+                        else
+                            compliant++;
+
+                        // Stream 3 verification for awarded tenders.
                         if (tender.AwardedDate.HasValue && tender.AwardValue.HasValue)
                         {
                             try
                             {
-                                var complianceCase = await _complianceCaseRepository
+                                var createdCase = await _complianceCaseRepository
                                     .GetByIdAsync(createdCaseId.Value, cancellationToken);
 
-                                if (complianceCase is not null)
+                                if (createdCase is not null)
                                 {
                                     await _verificationService
-                                        .RunAutomatedVerificationAsync(complianceCase, cancellationToken);
+                                        .RunAutomatedVerificationAsync(createdCase, cancellationToken);
                                 }
                             }
                             catch (Exception ex)
                             {
+                                var inner = ex;
+                                var detail = ex.Message;
+
+                                while (inner.InnerException != null)
+                                {
+                                    inner = inner.InnerException;
+                                    detail += $" -> {inner.Message}";
+                                }
+
                                 await LogAsync(
                                     sync.Id,
                                     SyncLogType.Error,
                                     SyncLogLevel.Error,
-                                    "Verification Failed",
-                                    "Case was created but automated verification could not be completed.",
+                                    "Tender Compliance Check Failed",
+                                    $"The tender was imported, but its compliance check could not be completed. " +
+                                    $"Error: {detail}",
                                     tender.TenderNumber,
                                     cancellationToken);
 
@@ -451,7 +478,8 @@ namespace iTender.Compliance.Infrastructure.Services
                     }
                     else
                     {
-                        compliant++;
+                        // ProcessTenderAsync only returns null for non-construction tenders.
+                        skipped++;
                     }
                 }
 
@@ -470,8 +498,11 @@ namespace iTender.Compliance.Infrastructure.Services
                     SyncLogLevel.Information,
                     "Synchronization Completed",
                     $"Synchronization completed successfully. " +
-                    $"{sync.TotalRetrieved} tenders were retrieved and " +
-                    $"{casesCreated} compliance cases were created.",
+                    $"Retrieved: {sync.TotalRetrieved}, " +
+                    $"Cases created: {casesCreated} " +
+                    $"(compliant: {compliant}, non-compliant: {nonCompliant}), " +
+                    $"Skipped: {skipped}, " +
+                    $"Errors: {sync.ErrorCount}.",
                     cancellationToken: cancellationToken);
 
                 await _tenderSyncRepository.UpdateAsync(
@@ -583,24 +614,64 @@ namespace iTender.Compliance.Infrastructure.Services
 
         private static readonly HashSet<string> ConstructionCategories = new(StringComparer.OrdinalIgnoreCase)
         {
+            // Group A
             "Civil engineering",
             "Construction",
             "Construction of buildings",
+            "Services: Civil",
             "Specialised construction activities",
             "Services: Building",
-            "Services: Civil",
             "Services: Electrical",
-            "Services: General",
-            "Electrical",
-            "Electricity, gas, steam and air conditioning"
+            "Electricity, gas, steam and air conditioning",
+
+            // Group B
+            "Services to buildings and landscape activities",
+            "Water supply; sewerage, waste management and remediation activities",
+            "Water collection, treatment and supply",
+            "Mining and quarrying",
+            "Repair and installation of machinery and equipment",
+            "Remediation activities and other waste management services",
+            "Land transport and transport via pipelines",
+            "Sewerage",
+            "Waste collection, treatment and disposal activities; materials recovery",
         };
 
-        private static bool IsConstructionCategory(string? category)
+        private static readonly HashSet<string> BroadConstructionCategories = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Services to buildings and landscape activities",
+            "Water supply; sewerage, waste management and remediation activities",
+            "Water collection, treatment and supply",
+            "Mining and quarrying",
+            "Repair and installation of machinery and equipment",
+            "Remediation activities and other waste management services",
+            "Land transport and transport via pipelines",
+            "Sewerage",
+            "Waste collection, treatment and disposal activities; materials recovery",
+            "Construction",
+            "Specialised construction activities",
+        };
+
+        private static bool IsConstructionTender(string? category, string? title, string? description)
         {
             if (string.IsNullOrWhiteSpace(category))
                 return false;
 
-            return ConstructionCategories.Contains(category.Trim());
+            var trimmed = category.Trim();
+
+            // Narrow construction categories: accept directly.
+            if (ConstructionCategories.Contains(trimmed) && !BroadConstructionCategories.Contains(trimmed))
+                return true;
+
+            // Broad construction categories: require a construction keyword in the text.
+            if (BroadConstructionCategories.Contains(trimmed))
+            {
+                var haystack = $"{title} {description}".Trim();
+                return CategoryMappingService.ClassKeywords.Values
+                    .SelectMany(k => k)
+                    .Any(k => KeywordMatcher.ContainsKeyword(haystack, k));
+            }
+
+            return false;
         }
     }
 }

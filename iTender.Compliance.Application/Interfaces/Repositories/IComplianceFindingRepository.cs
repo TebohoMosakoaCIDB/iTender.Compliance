@@ -10,5 +10,6 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task UpdateAsync(ComplianceFinding finding, CancellationToken cancellationToken = default);
         Task DeleteAsync(ComplianceFinding finding, CancellationToken cancellationToken = default);
         Task<IReadOnlyList<ComplianceFinding>> GetAwaitingCoReviewAsync(CancellationToken cancellationToken = default);
+        Task<int> CountByCaseIdAsync(Guid caseId, CancellationToken ct = default);
     }
 }

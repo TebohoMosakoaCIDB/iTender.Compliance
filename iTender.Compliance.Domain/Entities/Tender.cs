@@ -1,4 +1,6 @@
-﻿namespace iTender.Compliance.Domain.Entities
+﻿using iTender.Compliance.Domain.Enums;
+
+namespace iTender.Compliance.Domain.Entities
 {
     public class Tender : BaseEntity
     {
@@ -35,7 +37,8 @@
 
         public bool IsConstruction { get; set; }
         public string? ClassOfWorks { get; set; }
-
+        public ClassOfWorksSource ClassOfWorksSource { get; set; } = ClassOfWorksSource.NotSpecified;
+        public string? ClaimedClassOfWorks { get; set; }
         public DateTime? AwardedDate { get; set; }
         public decimal? AwardValue { get; set; }
         public string? WinningContractor { get; set; }

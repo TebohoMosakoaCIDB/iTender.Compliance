@@ -56,6 +56,13 @@ namespace iTender.Compliance.Infrastructure.Repositories
             await context.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task<int> CountByCaseIdAsync(Guid caseId, CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(ct);
+            return await context.ComplianceFindings
+                .CountAsync(f => f.ComplianceCaseId == caseId, ct);
+        }
+
         public async Task DeleteAsync(
             ComplianceFinding finding,
             CancellationToken cancellationToken = default)

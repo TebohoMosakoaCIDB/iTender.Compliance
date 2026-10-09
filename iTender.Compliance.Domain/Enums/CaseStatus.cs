@@ -1,23 +1,74 @@
 ﻿namespace iTender.Compliance.Domain.Enums
 {
+    /// <summary>
+    /// Case lifecycle status. Values map to the CIDB Compliance Monitor work baskets (BR-8.1).
+    /// Names are kept compatible with existing code; new basket-statuses are appended so
+    /// existing references (WaitingForResponse, ContraventionNoticeIssued, ReferredForEnforcement,
+    /// PendingApproval, UnderManagerReview) continue to compile.
+    /// </summary>
     public enum CaseStatus
     {
-        New,
-        Assigned,
+        // ------------------------------------------------------------
+        // Existing values — DO NOT RENAME, they are referenced throughout
+        // the codebase (repositories, services, reporting).
+        // ------------------------------------------------------------
+
+        /// <summary>Just created; not yet assigned or classified.</summary>
+        New = 0,
+
+        /// <summary>Assigned to a Compliance Officer.</summary>
+        Assigned = 1,
+
+        /// <summary>CO is actively working the case.</summary>
+        InProgress = 2,
+
+        /// <summary>Waiting for the client to respond to correspondence.</summary>
         WaitingForResponse = 3,
 
-        Closed = 4,
+        /// <summary>Letter routed to Manager for approval (SigningHub).</summary>
+        PendingApproval = 4,
 
-        /// <summary>Letter generated and awaiting manager sign-off before it is sent.</summary>
-        PendingApproval = 5,
+        /// <summary>Client objection raised; Manager review in progress.</summary>
+        UnderManagerReview = 5,
 
-        /// <summary>Contravention Notice issued, awaiting the 14-day response.</summary>
+        /// <summary>Contravention Notice issued; 14-day corrective period running.</summary>
         ContraventionNoticeIssued = 6,
 
-        /// <summary>Client has objected to an IL/CN; awaiting Manager decision.</summary>
-        UnderManagerReview = 7,
+        /// <summary>Referred to Enforcement / AGSA.</summary>
+        ReferredForEnforcement = 7,
 
-        /// <summary>No response to the Contravention Notice; referred for enforcement.</summary>
-        ReferredForEnforcement = 8
+        /// <summary>Case resolved and closed (terminal).</summary>
+        Closed = 8,
+
+        // ------------------------------------------------------------
+        // New values added for BRS BR-8.1 baskets.
+        // ------------------------------------------------------------
+
+        /// <summary>
+        /// BR-8.1 "Newly identified" basket.
+        /// Tender ingested; construction classification pending CO review.
+        /// Used before the case is assigned.
+        /// </summary>
+        NewlyIdentified = 9,
+
+        /// <summary>
+        /// BR-8.1 "Verification required" basket.
+        /// Classification confirmed; compliance findings awaiting CO review.
+        /// Set when the case has findings but no advertisement finding.
+        /// </summary>
+        VerificationRequired = 10,
+
+        /// <summary>
+        /// BR-8.1 "Not advertised" basket.
+        /// Tender found on e-Tender/client site but not on i-Tender.
+        /// Set when the case has an Advertisement finding.
+        /// </summary>
+        NotAdvertised = 11,
+
+        /// <summary>
+        /// BR-8.1 "Cleared/resolved" basket.
+        /// Zero findings, or all findings resolved. Awaiting CO confirmation.
+        /// </summary>
+        Cleared = 12,
     }
 }

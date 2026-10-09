@@ -12,5 +12,10 @@ namespace iTender.Compliance.Application.Interfaces.Services
             Guid managerUserId,
             string? comment,
             CancellationToken cancellationToken = default);
+
+        Task NotifyManagersManualAssignmentRequiredAsync(
+    ComplianceCase @case,
+    string reason,
+    CancellationToken cancellationToken = default);
     }
 }
