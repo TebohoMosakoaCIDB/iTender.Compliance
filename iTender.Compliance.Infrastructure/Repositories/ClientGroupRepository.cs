@@ -173,6 +173,11 @@ namespace iTender.Compliance.Infrastructure.Repositories
             if (search.Status.HasValue)
                 query = query.Where(g => g.Status == search.Status.Value);
 
+            if (search.AgentId.HasValue)
+            {
+                query = query.Where(g => g.AgentId == search.AgentId.Value);
+            }
+
             var total = await query.CountAsync(cancellationToken);
 
             var items = await query

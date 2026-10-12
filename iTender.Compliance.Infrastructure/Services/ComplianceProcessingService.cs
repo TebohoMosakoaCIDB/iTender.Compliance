@@ -69,13 +69,13 @@ namespace iTender.Compliance.Infrastructure.Services
         }
 
         public async Task<Guid?> ProcessTenderAsync(
-            Tender tender,
-            HashSet<string> iTenderNumbers,
-            IReadOnlyDictionary<string, Tender> iTenderLookup,   // NEW: key = normalized employer+title
-            List<ContractModel> crmContracts,
-            Guid syncId,
-            Guid? userId,
-            CancellationToken cancellationToken = default)
+                Tender tender,
+                HashSet<string> iTenderNumbers,
+                IReadOnlyDictionary<string, Tender> iTenderLookup,
+                List<ContractModel> crmContracts,
+                Guid syncId,
+                Guid? userId,
+                CancellationToken cancellationToken = default)
         {
             // 1. Skip if not construction
             if (!tender.IsConstruction)
@@ -103,19 +103,13 @@ namespace iTender.Compliance.Infrastructure.Services
                 return existingCase.Id;
             }
 
-            // 4. Collect findings (Streams 1 and 2 only - Stream 3 is handled by IVerificationService)
+            // 4. Collect findings
             var findings = new List<ComplianceFinding>();
 
             // ---- STREAM 1: Class of Works ----
-            // Strategy:
-            //  1. The category claims a class (or nothing).
-            //  2. If it claims a class, verify the advert text supports it via keywords.
-            //  3. If supported -> use it. If not -> null it out and raise a finding.
-            //  4. If the category claims nothing, fall back to the text resolver.
             var (isConstructionFromCategory, categoryClaim) = await _categoryMappingService
                 .MapCategoryAsync(tender.ProcurementCategory, cancellationToken);
 
-            // Sanity: if the category says non-construction but the tender is here, trust the tender flag.
             if (!isConstructionFromCategory && tender.IsConstruction)
             {
                 _logger.LogWarning(
@@ -129,7 +123,6 @@ namespace iTender.Compliance.Infrastructure.Services
                 ? ClassOfWorksSource.NotSpecified
                 : ClassOfWorksSource.InferredByCategory;
 
-            // If the category didn't give a class, try the text resolver.
             if (string.IsNullOrWhiteSpace(resolvedClass))
             {
                 resolvedClass = await _classOfWorksResolver
@@ -139,7 +132,6 @@ namespace iTender.Compliance.Infrastructure.Services
                     source = ClassOfWorksSource.InferredByKeywords;
             }
 
-            // If we have a class, verify the advert text supports it.
             if (!string.IsNullOrWhiteSpace(resolvedClass))
             {
                 bool supported = await _classOfWorksResolver
@@ -147,7 +139,6 @@ namespace iTender.Compliance.Infrastructure.Services
 
                 if (!supported)
                 {
-                    // Category claimed X, description disagrees. Trust neither.
                     tender.ClaimedClassOfWorks = resolvedClass;
                     tender.ClassOfWorks = null;
                     tender.ClassOfWorksSource = ClassOfWorksSource.UnresolvedConflict;
@@ -171,7 +162,6 @@ namespace iTender.Compliance.Infrastructure.Services
                 }
                 else
                 {
-                    // Description agrees (or class came from the text resolver).
                     tender.ClassOfWorks = resolvedClass;
                     tender.ClassOfWorksSource = source;
                     tender.ClaimedClassOfWorks = null;
@@ -203,7 +193,6 @@ namespace iTender.Compliance.Infrastructure.Services
             }
             else
             {
-                // Nothing to go on: no category claim, no text match.
                 tender.ClassOfWorks = null;
                 tender.ClassOfWorksSource = ClassOfWorksSource.NotSpecified;
 
@@ -248,7 +237,6 @@ namespace iTender.Compliance.Infrastructure.Services
             }
             else
             {
-                // It IS on i-Tender, but under a different number -> mismatch finding
                 var key = TenderMatchKeyBuilder.Build(tender.EmployerName, tender.Title);
 
                 if (iTenderLookup.TryGetValue(key, out var iTenderMatch) &&
@@ -272,16 +260,39 @@ namespace iTender.Compliance.Infrastructure.Services
             }
 
             // ---- STREAM 3: RoP / Award registration ----
-            // Removed from inline. Handled by IVerificationService below so it can
-            // record VerificationStatus and route failed checks to a CO for review (D03).
+            //
+            // RULE: Stream 3 only applies to AWARDED tenders. An open tender has not
+            // been awarded yet, so it cannot be on the Register of Projects. Running
+            // RoP checks against open tenders would produce false "not registered"
+            // findings for every tender still in the pipeline.
+            //
+            // The actual RoP verification runs via IVerificationService (in
+            // SynchronizationService) so it can record VerificationStatus and route
+            // failed checks to a CO for review (D03). This block just decides whether
+            // the case is eligible for verification at all.
+            //
+            // Gate: AwardedDate.HasValue AND AwardValue.HasValue AND ClosingDate <= now.
+            var isAwardedForRop =
+                tender.AwardedDate.HasValue &&
+                tender.AwardValue.HasValue &&
+                tender.ClosingDate <= DateTime.UtcNow;
 
-            // 5. Compute the initial status from the BRS work baskets (BR-8.1).
-            //
-            //  - No findings             -> Cleared (verified, no issues)
-            //  - Findings on advertisement -> NotAdvertised
-            //  - Other findings            -> VerificationRequired (CO to review)
-            //
-            // Priority is derived from findings count so the CO's queue is ordered.
+            if (isAwardedForRop)
+            {
+                _logger.LogInformation(
+                    "Tender {TenderNumber} is awarded (award date={AwardedDate}, value={AwardValue}); " +
+                    "Stream 3 (RoP verification) will run via IVerificationService.",
+                    tender.TenderNumber, tender.AwardedDate, tender.AwardValue);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Tender {TenderNumber} is not yet awarded (status={Status}, award date={AwardedDate}, value={AwardValue}); " +
+                    "skipping Stream 3 (RoP verification).",
+                    tender.TenderNumber, tenderStatus, tender.AwardedDate, tender.AwardValue);
+            }
+
+            // 5. Compute initial status
             CaseStatus initialStatus;
             CasePriority priority;
 
@@ -309,7 +320,6 @@ namespace iTender.Compliance.Infrastructure.Services
             var complianceCase = new ComplianceCase
             {
                 TenderId = tender.Id,
-                //Tender = tender,
                 Status = initialStatus,
                 Priority = priority,
                 CreatedOn = DateTime.UtcNow,
@@ -328,9 +338,7 @@ namespace iTender.Compliance.Infrastructure.Services
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // =========================================================
-            // 8b. BR-14: attach the case to a draft client group.
-            // =========================================================
+            // 8b. Attach to a draft client group.
             var group = await _clientGroupService.GetOrCreateDraftGroupAsync(
                 employerName: tender.EmployerName,
                 contactName: tender.ContactName,
@@ -343,17 +351,12 @@ namespace iTender.Compliance.Infrastructure.Services
                 complianceCase.Id,
                 cancellationToken);
 
-            // =========================================================
-            // 8c. Assignment:
-            // - If the group already has an owner, inherit it.
-            // - Otherwise, run normal assignment and adopt the group owner.
-            // =========================================================
+            // 8c. Assignment
             if (group.AgentId.HasValue)
             {
                 complianceCase.AgentId = group.AgentId;
                 complianceCase.AssignedOn = DateTime.UtcNow;
 
-                // Only promote to Assigned if the case isn't already in a terminal or cleared state.
                 if (complianceCase.Status == CaseStatus.NewlyIdentified
                     || complianceCase.Status == CaseStatus.VerificationRequired
                     || complianceCase.Status == CaseStatus.NotAdvertised
@@ -400,7 +403,6 @@ namespace iTender.Compliance.Infrastructure.Services
                 }
             }
 
-            // If still no agent after all attempts, make sure managers are notified.
             if (!complianceCase.AgentId.HasValue)
             {
                 await _assignmentService.NotifyManagersManualAssignmentRequiredAsync(

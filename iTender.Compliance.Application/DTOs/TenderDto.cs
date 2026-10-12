@@ -72,6 +72,7 @@
 
     public class TenderSearchModel
     {
+        public Guid? AgentId { get; set; }
         public string? SearchText { get; set; }
 
         public string? Source { get; set; }

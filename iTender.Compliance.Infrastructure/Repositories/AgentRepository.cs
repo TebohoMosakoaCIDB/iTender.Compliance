@@ -14,6 +14,15 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
+        public async Task<Guid?> GetAgentIdByUserIdAsync(Guid userId, CancellationToken ct = default)
+        {
+            await using var context = await CreateContextAsync();
+            return await context.Agents
+                .Where(a => a.UserId == userId)
+                .Select(a => (Guid?)a.Id)
+                .FirstOrDefaultAsync(ct);
+        }
+
         public async Task AddAsync(
             Agent agent,
             CancellationToken cancellationToken = default)

@@ -13,6 +13,27 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
+        public async Task<int> CountAwaitingClassificationReviewAsync(
+    Guid? agentId = null,
+    CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            var query = context.Tenders
+                .Where(t => t.IsConstruction)
+                .Where(t => t.ClassificationReviewedOn == null);
+
+            if (agentId.HasValue)
+            {
+                // Only count tenders whose case is assigned to this officer.
+                query = query.Where(t =>
+                    t.ComplianceCase != null &&
+                    t.ComplianceCase.AgentId == agentId.Value);
+            }
+
+            return await query.CountAsync(cancellationToken);
+        }
+
         public async Task<int> CountConstructionTendersAsync( CancellationToken cancellationToken = default)
         {
             await using var context = await CreateContextAsync();
@@ -376,6 +397,14 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 query = query.Where(t => t.ClassificationReviewedOn != null);
             else if (search.ReviewedOnly == false)
                 query = query.Where(t => t.ClassificationReviewedOn == null);
+
+            if (search.AgentId.HasValue)
+            {
+                query = query.Where(t =>
+                    t.ComplianceCase == null ||
+                    t.ComplianceCase.AgentId == null ||
+                    t.ComplianceCase.AgentId == search.AgentId.Value);
+            }
 
             var total = await query.CountAsync(cancellationToken);
 

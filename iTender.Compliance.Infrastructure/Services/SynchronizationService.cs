@@ -120,33 +120,27 @@ namespace iTender.Compliance.Infrastructure.Services
                 var scrapedTenders = new List<Tender>();
 
                 // ---------------------------------------------------------
-                // Scrapers
-                // ---------------------------------------------------------
-                // foreach (var scraper in _scrapers)
-                // {
-                //     var tenders = await scraper.ScrapeAsync(cancellationToken);
+                // Get eTenders tenders.
                 //
-                //     scrapedTenders.AddRange(tenders);
+                // We always run BOTH sources and merge on TenderNumber:
+                //   - The OCDS API is the source of truth for structured fields
+                //     (dates, category, documents, contacts).
+                //   - The scraper is the source of truth for SpecialConditions
+                //     (which carries the CIDB grade code and is not in OCDS).
                 //
-                //     await LogAsync(
-                //         sync.Id,
-                //         SyncLogType.Information,
-                //         SyncLogLevel.Information,
-                //         "Scraper Completed",
-                //         $"{scraper.GetType().Name} returned {tenders.Count} tenders.",
-                //         cancellationToken: cancellationToken);
-                // }
-
+                // Either source can fail without failing the sync. Merged result
+                // wins; API-only and scraper-only tenders are both kept.
                 // ---------------------------------------------------------
-                // Get eTenders tenders - API first, scraper fallback
-                // ---------------------------------------------------------
-                var apiSucceeded = false;
 
+                var apiTenders = new Dictionary<string, Tender>(StringComparer.OrdinalIgnoreCase);
+                var scraperTenders = new Dictionary<string, Tender>(StringComparer.OrdinalIgnoreCase);
+
+                // ---- 1) API --------------------------------------------------
                 try
                 {
                     var releases = await _etendersClient.GetAllReleasesAsync(
-                        DateTime.UtcNow.Date.AddMonths(-1),
-                        DateTime.UtcNow.Date,
+                        DateTime.UtcNow.Date.AddMonths(-4),
+                        DateTime.UtcNow.Date.AddMonths(-3),
                         cancellationToken: cancellationToken);
 
                     var constructionReleases = _etendersConstructionFilter.Filter(releases);
@@ -156,17 +150,17 @@ namespace iTender.Compliance.Infrastructure.Services
                         cancellationToken.ThrowIfCancellationRequested();
 
                         var tender = _etendersTenderMapper.Map(release, sync.Id);
-                        scrapedTenders.Add(tender);
-                    }
 
-                    apiSucceeded = true;
+                        if (!string.IsNullOrWhiteSpace(tender.TenderNumber))
+                            apiTenders[tender.TenderNumber.Trim()] = tender;
+                    }
 
                     await LogAsync(
                         sync.Id,
                         SyncLogType.Information,
                         SyncLogLevel.Information,
                         "eTenders API Retrieved",
-                        $"API returned {scrapedTenders.Count} construction tenders.",
+                        $"API returned {apiTenders.Count} construction tenders.",
                         cancellationToken: cancellationToken);
                 }
                 catch (Exception apiEx)
@@ -175,73 +169,121 @@ namespace iTender.Compliance.Infrastructure.Services
                         sync.Id,
                         SyncLogType.Information,
                         SyncLogLevel.Warning,
-                        "eTenders API Failed - Trying Scraper",
-                        $"API error: {apiEx.Message}. Falling back to scraper.",
+                        "eTenders API Failed",
+                        $"API error: {apiEx.Message}. Continuing with scraper-only results.",
                         cancellationToken: cancellationToken);
                 }
 
-                if (!apiSucceeded)
+                // ---- 2) Scraper ----------------------------------------------
+                try
                 {
-                    try
+                    var scraped = await _etendersScraperClient
+                        .ScrapeAsync(status: 1, cancellationToken);
+
+
+                    if (scraped is not null && scraped.Tenders.Count > 0)
                     {
-                        var scraped = await _etendersScraperClient
-                            .ScrapeAsync(status: 1, cancellationToken);
-
-                        if (scraped is not null && scraped.Tenders.Count > 0)
+                        foreach (var dto in scraped.Tenders)
                         {
-                            foreach (var dto in scraped.Tenders)
-                            {
-                                cancellationToken.ThrowIfCancellationRequested();
+                            cancellationToken.ThrowIfCancellationRequested();
 
-                                var tender = _scrapedTenderMapper.Map(dto, sync.Id);
-                                if (tender is null)
-                                    continue;
+                            var tender = _scrapedTenderMapper.Map(dto, sync.Id);
+                            if (tender is null)
+                                continue;
 
-                                // Only include tenders that pass the construction filter.
-                                if (!IsConstructionTender(dto.Category, dto.TenderNumber, dto.Title))
-                                    continue;
+                            if (!IsConstructionTender(dto.Category, dto.TenderNumber, dto.Title))
+                                continue;
 
-                                // Resolve class of works from the tender description/title.
-                                if (string.IsNullOrWhiteSpace(tender.ClassOfWorks))
-                                {
-                                    tender.ClassOfWorks = await _classOfWorksResolver
-                                        .ResolveAsync(tender, cancellationToken);
-                                }
+                            if (string.IsNullOrWhiteSpace(tender.TenderNumber))
+                                continue;
 
-                                scrapedTenders.Add(tender);
-                            }
-
-                            await LogAsync(
-                                sync.Id,
-                                SyncLogType.Information,
-                                SyncLogLevel.Warning,
-                                "Scraper Fallback Succeeded",
-                                $"Scraper returned {scraped.Count} tenders; {scrapedTenders.Count} construction tenders kept.",
-                                cancellationToken: cancellationToken);
+                            scraperTenders[tender.TenderNumber.Trim()] = tender;
                         }
-                        else
-                        {
-                            await LogAsync(
-                                sync.Id,
-                                SyncLogType.Error,
-                                SyncLogLevel.Error,
-                                "Scraper Fallback Failed",
-                                "Scraper returned no tenders. Sync will continue with zero eTenders results.",
-                                cancellationToken: cancellationToken);
-                        }
+
+                        await LogAsync(
+                            sync.Id,
+                            SyncLogType.Information,
+                            SyncLogLevel.Information,
+                            "Scraper Retrieved",
+                            $"Scraper returned {scraped.Tenders.Count} tenders; " +
+                            $"{scraperTenders.Count} construction tenders kept.",
+                            cancellationToken: cancellationToken);
                     }
-                    catch (Exception scraperEx)
+                    else
                     {
                         await LogAsync(
                             sync.Id,
                             SyncLogType.Error,
                             SyncLogLevel.Error,
-                            "Scraper Fallback Error",
-                            $"Scraper failed: {scraperEx.Message}.",
+                            "Scraper Returned No Tenders",
+                            "Scraper returned no tenders. Sync continues with API results only.",
                             cancellationToken: cancellationToken);
                     }
                 }
+                catch (Exception scraperEx)
+                {
+                    await LogAsync(
+                        sync.Id,
+                        SyncLogType.Error,
+                        SyncLogLevel.Error,
+                        "Scraper Failed",
+                        $"Scraper failed: {scraperEx.Message}. Sync continues with API results only.",
+                        cancellationToken: cancellationToken);
+                }
 
+                // ---- 3) Merge -----------------------------------------------
+                // Base: start with everything the API found.
+                foreach (var kvp in apiTenders)
+                {
+                    scrapedTenders.Add(kvp.Value);
+                }
+
+                // Supplement: for each API tender, if the scraper has the same number
+                // and has a SpecialConditions value the API didn't carry, copy it over.
+                var supplemented = 0;
+
+                foreach (var kvp in scraperTenders)
+                {
+                    if (apiTenders.TryGetValue(kvp.Key, out var apiTender))
+                    {
+                        if (string.IsNullOrWhiteSpace(apiTender.SpecialConditions)
+                            && !string.IsNullOrWhiteSpace(kvp.Value.SpecialConditions))
+                        {
+                            apiTender.SpecialConditions = kvp.Value.SpecialConditions;
+                            supplemented++;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(apiTender.TenderUrl)
+                            && !string.IsNullOrWhiteSpace(kvp.Value.TenderUrl))
+                        {
+                            apiTender.TenderUrl = kvp.Value.TenderUrl;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(apiTender.Description)
+                            && !string.IsNullOrWhiteSpace(kvp.Value.Description))
+                        {
+                            apiTender.Description = kvp.Value.Description;
+                        }
+                    }
+                    else
+                    {
+                        // Scraper-only tender - keep as is.
+                        scrapedTenders.Add(kvp.Value);
+                    }
+                }
+
+                await LogAsync(
+                    sync.Id,
+                    SyncLogType.Information,
+                    SyncLogLevel.Information,
+                    "eTenders Sources Merged",
+                    $"API: {apiTenders.Count}, Scraper: {scraperTenders.Count}, " +
+                    $"Merged: {scrapedTenders.Count}, SpecialConditions supplemented: {supplemented}.",
+                    cancellationToken: cancellationToken);
+
+                // ---------------------------------------------------------
+                // Complete retrieval
+                // ---------------------------------------------------------
                 sync.TotalRetrieved = scrapedTenders.Count;
 
                 await LogAsync(
@@ -259,12 +301,10 @@ namespace iTender.Compliance.Infrastructure.Services
                     .GetAdvertisedTendersAsync(cancellationToken);
 
                 var crmTenderNumbers = crmTenders
-                     .Where(x => !string.IsNullOrWhiteSpace(x.TenderNumber))
-                     .Select(x => x.TenderNumber.Trim())
-                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    .Where(x => !string.IsNullOrWhiteSpace(x.TenderNumber))
+                    .Select(x => x.TenderNumber.Trim())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                // NEW: keyed by normalized employer + normalized title, so we can spot
-                // "same tender advertised under a different number" across the two sources.
                 var crmTendersByScope = crmTenders
                     .Where(x => !string.IsNullOrWhiteSpace(x.TenderNumber)
                              && !string.IsNullOrWhiteSpace(x.EmployerName)
@@ -310,7 +350,7 @@ namespace iTender.Compliance.Infrastructure.Services
                         continue;
 
                     // -----------------------------------------------------
-                    // Exact duplicate - skip as before
+                    // Exact duplicate - skip
                     // -----------------------------------------------------
                     var existingTender = await _tenderRepository
                         .GetByTenderNumberAsync(tender.TenderNumber, cancellationToken);
@@ -326,6 +366,7 @@ namespace iTender.Compliance.Infrastructure.Services
                             tender.TenderNumber,
                             cancellationToken);
 
+                        skipped++;
                         continue;
                     }
 
@@ -349,10 +390,7 @@ namespace iTender.Compliance.Infrastructure.Services
                         cancellationToken);
 
                     // -----------------------------------------------------
-                    // D05: Detect potential duplicates and group for CO.
-                    // NOTE: we still create the compliance case below so the
-                    // tender appears in the CO's work baskets per BR-8.1.
-                    // The duplicate group is an additional signal for the CO.
+                    // D05: Detect potential duplicates
                     // -----------------------------------------------------
                     var detectedDuplicates = await _duplicateDetectionService
                         .FindPotentialDuplicatesAsync(tender, cancellationToken);
@@ -390,8 +428,6 @@ namespace iTender.Compliance.Infrastructure.Services
                             $"Compliance processing will still run so the tender appears in the work baskets.",
                             tender.TenderNumber,
                             cancellationToken);
-
-                        // NO continue — fall through to ProcessTenderAsync.
                     }
 
                     // -----------------------------------------------------
@@ -428,7 +464,6 @@ namespace iTender.Compliance.Infrastructure.Services
                     {
                         casesCreated++;
 
-                        // Count findings via a direct query — do not rely on navigation loading.
                         var findingCount = await _findingRepository
                             .CountByCaseIdAsync(createdCaseId.Value, cancellationToken);
 
@@ -437,7 +472,7 @@ namespace iTender.Compliance.Infrastructure.Services
                         else
                             compliant++;
 
-                        // Stream 3 verification for awarded tenders.
+                        // Stream 3 verification for awarded tenders
                         if (tender.AwardedDate.HasValue && tender.AwardValue.HasValue)
                         {
                             try
@@ -453,24 +488,11 @@ namespace iTender.Compliance.Infrastructure.Services
                             }
                             catch (Exception ex)
                             {
-                                var inner = ex;
-                                var detail = ex.Message;
-
-                                while (inner.InnerException != null)
-                                {
-                                    inner = inner.InnerException;
-                                    detail += $" -> {inner.Message}";
-                                }
-
                                 await LogAsync(
-                                    sync.Id,
-                                    SyncLogType.Error,
-                                    SyncLogLevel.Error,
-                                    "Tender Compliance Check Failed",
-                                    $"The tender was imported, but its compliance check could not be completed. " +
-                                    $"Error: {detail}",
-                                    tender.TenderNumber,
-                                    cancellationToken);
+                                    sync.Id, SyncLogType.Error, SyncLogLevel.Error,
+                                    "Verification Failed",
+                                    $"Case was created but automated verification could not be completed. Error: {ex.Message}",
+                                    tender.TenderNumber, cancellationToken);
 
                                 sync.ErrorCount++;
                             }
@@ -478,7 +500,6 @@ namespace iTender.Compliance.Infrastructure.Services
                     }
                     else
                     {
-                        // ProcessTenderAsync only returns null for non-construction tenders.
                         skipped++;
                     }
                 }
@@ -505,12 +526,8 @@ namespace iTender.Compliance.Infrastructure.Services
                     $"Errors: {sync.ErrorCount}.",
                     cancellationToken: cancellationToken);
 
-                await _tenderSyncRepository.UpdateAsync(
-                    sync,
-                    cancellationToken);
-
-                await _unitOfWork.SaveChangesAsync(
-                    cancellationToken);
+                await _tenderSyncRepository.UpdateAsync(sync, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
             catch (HttpRequestException ex)
             {
@@ -526,12 +543,8 @@ namespace iTender.Compliance.Infrastructure.Services
                     "We couldn't retrieve the latest tender information from the required service. Please try again later.",
                     cancellationToken: cancellationToken);
 
-                await _tenderSyncRepository.UpdateAsync(
-                    sync,
-                    cancellationToken);
-
-                await _unitOfWork.SaveChangesAsync(
-                    cancellationToken);
+                await _tenderSyncRepository.UpdateAsync(sync, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                 return;
             }
@@ -549,12 +562,8 @@ namespace iTender.Compliance.Infrastructure.Services
                     ex.Message,
                     cancellationToken: cancellationToken);
 
-                await _tenderSyncRepository.UpdateAsync(
-                    sync,
-                    cancellationToken);
-
-                await _unitOfWork.SaveChangesAsync(
-                    cancellationToken);
+                await _tenderSyncRepository.UpdateAsync(sync, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                 return;
             }
@@ -569,15 +578,11 @@ namespace iTender.Compliance.Infrastructure.Services
                     SyncLogType.Error,
                     SyncLogLevel.Error,
                     "Synchronization Failed",
-                    "We couldn't complete the synchronization. Please try again later. If the problem continues, contact the system administrator.",
+                    $"We couldn't complete the synchronization. {ex.Message}",
                     cancellationToken: cancellationToken);
 
-                await _tenderSyncRepository.UpdateAsync(
-                    sync,
-                    cancellationToken);
-
-                await _unitOfWork.SaveChangesAsync(
-                    cancellationToken);
+                await _tenderSyncRepository.UpdateAsync(sync, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                 return;
             }

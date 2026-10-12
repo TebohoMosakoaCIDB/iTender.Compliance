@@ -28,14 +28,14 @@ namespace iTender.Compliance.Infrastructure.Services
             CancellationToken cancellationToken = default)
         {
             var tender = await _tenderRepository.GetByIdAsync(tenderId, cancellationToken)
-                ?? throw new InvalidOperationException("Tender not found.");
+        ?? throw new InvalidOperationException($"Tender {tenderId} not found.");
 
-            tender.ClassificationReviewedByUserId = userId;
             tender.ClassificationReviewedOn = DateTime.UtcNow;
+            tender.ClassificationReviewedByUserId = userId;
             tender.ClassificationReviewNotes = notes;
-            // Confirming the automated result - flag stays false
             tender.ClassificationOverridden = false;
 
+            await _tenderRepository.UpdateAsync(tender, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             await _auditService.LogAsync(

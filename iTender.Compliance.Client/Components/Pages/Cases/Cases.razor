@@ -6,7 +6,7 @@
 @using iTender.Compliance.Domain.Entities
 @using iTender.Compliance.Domain.Enums
 @using iTender.Compliance.Application.Interfaces.Services
-
+@inject IOfficerScopeService OfficerScope
 @inject IComplianceCaseRepository ComplianceCaseRepository
 @inject ISystemSettingService SystemSettingService
 @inject ICaseAuthorizationService CaseAuthorizationService
@@ -384,6 +384,7 @@ else
         Settings = await SystemSettingService.GetAsync();
 
         Search.PageSize = Settings.DefaultPageSize;
+        Search.AgentId = await OfficerScope.GetCurrentOfficerScopeAsync();
 
         PageSizes =
         [

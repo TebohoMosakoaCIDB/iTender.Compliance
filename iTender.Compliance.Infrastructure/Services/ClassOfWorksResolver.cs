@@ -114,7 +114,15 @@ namespace iTender.Compliance.Infrastructure.Services
         }
 
         // =============================================================
-        // 2) Verify the advert text supports a class claimed by category.
+        // 2) Verify the advert text doesn't CONTRADICT a class claimed by category.
+        //
+        //    Note the semantics:
+        //    - If the text contains a keyword for the claimed class  -> supported.
+        //    - If the text contains a keyword for a DIFFERENT class  -> contradicted (return false).
+        //    - If the text is silent about class entirely            -> supported (trust the category).
+        //
+        //    This matches how a Compliance Officer reads an advert: "if the advert
+        //    says nothing definitive, go with the category; if it contradicts, flag it."
         // =============================================================
         public Task<bool> DescriptionSupportsClassAsync(
             Tender tender,
@@ -129,7 +137,7 @@ namespace iTender.Compliance.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(haystack))
                 return Task.FromResult(false);
 
-            if (!CategoryMappingService.ClassKeywords.TryGetValue(classOfWorks, out var keywords))
+            if (!CategoryMappingService.ClassKeywords.TryGetValue(classOfWorks, out var ownKeywords))
             {
                 // Unknown class -> don't block. The class validator will handle it downstream.
                 _logger.LogInformation(
@@ -138,22 +146,42 @@ namespace iTender.Compliance.Infrastructure.Services
                 return Task.FromResult(true);
             }
 
-            var matched = keywords.FirstOrDefault(k => ContainsKeyword(haystack, k));
+            // 1) Does the text support the claimed class?
+            var ownMatch = ownKeywords.FirstOrDefault(k => ContainsKeyword(haystack, k));
 
-            if (matched != null)
+            if (ownMatch != null)
             {
                 _logger.LogInformation(
-                    "Description supports class '{Class}' for {TenderNumber} (keyword '{Keyword}').",
-                    classOfWorks, tender.TenderNumber, matched);
+                    "Description supports class '{Class}' for {TenderNumber} (own keyword '{Keyword}').",
+                    classOfWorks, tender.TenderNumber, ownMatch);
                 return Task.FromResult(true);
             }
 
-            _logger.LogInformation(
-                "Description does NOT support class '{Class}' for {TenderNumber}.",
-                classOfWorks, tender.TenderNumber);
-            return Task.FromResult(false);
-        }
+            // 2) Does the text contradict it by pointing at a DIFFERENT class?
+            var contradictingKeyword = CategoryMappingService.ClassKeywords
+                .Where(kv => !string.Equals(kv.Key, classOfWorks, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(kv => kv.Value.Select(k => new { OtherClass = kv.Key, Keyword = k }))
+                .FirstOrDefault(x => ContainsKeyword(haystack, x.Keyword));
 
+            if (contradictingKeyword != null)
+            {
+                _logger.LogInformation(
+                    "Description contradicts class '{Class}' for {TenderNumber} - " +
+                    "matched '{Keyword}' from class '{OtherClass}'.",
+                    classOfWorks, tender.TenderNumber,
+                    contradictingKeyword.Keyword, contradictingKeyword.OtherClass);
+
+                return Task.FromResult(false);
+            }
+
+            // 3) Text is silent about class -> trust the category.
+            _logger.LogInformation(
+                "Description is silent about class for {TenderNumber} - " +
+                "trusting category-claimed class '{Class}'.",
+                tender.TenderNumber, classOfWorks);
+
+            return Task.FromResult(true);
+        }
         // =============================================================
         // Helpers
         // =============================================================

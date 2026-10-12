@@ -10,6 +10,7 @@
 @inject ITenderClassificationService ClassificationService
 @inject ISystemSettingService SystemSettingService
 @inject ICurrentUserService CurrentUserService
+@inject IOfficerScopeService OfficerScope
 @inject NavigationManager Navigation
 
 @attribute [Authorize(Policy = "CaseManagement")]
@@ -557,6 +558,7 @@ else
         Settings = await SystemSettingService.GetAsync();
 
         Search.PageSize = Settings.DefaultPageSize;
+        Search.AgentId = await OfficerScope.GetCurrentOfficerScopeAsync();
 
         PageSizes =
         [
@@ -637,7 +639,10 @@ else
     private async Task Confirm(Guid tenderId)
     {
         if (!CurrentUserService.UserId.HasValue)
+        {
+            _errorMessage = "No user id — cannot confirm.";
             return;
+        }
 
         try
         {

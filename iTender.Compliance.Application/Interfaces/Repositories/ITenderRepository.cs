@@ -85,5 +85,9 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<PagedResult<Tender>> SearchForClassificationReviewAsync(
             TenderClassificationSearchModel search,
             CancellationToken cancellationToken = default);
+
+        Task<int> CountAwaitingClassificationReviewAsync(
+    Guid? agentId = null,
+    CancellationToken cancellationToken = default);
     }
 }

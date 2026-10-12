@@ -36,5 +36,7 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task<Guid?> GetUserIdByAgentIdAsync(
             Guid agentId,
             CancellationToken cancellationToken = default);
+
+        Task<Guid?> GetAgentIdByUserIdAsync(Guid userId, CancellationToken ct = default);
     }
 }

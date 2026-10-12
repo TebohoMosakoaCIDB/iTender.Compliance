@@ -3,3 +3,4 @@ uvicorn[standard]>=0.30.6,<1.0
 crawl4ai>=0.4.24,<0.5
 pydantic>=2.10.0,<3.0
 beautifulsoup4>=4.12.3
+litellm==1.96.2

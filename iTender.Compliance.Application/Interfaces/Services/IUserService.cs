@@ -29,5 +29,7 @@ namespace iTender.Compliance.Application.Interfaces.Services
             CancellationToken cancellationToken = default);
 
         Task<List<Guid>> GetManagerUserIdsAsync(CancellationToken cancellationToken = default);
+        // IUserService
+        Task<bool> IsInRoleAsync(Guid userId, string role, CancellationToken ct = default);
     }
 }

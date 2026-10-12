@@ -30,6 +30,7 @@ namespace iTender.Compliance.Infrastructure.Mappers
                 TenderUrl = dto.TenderUrl ?? string.Empty,
                 Province = dto.Province,
                 TenderSyncId = syncId,
+                ProcurementCategory = dto.Category,
                 IsConstruction = true, // filtered later by the sync pipeline
                 CreatedOn = DateTime.UtcNow,
                 NormalizedTitle = TenderTitleNormalizer.Normalize(dto.Title),

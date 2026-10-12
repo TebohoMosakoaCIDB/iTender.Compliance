@@ -9,11 +9,13 @@ using iTender.Compliance.Infrastructure.Data;
 using iTender.Compliance.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace iTender.Compliance.Infrastructure.Services;
 
 public class UserService : IUserService
 {
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAgentRepository _agentRepository;
@@ -25,13 +27,15 @@ public class UserService : IUserService
         IAgentRepository agentRepository,
         IUnitOfWork unitOfWork,
         IAuditService auditService,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        IServiceScopeFactory scopeFactory)
     {
         _userManager = userManager;
         _agentRepository = agentRepository;
         _unitOfWork = unitOfWork;
         _auditService = auditService;
         _currentUser = currentUser;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<ServiceResult> RegisterAsync(
@@ -397,6 +401,15 @@ public class UserService : IUserService
             cancellationToken);
 
         return ServiceResult.Success();
+    }
+
+    public async Task<bool> IsInRoleAsync(Guid userId, string role, CancellationToken ct = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        return user is not null && await userManager.IsInRoleAsync(user, role);
     }
 
     public async Task<List<Guid>> GetUserIdsInRoleAsync(

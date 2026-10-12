@@ -1,7 +1,8 @@
 ﻿@implements IDisposable
-
+@using iTender.Compliance.Application.Interfaces.Services
 @using iTender.Compliance.Application.Interfaces.Repositories
 @inject ITenderRepository TenderRepository
+@inject IOfficerScopeService OfficerScope
 
 @inject NavigationManager NavigationManager
 
@@ -70,14 +71,14 @@
                 </AuthorizeView>
 
                 <!-- Compliance Cases -->
-                <AuthorizeView Policy="CaseManagement">
+                @* <AuthorizeView Policy="CaseManagement">
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="cases">
                             <span class="bi bi-patch-check-fill-nav-menu"></span>
                             All Cases
                         </NavLink>
                     </div>
-                </AuthorizeView>
+                </AuthorizeView> *@
 
                 <!-- Work Baskets -->
                 <AuthorizeView Policy="CaseManagement">
@@ -142,11 +143,9 @@
                         </button>
                     </form>
                 </div>
-
             </Authorized>
 
             <NotAuthorized>
-
                 <div class="nav-item px-3">
                     <NavLink class="nav-link"
                              href="Account/Login">
@@ -154,9 +153,7 @@
                         Login
                     </NavLink>
                 </div>
-
             </NotAuthorized>
-
         </AuthorizeView>
     </nav>
 
@@ -169,30 +166,42 @@
 
     protected override async Task OnInitializedAsync()
     {
-        currentUrl =
-            NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
 
-        UnreviewedTenderCount =
-            await TenderRepository.CountAwaitingClassificationReviewAsync();
+        var scope = await OfficerScope.GetCurrentOfficerScopeAsync();
+        UnreviewedTenderCount = await TenderRepository
+            .CountAwaitingClassificationReviewAsync(scope);
 
         NavigationManager.LocationChanged += OnLocationChanged;
     }
 
-    private async void OnLocationChanged(
-        object? sender,
-        LocationChangedEventArgs e)
+    private readonly SemaphoreSlim _countLock = new(1, 1);
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        currentUrl =
-            NavigationManager.ToBaseRelativePath(e.Location);
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+
+        // Wait for any previous count to finish. Skip if we can't get the lock immediately,
+        // to avoid piling up handlers.
+        if (!await _countLock.WaitAsync(0))
+        {
+            StateHasChanged();
+            return;
+        }
 
         try
         {
-            UnreviewedTenderCount =
-                await TenderRepository.CountAwaitingClassificationReviewAsync();
+            var scope = await OfficerScope.GetCurrentOfficerScopeAsync();
+            UnreviewedTenderCount = await TenderRepository
+                .CountAwaitingClassificationReviewAsync(scope);
         }
         catch
         {
-            // Don't let a nav-count failure crash the layout.
+            // Never let a nav-count failure crash the layout.
+        }
+        finally
+        {
+            _countLock.Release();
         }
 
         StateHasChanged();
@@ -201,5 +210,6 @@
     public void Dispose()
     {
         NavigationManager.LocationChanged -= OnLocationChanged;
+        _countLock.Dispose();
     }
 }

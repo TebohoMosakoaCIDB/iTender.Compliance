@@ -10,6 +10,8 @@
 @inject IClientGroupRepository GroupRepository
 @inject IClientGroupService GroupService
 @inject ISystemSettingService SystemSettingService
+@inject ICurrentUserService CurrentUserService
+@inject IOfficerScopeService OfficerScope
 @inject NavigationManager Navigation
 
 @attribute [Authorize(Policy = "CaseManagement")]
@@ -182,11 +184,11 @@ else
 @code {
     private ClientGroupSearchModel Search = new() { PageNumber = 1, PageSize = 20 };
     private PagedResult<ClientGroupListItemModel>? Result;
-
     protected override async Task OnInitializedAsync()
     {
         var settings = await SystemSettingService.GetAsync();
         Search.PageSize = settings.DefaultPageSize;
+        Search.AgentId = await OfficerScope.GetCurrentOfficerScopeAsync();
 
         await LoadGroups();
     }

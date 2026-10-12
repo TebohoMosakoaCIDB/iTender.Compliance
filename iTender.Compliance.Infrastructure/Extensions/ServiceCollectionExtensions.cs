@@ -163,6 +163,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<ITenderClassificationService, TenderClassificationService>();
             services.AddScoped<IClientGroupService, ClientGroupService>();
             services.AddScoped<IWorkBasketService, WorkBasketService>();
+            services.AddScoped<IOfficerScopeService, OfficerScopeService>();
 
             services.AddScoped<IProfileService, ProfileService>();
             services.AddHttpClient("TenderFlow", client =>

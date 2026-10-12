@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 
 @using Microsoft.AspNetCore.Authorization
+@inject IOfficerScopeService OfficerScope
 @using iTender.Compliance.Application.DTOs
 @using iTender.Compliance.Application.Interfaces.Services
 @inject ISystemSettingService SystemSettingService
@@ -621,6 +622,8 @@
         Settings = await SystemSettingService.GetAsync();
 
         Search.PageSize = Settings.DefaultPageSize;
+        Search.AgentId = await OfficerScope.GetCurrentOfficerScopeAsync();
+
 
         PageSizes =
         [
