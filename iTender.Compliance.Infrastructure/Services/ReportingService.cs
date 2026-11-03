@@ -35,6 +35,24 @@ namespace iTender.Compliance.Infrastructure.Services
         // COMPLIANCE ANALYSIS
         // ---------------------------------------------------------------------
 
+        public Task<IReadOnlyList<ClientGroupedReportRow>> GetClientGroupedReportAsync(
+    Guid? agentId,
+    CancellationToken ct = default)
+    => _complianceCaseRepository.GetClientGroupedReportAsync(agentId, ct);
+
+        public async Task<IReadOnlyList<NonCompliantCaseReportRow>> GetNonCompliantCasesReportAsync(
+            NonCompliantCaseReportFilter filter,
+            CancellationToken ct = default)
+        {
+            var settings = await _settingRepository.GetAsync(ct);
+
+            return await _complianceCaseRepository.GetNonCompliantCasesReportAsync(
+                filter,
+                settings?.AgsaReferralDeadlineDays,
+                settings?.SlaWarningDays,
+                ct);
+        }
+
         public async Task<ComplianceAnalysisModel> GetComplianceAnalysisAsync(
             DateTime from,
             DateTime to,

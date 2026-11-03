@@ -53,7 +53,17 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             CancellationToken cancellationToken = default);
 
         Task<IReadOnlyList<ComplianceCase>> GetContraventionNoticeDueAsync(
-    int withinWorkingDays,
-    CancellationToken cancellationToken = default);
+            int withinWorkingDays,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<ClientGroupedReportRow>> GetClientGroupedReportAsync(
+            Guid? agentId,
+            CancellationToken ct = default);
+
+        Task<IReadOnlyList<NonCompliantCaseReportRow>> GetNonCompliantCasesReportAsync(
+            NonCompliantCaseReportFilter filter,
+            int? slaDays = null,
+            int? slaWarningDays = null,
+            CancellationToken ct = default);
     }
 }

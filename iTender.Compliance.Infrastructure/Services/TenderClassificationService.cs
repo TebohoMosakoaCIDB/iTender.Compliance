@@ -1,4 +1,5 @@
-﻿using iTender.Compliance.Application.Interfaces.Repositories;
+﻿
+using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Enums;
 using Microsoft.EntityFrameworkCore.Internal;

@@ -9,6 +9,12 @@
 @inject IReportingService ReportingService
 @inject IReportPdfService ReportPdfService
 @inject IReportService ReportService
+@inject IClientGroupedReportPdfService ClientGroupedPdfService
+@inject IClientGroupedReportExcelService ClientGroupedExcelService
+@inject INonCompliantCasesPdfService NonCompliantPdfService
+@inject INonCompliantCasesExcelService NonCompliantExcelService
+@inject IOfficerScopeService OfficerScope
+
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
@@ -149,7 +155,31 @@
 
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="card h-100 report-type-card @(_selectedReportType == "ClientGrouped" ? "border-cidb" : "")"
+                 @onclick="SelectClientGroupedReport">
 
+                <div class="card-body text-center">
+                    <i class="bi bi-people-fill report-icon"></i>
+                    <h6 class="mt-2 mb-1">Client Grouped</h6>
+                    <small class="text-muted">One row per employer</small>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card h-100 report-type-card @(_selectedReportType == "NonCompliantCases" ? "border-cidb" : "")"
+                 @onclick="SelectNonCompliantCasesReport">
+
+                <div class="card-body text-center">
+                    <i class="bi bi-exclamation-triangle-fill report-icon"></i>
+                    <h6 class="mt-2 mb-1">Non-Compliant Cases</h6>
+                    <small class="text-muted">Open findings, SLA status</small>
+                </div>
+
+            </div>
+        </div>
     </div>
 
 
@@ -916,6 +946,225 @@
             </div>
         }
 
+                @if (_selectedReportType == "ClientGrouped" && _clientGroupedRows is not null)
+        {
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-people-fill me-2"></i>
+                        Client Grouped — @_clientGroupedRows.Count employer(s)
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="DownloadClientGroupedPdf"
+                                disabled="@_isGenerating">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> PDF
+                        </button>
+                        <button class="btn btn-sm btn-cidb-submit-outline"
+                                @onclick="DownloadClientGroupedExcel"
+                                disabled="@_isGenerating">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Excel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    @if (_clientGroupedRows.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Employer</th>
+                                        <th class="text-end">Tenders</th>
+                                        <th class="text-end">Compliant</th>
+                                        <th class="text-end">Non-Compliant</th>
+                                        <th class="text-end">Open</th>
+                                        <th class="text-end">Letters</th>
+                                        <th>Last Correspondence</th>
+                                        <th>Group Status</th>
+                                        <th>Officer</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in _clientGroupedRows)
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold">@r.EmployerName</td>
+                                            <td class="text-end">@r.TotalTenders</td>
+                                            <td class="text-end">@r.CompliantTenders</td>
+                                            <td class="text-end">
+                                                @if (r.NonCompliantTenders > 0)
+                                                {
+                                                    <span class="badge bg-danger">@r.NonCompliantTenders</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">0</span>
+                                                }
+                                            </td>
+                                            <td class="text-end">@r.OpenTenders</td>
+                                            <td class="text-end">@r.LettersIssued</td>
+                                            <td>@(r.LastCorrespondenceDate?.ToString("dd MMM yyyy") ?? "-")</td>
+                                            <td>
+                                                @if (r.GroupStatus.HasValue)
+                                                {
+                                                    <span class="badge bg-secondary">@r.GroupStatus.Value</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>@(r.AgentName ?? "-")</td>
+                                            <td>
+                                                @if (r.GroupId.HasValue)
+                                                {
+                                                    <button class="btn btn-sm btn-cidb-submit"
+                                                            @onclick='() => Navigation.NavigateTo($"/clients/groups/{r.GroupId}")'>
+                                                        <i class="bi bi-folder2-open me-1"></i> Open
+                                                    </button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-info-circle display-5"></i>
+                            <p class="mt-2 mb-0">No client groups in scope.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (_selectedReportType == "NonCompliantCases" && _nonCompliantCaseRows is not null)
+        {
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>
+                        Non-Compliant Cases — @_nonCompliantCaseRows.Count case(s)
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-cidb-submit"
+                                @onclick="DownloadNonCompliantCasesPdf"
+                                disabled="@_isGenerating">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> PDF
+                        </button>
+                        <button class="btn btn-sm btn-cidb-submit-outline"
+                                @onclick="DownloadNonCompliantCasesExcel"
+                                disabled="@_isGenerating">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Excel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    @if (_nonCompliantCaseRows.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Tender</th>
+                                        <th>Employer</th>
+                                        <th>Officer</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Findings</th>
+                                        <th class="text-end">Days Open</th>
+                                        <th>SLA</th>
+                                        <th>Last Letter</th>
+                                        <th>Response Due</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in _nonCompliantCaseRows)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">@r.TenderNumber</div>
+                                                <small class="text-muted">@r.TenderTitle</small>
+                                            </td>
+                                            <td>@r.EmployerName</td>
+                                            <td>@(r.AgentName ?? "-")</td>
+                                            <td><span class="badge bg-secondary">@r.Status</span></td>
+                                            <td class="text-end">
+                                                <span class="badge bg-danger">@r.FindingsCount</span>
+                                                <div><small class="text-muted">@r.FindingStreams</small></div>
+                                            </td>
+                                            <td class="text-end">@r.DaysOpen</td>
+                                            <td>
+                                                @if (r.IsPastSla)
+                                                {
+                                                    <span class="badge bg-danger">Breached</span>
+                                                }
+                                                else if (r.IsSlaWarning)
+                                                {
+                                                    <span class="badge bg-warning text-dark">Warning</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success">On Track</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (!string.IsNullOrWhiteSpace(r.LastLetterType))
+                                                {
+                                                    <div>@r.LastLetterType</div>
+                                                    <small class="text-muted">@r.LastLetterSentOn?.ToString("dd MMM yyyy")</small>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (r.ResponseDueOn.HasValue)
+                                                {
+                                                    <div>@r.ResponseDueOn.Value.ToString("dd MMM yyyy")</div>
+                                                    @if (r.DaysUntilDue < 0)
+                                                    {
+                                                        <small class="text-danger">@Math.Abs(r.DaysUntilDue!.Value) d overdue</small>
+                                                    }
+                                                    else
+                                                    {
+                                                        <small class="text-muted">@r.DaysUntilDue d</small>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-cidb-submit"
+                                                        @onclick="@(() => Navigation.NavigateTo($"/cases/{r.CaseId}"))">
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-check-circle display-5 text-success"></i>
+                            <p class="mt-2 mb-0">No non-compliant cases in scope.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         <!-- ========================= -->
         <!-- REPORT PERIOD -->
         <!-- ========================= -->
@@ -977,6 +1226,8 @@
     private List<LateRopRegistrationModel> _lateRopRegistrations = new();
 
     private MonthlyReportModel? _monthlyReport;
+    private List<ClientGroupedReportRow>? _clientGroupedRows;
+    private List<NonCompliantCaseReportRow>? _nonCompliantCaseRows;
 
     private async Task SelectMonthlyReport2()
     {
@@ -991,6 +1242,92 @@
 
         // Also refresh the standard summary blocks so the top of the page is consistent.
         await RefreshReport();
+    }
+
+    private async Task SelectClientGroupedReport()
+    {
+        _selectedReportType = "ClientGrouped";
+
+        var scope = await OfficerScope.GetCurrentOfficerScopeAsync();
+        _clientGroupedRows = (await ReportingService
+            .GetClientGroupedReportAsync(scope)).ToList();
+
+        // Clear other report data so stale blocks don't render.
+        _nonCompliantCaseRows = null;
+        _monthlyReport = null;
+    }
+
+    private async Task SelectNonCompliantCasesReport()
+    {
+        _selectedReportType = "NonCompliantCases";
+
+        var scope = await OfficerScope.GetCurrentOfficerScopeAsync();
+
+        var filter = new NonCompliantCaseReportFilter { AgentId = scope };
+
+        _nonCompliantCaseRows = (await ReportingService
+            .GetNonCompliantCasesReportAsync(filter)).ToList();
+
+        _clientGroupedRows = null;
+        _monthlyReport = null;
+    }
+
+    private async Task DownloadClientGroupedPdf()
+    {
+        _isGenerating = true;
+        try
+        {
+            var scope = await OfficerScope.GetCurrentOfficerScopeAsync();
+            var bytes = await ClientGroupedPdfService.GenerateAsync(scope);
+            await DownloadAsync(
+                $"CRCIP_ClientGrouped_{DateTime.UtcNow:yyyyMMdd_HHmm}.pdf",
+                bytes);
+        }
+        finally { _isGenerating = false; }
+    }
+
+    private async Task DownloadClientGroupedExcel()
+    {
+        _isGenerating = true;
+        try
+        {
+            var scope = await OfficerScope.GetCurrentOfficerScopeAsync();
+            var bytes = await ClientGroupedExcelService.GenerateAsync(scope);
+            await DownloadAsync(
+                $"CRCIP_ClientGrouped_{DateTime.UtcNow:yyyyMMdd_HHmm}.xlsx",
+                bytes);
+        }
+        finally { _isGenerating = false; }
+    }
+
+    private async Task DownloadNonCompliantCasesPdf()
+    {
+        _isGenerating = true;
+        try
+        {
+            var scope = await OfficerScope.GetCurrentOfficerScopeAsync();
+            var filter = new NonCompliantCaseReportFilter { AgentId = scope };
+            var bytes = await NonCompliantPdfService.GenerateAsync(filter);
+            await DownloadAsync(
+                $"CRCIP_NonCompliantCases_{DateTime.UtcNow:yyyyMMdd_HHmm}.pdf",
+                bytes);
+        }
+        finally { _isGenerating = false; }
+    }
+
+    private async Task DownloadNonCompliantCasesExcel()
+    {
+        _isGenerating = true;
+        try
+        {
+            var scope = await OfficerScope.GetCurrentOfficerScopeAsync();
+            var filter = new NonCompliantCaseReportFilter { AgentId = scope };
+            var bytes = await NonCompliantExcelService.GenerateAsync(filter);
+            await DownloadAsync(
+                $"CRCIP_NonCompliantCases_{DateTime.UtcNow:yyyyMMdd_HHmm}.xlsx",
+                bytes);
+        }
+        finally { _isGenerating = false; }
     }
 
     private async Task GenerateMonthlyPdf()

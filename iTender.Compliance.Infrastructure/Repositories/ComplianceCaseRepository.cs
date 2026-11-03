@@ -529,5 +529,242 @@ namespace iTender.Compliance.Infrastructure.Repositories
                     .Max(l => l.ResponseDueOn))
                 .ToListAsync(cancellationToken);
         }
+
+        public async Task<IReadOnlyList<ClientGroupedReportRow>> GetClientGroupedReportAsync(
+    Guid? agentId,
+    CancellationToken ct = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            // Start from tenders that are construction-related, group by employer.
+            var query = context.Tenders
+                .AsNoTracking()
+                .Where(t => t.IsConstruction);
+
+            if (agentId.HasValue)
+            {
+                // Only include tenders whose case is assigned to this officer.
+                query = query.Where(t =>
+                    t.ComplianceCase != null &&
+                    t.ComplianceCase.AgentId == agentId.Value);
+            }
+
+            // Load the shape we need, then group in memory. EF Core's GroupBy with
+            // complex projections over navigations is fragile on SQL Server; doing
+            // the aggregation client-side is safer and fast enough for a few
+            // thousand tenders.
+            var rows = await query
+                .Select(t => new
+                {
+                    t.Id,
+                    t.EmployerName,
+                    t.NormalizedEmployerName,
+                    t.IsRegisteredOnRoP,
+                    CaseStatus = t.ComplianceCase != null
+                        ? (CaseStatus?)t.ComplianceCase.Status
+                        : null,
+                    CaseOutcome = t.ComplianceCase != null
+                        ? (ComplianceOutcome?)t.ComplianceCase.Outcome
+                        : null,
+                    CaseAgentId = t.ComplianceCase != null
+                        ? t.ComplianceCase.AgentId
+                        : null,
+                    AgentName = t.ComplianceCase != null && t.ComplianceCase.Agent != null
+                        ? t.ComplianceCase.Agent.FullName
+                        : null,
+                    Letters = t.ComplianceCase != null
+                        ? t.ComplianceCase.CaseLetters
+                            .Select(l => new { l.Type, l.SentOn })
+                            .ToList()
+                        : null
+                })
+                .ToListAsync(ct);
+
+            // Fetch the group for each employer (for group status + owner).
+            var employers = rows
+                .Where(r => !string.IsNullOrWhiteSpace(r.NormalizedEmployerName))
+                .Select(r => r.NormalizedEmployerName)
+                .Distinct()
+                .ToList();
+
+            var groups = await context.ClientGroups
+                .AsNoTracking()
+                .Where(g => employers.Contains(g.NormalizedEmployerName))
+                .Select(g => new
+                {
+                    g.Id,
+                    g.NormalizedEmployerName,
+                    g.Status,
+                    g.AgentId
+                })
+                .ToListAsync(ct);
+
+            var groupsByEmployer = groups
+                .GroupBy(g => g.NormalizedEmployerName)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Id).First());
+
+            var result = rows
+                .GroupBy(r => r.NormalizedEmployerName)
+                .Select(grp =>
+                {
+                    var first = grp.First();
+                    groupsByEmployer.TryGetValue(grp.Key, out var group);
+
+                    var cases = grp.Where(x => x.CaseStatus.HasValue).ToList();
+
+                    var allLetters = grp
+                        .Where(x => x.Letters != null)
+                        .SelectMany(x => x.Letters!)
+                        .ToList();
+
+                    var lastLetter = allLetters
+                        .OrderByDescending(l => l.SentOn)
+                        .FirstOrDefault();
+
+                    return new ClientGroupedReportRow
+                    {
+                        GroupId = group?.Id,
+                        EmployerName = first.EmployerName,
+
+                        TotalTenders = grp.Count(),
+                        CompliantTenders = grp.Count(x => x.CaseOutcome == ComplianceOutcome.Compliant),
+                        NonCompliantTenders = grp.Count(x => x.CaseOutcome == ComplianceOutcome.NonCompliant),
+                        OpenTenders = grp.Count(x => !x.CaseStatus.HasValue || x.CaseStatus != CaseStatus.Closed),
+
+                        CasesCleared = cases.Count(x => x.CaseStatus == CaseStatus.Cleared),
+                        CasesClosed = cases.Count(x => x.CaseStatus == CaseStatus.Closed),
+                        CasesNewlyIdentified = cases.Count(x => x.CaseStatus == CaseStatus.NewlyIdentified),
+                        CasesVerificationRequired = cases.Count(x => x.CaseStatus == CaseStatus.VerificationRequired),
+                        CasesNotAdvertised = cases.Count(x => x.CaseStatus == CaseStatus.NotAdvertised),
+
+                        CasesContraventionNoticeIssued = cases.Count(x => x.CaseStatus == CaseStatus.ContraventionNoticeIssued),
+                        CasesWaitingForResponse = cases.Count(x => x.CaseStatus == CaseStatus.WaitingForResponse),
+                        CasesReferredForEnforcement = cases.Count(x => x.CaseStatus == CaseStatus.ReferredForEnforcement),
+
+                        LettersIssued = allLetters.Count,
+                        LastCorrespondenceDate = lastLetter?.SentOn,
+
+                        GroupStatus = group?.Status,
+                        AgentId = group?.AgentId ?? grp.Select(x => x.CaseAgentId).FirstOrDefault(x => x.HasValue),
+                        AgentName = grp.Select(x => x.AgentName).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))
+                    };
+                })
+                .OrderByDescending(r => r.NonCompliantTenders)
+                .ThenBy(r => r.EmployerName)
+                .ToList();
+
+            return result;
+        }
+
+        public async Task<IReadOnlyList<NonCompliantCaseReportRow>> GetNonCompliantCasesReportAsync(
+    NonCompliantCaseReportFilter filter,
+    int? slaDays = null,
+    int? slaWarningDays = null,
+    CancellationToken ct = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            var now = DateTime.UtcNow;
+            var sla = slaDays ?? 30;
+            var warning = slaWarningDays ?? 5;
+
+            var query = context.ComplianceCases
+                .AsNoTracking()
+                .Include(c => c.Tender)
+                .Include(c => c.Agent)
+                .Include(c => c.ComplianceFindings)
+                .Include(c => c.CaseLetters)
+                .AsQueryable();
+
+            query = query.Where(c =>
+                c.Status != CaseStatus.Closed &&
+                c.Status != CaseStatus.Cleared &&
+                c.ComplianceFindings.Any(f => !f.IsResolved));
+
+            if (filter.AgentId.HasValue)
+                query = query.Where(c => c.AgentId == filter.AgentId.Value);
+
+            if (!string.IsNullOrWhiteSpace(filter.EmployerName))
+                query = query.Where(c =>
+                    c.Tender.EmployerName.Contains(filter.EmployerName));
+
+            if (!string.IsNullOrWhiteSpace(filter.Province))
+                query = query.Where(c => c.Tender.Province == filter.Province);
+
+            if (filter.Status.HasValue)
+                query = query.Where(c => c.Status == filter.Status.Value);
+
+            if (filter.FromDate.HasValue)
+                query = query.Where(c => c.CreatedOn >= filter.FromDate.Value);
+
+            if (filter.ToDate.HasValue)
+                query = query.Where(c => c.CreatedOn <= filter.ToDate.Value);
+
+            var cases = await query
+                .OrderByDescending(c => c.CreatedOn)
+                .ToListAsync(ct);
+
+            var rows = cases.Select(c =>
+            {
+                var openFindings = c.ComplianceFindings
+                    .Where(f => !f.IsResolved)
+                    .ToList();
+
+                var lastLetter = c.CaseLetters
+                    .OrderByDescending(l => l.SentOn)
+                    .FirstOrDefault();
+
+                var startedOn = c.AssignedOn ?? c.CreatedOn;
+                var daysOpen = (now - startedOn).Days;
+
+                // Correctly handle the non-nullable ResponseDueOn on the entity.
+                DateTime? responseDue = lastLetter != null
+                    ? lastLetter.ResponseDueOn
+                    : (DateTime?)null;
+
+                int? daysUntilDue = responseDue.HasValue
+                    ? (int)(responseDue.Value - now).TotalDays
+                    : (int?)null;
+
+                DateTime? lastLetterSentOn = lastLetter != null
+                    ? lastLetter.SentOn
+                    : (DateTime?)null;
+
+                return new NonCompliantCaseReportRow
+                {
+                    CaseId = c.Id,
+                    TenderNumber = c.Tender.TenderNumber,
+                    TenderTitle = c.Tender.Title,
+                    EmployerName = c.Tender.EmployerName,
+                    Province = c.Tender.Province,
+
+                    AgentId = c.AgentId,
+                    AgentName = c.Agent?.FullName,
+
+                    Status = c.Status,
+                    Priority = c.Priority,
+
+                    FindingsCount = openFindings.Count,
+                    FindingStreams = string.Join(", ",
+                        openFindings.Select(f => f.Stream.ToString()).Distinct()),
+
+                    CreatedOn = c.CreatedOn,
+                    AssignedOn = c.AssignedOn,
+                    DaysOpen = daysOpen,
+
+                    IsPastSla = daysOpen > sla,
+                    IsSlaWarning = daysOpen > sla - warning && daysOpen <= sla,
+
+                    LastLetterType = lastLetter?.Type.ToString(),
+                    LastLetterSentOn = lastLetterSentOn,
+                    ResponseDueOn = responseDue,
+                    DaysUntilDue = daysUntilDue
+                };
+            })
+            .OrderByDescending(r => r.DaysOpen)
+            .ToList();
+
+            return rows;
+        }
     }
 }

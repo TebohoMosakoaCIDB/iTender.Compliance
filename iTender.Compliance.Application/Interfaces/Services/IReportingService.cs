@@ -5,6 +5,14 @@ namespace iTender.Compliance.Application.Interfaces.Services
 {
     public interface IReportingService
     {
+        Task<IReadOnlyList<ClientGroupedReportRow>> GetClientGroupedReportAsync(
+    Guid? agentId,
+    CancellationToken ct = default);
+
+        Task<IReadOnlyList<NonCompliantCaseReportRow>> GetNonCompliantCasesReportAsync(
+            NonCompliantCaseReportFilter filter,
+            CancellationToken ct = default);
+
         Task<ComplianceAnalysisModel> GetComplianceAnalysisAsync(
             DateTime from,
             DateTime to,

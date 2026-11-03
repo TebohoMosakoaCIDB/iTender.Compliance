@@ -2,68 +2,49 @@
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Entities;
 using iTender.Compliance.Domain.Enums;
+using iTender.Compliance.Infrastructure.Data;
+using iTender.Compliance.Infrastructure.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
-    public class DuplicateDetectionService : IDuplicateDetectionService
+    public class DuplicateDetectionService : RepositoryBase, IDuplicateDetectionService
     {
         private readonly ITenderRepository _tenderRepository;
 
-        public DuplicateDetectionService(ITenderRepository tenderRepository)
+        public DuplicateDetectionService(
+            IDbContextFactory<ComplianceDbContext> contextFactory,
+            ITenderRepository tenderRepository)
+            : base(contextFactory)
         {
             _tenderRepository = tenderRepository;
         }
 
         public async Task<IReadOnlyList<DuplicateCandidate>> FindPotentialDuplicatesAsync(
-            Tender tender,
-            CancellationToken cancellationToken = default)
+            Tender tender, CancellationToken ct = default)
         {
-            var candidates = new List<DuplicateCandidate>();
-
-            // Rule 1 - Normalized title
-            if (!string.IsNullOrWhiteSpace(tender.NormalizedTitle))
+            if (string.IsNullOrWhiteSpace(tender.NormalizedTitle)
+                || string.IsNullOrWhiteSpace(tender.NormalizedEmployerName))
             {
-                var titleMatches = await _tenderRepository
-                    .GetByNormalizedTitleAsync(tender.NormalizedTitle, tender.Id, cancellationToken);
-
-                foreach (var match in titleMatches)
-                {
-                    candidates.Add(new DuplicateCandidate
-                    {
-                        Id = Guid.NewGuid(),
-                        TenderId = match.Id,
-                        MatchType = DuplicateMatchType.NormalizedTitle,
-                        ConfidenceScore = 0.85,
-                        MatchedOn = tender.NormalizedTitle
-                    });
-                }
+                return Array.Empty<DuplicateCandidate>();
             }
 
-            // Rule 2 - Same employer + same closing date
-            if (!string.IsNullOrWhiteSpace(tender.EmployerName))
-            {
-                var employerMatches = await _tenderRepository
-                    .GetByEmployerAndClosingDateAsync(
-                        tender.EmployerName,
-                        tender.ClosingDate,
-                        tender.Id,
-                        cancellationToken);
+            await using var context = await CreateContextAsync();
 
-                foreach (var match in employerMatches)
+            var candidates = await context.Tenders
+                .AsNoTracking()
+                .Where(t => t.Id != tender.Id)
+                .Where(t => t.NormalizedTitle == tender.NormalizedTitle)
+                .Where(t => t.NormalizedEmployerName == tender.NormalizedEmployerName)
+                .Select(t => new DuplicateCandidate
                 {
-                    if (candidates.Any(c => c.TenderId == match.Id))
-                        continue;
-
-                    candidates.Add(new DuplicateCandidate
-                    {
-                        Id = Guid.NewGuid(),
-                        TenderId = match.Id,
-                        MatchType = DuplicateMatchType.EmployerAndClosingDate,
-                        ConfidenceScore = 0.70,
-                        MatchedOn = $"{tender.EmployerName}|{tender.ClosingDate:yyyy-MM-dd}"
-                    });
-                }
-            }
+                    Id = Guid.NewGuid(),
+                    TenderId = t.Id,
+                    MatchType = DuplicateMatchType.NormalizedTitle,
+                    ConfidenceScore = 0.95,
+                    MatchedOn = "NormalizedEmployerName+NormalizedTitle"
+                })
+                .ToListAsync(ct);
 
             return candidates;
         }

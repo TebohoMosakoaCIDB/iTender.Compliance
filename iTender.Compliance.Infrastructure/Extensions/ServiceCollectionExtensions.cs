@@ -165,6 +165,11 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IWorkBasketService, WorkBasketService>();
             services.AddScoped<IOfficerScopeService, OfficerScopeService>();
 
+            services.AddScoped<IClientGroupedReportPdfService, ClientGroupedReportPdfService>();
+            services.AddScoped<IClientGroupedReportExcelService, ClientGroupedReportExcelService>();
+            services.AddScoped<INonCompliantCasesPdfService, NonCompliantCasesPdfService>();
+            services.AddScoped<INonCompliantCasesExcelService, NonCompliantCasesExcelService>();
+
             services.AddScoped<IProfileService, ProfileService>();
             services.AddHttpClient("TenderFlow", client =>
             {

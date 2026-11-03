@@ -1245,6 +1245,9 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Property<DateTime?>("ClassificationReviewedOn")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("ClassificationStatus")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("ClosingDate")
                         .HasColumnType("datetime2");
 
