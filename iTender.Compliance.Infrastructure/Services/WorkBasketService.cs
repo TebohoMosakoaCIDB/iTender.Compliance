@@ -22,6 +22,7 @@ namespace iTender.Compliance.Infrastructure.Services
             return _caseRepository.GetInBasketAsync(basket, agentId, cancellationToken);
         }
 
+
         public async Task<Dictionary<WorkBasket, int>> GetCountsAsync(
             Guid? agentId = null,
             CancellationToken cancellationToken = default)
@@ -30,13 +31,18 @@ namespace iTender.Compliance.Infrastructure.Services
 
             foreach (var basket in Enum.GetValues<WorkBasket>())
             {
-                var cases = await _caseRepository
-                    .GetInBasketAsync(basket, agentId, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var cases = await _caseRepository.GetInBasketAsync(
+                    basket,
+                    agentId,
+                    cancellationToken);
 
                 counts[basket] = cases.Count;
             }
 
             return counts;
         }
+
     }
 }

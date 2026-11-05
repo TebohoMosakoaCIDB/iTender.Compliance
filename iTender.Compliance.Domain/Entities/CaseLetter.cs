@@ -48,5 +48,8 @@ namespace iTender.Compliance.Domain.Entities
         public virtual ComplianceCase ComplianceCase { get; set; } = null!;
 
         public virtual SigningRequest? SigningRequest { get; set; }
+
+        public virtual ICollection<ClientResponse> ClientResponses { get; set; }
+    = new List<ClientResponse>();
     }
 }

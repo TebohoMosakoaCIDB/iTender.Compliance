@@ -50,6 +50,9 @@ namespace iTender.Compliance.Domain.Entities
         public virtual ICollection<ClientGroupCase> ClientGroups { get; set; }
             = new List<ClientGroupCase>();
 
+        public virtual ICollection<ClientResponse> ClientResponses { get; set; }
+    = new List<ClientResponse>();
+
         #endregion
     }
 }

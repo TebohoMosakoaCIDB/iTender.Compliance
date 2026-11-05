@@ -58,6 +58,11 @@ namespace iTender.Compliance.Infrastructure.Data
 
         public DbSet<ClientGroupCase> ClientGroupCases => Set<ClientGroupCase>();
 
+        public DbSet<ClientResponse> ClientResponses => Set<ClientResponse>();
+
+        public DbSet<ClientResponseDocument> ClientResponseDocuments
+            => Set<ClientResponseDocument>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

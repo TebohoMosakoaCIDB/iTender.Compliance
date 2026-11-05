@@ -117,6 +117,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IReportRepository, ReportRepository>();
             services.AddScoped<IDuplicateGroupRepository, DuplicateGroupRepository>();
             services.AddScoped<IClientGroupRepository, ClientGroupRepository>();
+            services.AddScoped<IClientResponseRepository, ClientResponseRepository>();
 
             //Services
             services.AddScoped<IDuplicateDetectionService, DuplicateDetectionService>();
@@ -164,6 +165,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<IClientGroupService, ClientGroupService>();
             services.AddScoped<IWorkBasketService, WorkBasketService>();
             services.AddScoped<IOfficerScopeService, OfficerScopeService>();
+            services.AddScoped<IClientResponseService, ClientResponseService>();
 
             services.AddScoped<IClientGroupedReportPdfService, ClientGroupedReportPdfService>();
             services.AddScoped<IClientGroupedReportExcelService, ClientGroupedReportExcelService>();

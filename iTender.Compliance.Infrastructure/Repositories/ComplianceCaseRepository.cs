@@ -122,6 +122,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
             };
         }
 
+
         public async Task<IReadOnlyList<ComplianceCase>> GetInBasketAsync(
             WorkBasket basket,
             Guid? agentId,
@@ -129,73 +130,111 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
             await using var context = await CreateContextAsync();
 
+            var now = DateTime.UtcNow;
+
             var query = context.ComplianceCases
+                .AsNoTracking()
                 .Include(c => c.Tender)
                 .Include(c => c.Agent)
                 .Include(c => c.ComplianceFindings)
                 .Include(c => c.CaseLetters)
                 .AsQueryable();
 
-            if (agentId.HasValue)
+            // Apply officer filtering to assigned work.
+            // Unassigned cases remain visible in the Newly Identified basket.
+            if (agentId.HasValue && basket != WorkBasket.NewlyIdentified)
+            {
                 query = query.Where(c => c.AgentId == agentId.Value);
+            }
 
             query = basket switch
             {
+                // 1. New cases that have not been allocated.
                 WorkBasket.NewlyIdentified =>
-                    query.Where(c => c.Status == CaseStatus.New && c.AgentId == null),
+                    query.Where(c =>
+                        c.Status == CaseStatus.New &&
+                        c.AgentId == null),
 
+                // 2. Findings requiring manual verification.
                 WorkBasket.VerificationRequired =>
                     query.Where(c =>
                         c.Status != CaseStatus.Closed &&
+                        c.Status != CaseStatus.ReferredForEnforcement &&
                         c.ComplianceFindings.Any(f =>
                             f.VerificationStatus == VerificationStatus.AutomatedFailed &&
                             !f.IsResolved)),
 
+                // 3. Advertisement findings.
                 WorkBasket.NotAdvertised =>
                     query.Where(c =>
                         c.Status != CaseStatus.Closed &&
+                        c.Status != CaseStatus.ReferredForEnforcement &&
                         c.ComplianceFindings.Any(f =>
                             f.Stream == ComplianceStream.Advertisement &&
                             !f.IsResolved)),
 
+                // 4. Cases requiring an Instructional Letter.
                 WorkBasket.DueForInstructionLetter =>
                     query.Where(c =>
-                        c.Status == CaseStatus.New &&
+                        (c.Status == CaseStatus.New ||
+                         c.Status == CaseStatus.Assigned ||
+                         c.Status == CaseStatus.InProgress) &&
                         c.ComplianceFindings.Any(f => !f.IsResolved) &&
-                        !c.CaseLetters.Any(l => l.Type == LetterType.Instruction)),
+                        !c.CaseLetters.Any(l =>
+                            l.Type == LetterType.Instruction)),
 
+                // 5. Instructional Letter response deadline has passed.
                 WorkBasket.DueForContraventionNotice =>
                     query.Where(c =>
                         c.Status == CaseStatus.WaitingForResponse &&
                         c.CaseLetters.Any(l =>
-                            (l.Type == LetterType.Instruction || l.Type == LetterType.Reminder) &&
+                            (l.Type == LetterType.Instruction ||
+                             l.Type == LetterType.Reminder) &&
                             l.RespondedOn == null &&
-                            l.ResponseDueOn <= DateTime.UtcNow)),
+                            l.ResponseDueOn <= now)),
 
+                // 6. Contravention Notice issued and corrective period
+                // is still running.
                 WorkBasket.CorrectiveAction =>
-                    query.Where(c => c.Status == CaseStatus.ContraventionNoticeIssued),
+                    query.Where(c =>
+                        c.Status == CaseStatus.ContraventionNoticeIssued &&
+                        c.CaseLetters.Any(l =>
+                            l.Type == LetterType.ContraventionNotice &&
+                            l.Accepted != true &&
+                            l.ResponseDueOn > now)),
 
+                // 7. Cases formally classified as non-compliant.
+                // This is a classification basket, not a duplicate
+                // of every case with an unresolved finding.
                 WorkBasket.NonCompliant =>
                     query.Where(c =>
                         c.Status != CaseStatus.Closed &&
                         c.Status != CaseStatus.ReferredForEnforcement &&
-                        c.ComplianceFindings.Any(f => !f.IsResolved)),
+                        c.Outcome == ComplianceOutcome.NonCompliant),
 
+                // 8. Cases already referred.
                 WorkBasket.Referral =>
-                    query.Where(c => c.Status == CaseStatus.ReferredForEnforcement),
+                    query.Where(c =>
+                        c.Status == CaseStatus.ReferredForEnforcement),
 
+                // 9. Cases that have been cleared or closed.
                 WorkBasket.ClearedResolved =>
-                    query.Where(c => c.Status == CaseStatus.Closed),
+                    query.Where(c =>
+                        c.Status == CaseStatus.Closed ||
+                        c.Status == CaseStatus.Cleared),
 
+                // 10. Contravention period has expired and the case
+                // requires referral assessment.
                 WorkBasket.ReferralPending =>
                     query.Where(c =>
                         c.Status == CaseStatus.ContraventionNoticeIssued &&
                         c.CaseLetters.Any(l =>
                             l.Type == LetterType.ContraventionNotice &&
-                            l.RespondedOn == null &&
-                            l.ResponseDueOn <= DateTime.UtcNow)),
+                            l.Accepted != true &&
+                            l.ResponseDueOn <= now) &&
+                        c.ComplianceFindings.Any(f => !f.IsResolved)),
 
-                _ => query
+                _ => query.Where(c => false)
             };
 
             return await query
@@ -203,6 +242,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .ThenBy(c => c.CreatedOn)
                 .ToListAsync(cancellationToken);
         }
+
 
         public async Task AddAsync(
             ComplianceCase complianceCase,
