@@ -17,16 +17,13 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" PrivateAssets="all" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.10" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\iTender.Compliance.Application\iTender.Compliance.Application.csproj" />
     <ProjectReference Include="..\iTender.Compliance.Domain\iTender.Compliance.Domain.csproj" />
     <ProjectReference Include="..\iTender.Compliance.Infrastructure\iTender.Compliance.Infrastructure.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Documents\" />
   </ItemGroup>
 
 </Project>

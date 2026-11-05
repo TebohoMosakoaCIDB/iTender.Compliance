@@ -375,12 +375,16 @@ namespace iTender.Compliance.Infrastructure.Repositories
         }
 
         public async Task<PagedResult<Tender>> SearchForClassificationReviewAsync(
-            TenderClassificationSearchModel search,
-            CancellationToken cancellationToken = default)
+    TenderClassificationSearchModel search,
+    CancellationToken cancellationToken = default)
         {
             await using var context = await CreateContextAsync();
 
-            var query = context.Tenders.AsQueryable();
+            // Mirror the badge: only construction tenders awaiting review,
+            // scoped to the officer's assigned cases.
+            var query = context.Tenders
+                .Where(t => t.IsConstruction)
+                .Where(t => t.ClassificationReviewedOn == null);
 
             if (!string.IsNullOrWhiteSpace(search.SearchText))
             {
@@ -390,19 +394,10 @@ namespace iTender.Compliance.Infrastructure.Repositories
                     t.EmployerName.Contains(search.SearchText));
             }
 
-            if (search.IsConstruction.HasValue)
-                query = query.Where(t => t.IsConstruction == search.IsConstruction.Value);
-
-            if (search.ReviewedOnly == true)
-                query = query.Where(t => t.ClassificationReviewedOn != null);
-            else if (search.ReviewedOnly == false)
-                query = query.Where(t => t.ClassificationReviewedOn == null);
-
             if (search.AgentId.HasValue)
             {
                 query = query.Where(t =>
-                    t.ComplianceCase == null ||
-                    t.ComplianceCase.AgentId == null ||
+                    t.ComplianceCase != null &&
                     t.ComplianceCase.AgentId == search.AgentId.Value);
             }
 

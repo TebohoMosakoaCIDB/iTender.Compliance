@@ -174,6 +174,7 @@ using (var scope = app.Services.CreateScope())
     await AgentSeeder.SeedAsync(services);
     await CorrespondenceTemplateSeeder.SeedAsync(context);
     await PublicHolidaySeeder.SeedAsync(context);
+    await SystemSettingSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 app.MapHub<NotificationHub>("/hubs/notifications");

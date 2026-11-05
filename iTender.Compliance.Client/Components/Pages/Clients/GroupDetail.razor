@@ -116,7 +116,11 @@ else
                                         @if (Model.Status == ClientGroupStatus.Draft)
                                         {
                                             <td>
-                                                <button class="btn btn-sm btn-outline-danger"
+                                                <a href="@($"/cases/{t.ComplianceCaseId}")"
+                                                   class="btn btn-sm btn-cidb-submit" target="_blank">
+                                                    View
+                                                </a>
+                                                <button class="btn btn-sm  btn-cidb-submit-outline"
                                                         @onclick="() => RemoveCase(t.ComplianceCaseId)">
                                                     Remove
                                                 </button>
@@ -242,7 +246,7 @@ else
                         @if (!string.IsNullOrWhiteSpace(Model.ConsolidatedLetterFilePath))
                         {
                             <a href="@Model.ConsolidatedLetterFilePath"
-                               target="_blank"
+                               download
                                class="btn btn-sm btn-cidb-submit-outline w-100 mb-2">
                                 <i class="bi bi-download me-1"></i>
                                 @Model.LetterType Letter
@@ -252,7 +256,7 @@ else
                         @if (!string.IsNullOrWhiteSpace(Model.AnnexureFilePath))
                         {
                             <a href="@Model.AnnexureFilePath"
-                               target="_blank"
+                               download
                                class="btn btn-sm btn-cidb-submit-outline w-100">
                                 <i class="bi bi-download me-1"></i>
                                 Annexure A

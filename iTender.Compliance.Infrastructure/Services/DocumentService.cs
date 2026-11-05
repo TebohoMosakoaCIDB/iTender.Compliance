@@ -394,6 +394,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 : $"Contravention_Notice_{Sanitize(model.EmployerName)}_{DateTime.UtcNow:yyyyMMddHHmm}.pdf";
 
             var filePath = Path.Combine(_rootFolder, fileName);
+            var webPath = $"Documents/{fileName}";
 
             var isInstruction = model.Type == LetterType.Instruction;
 
@@ -525,7 +526,7 @@ namespace iTender.Compliance.Infrastructure.Services
             return await Task.FromResult(new DocumentResult
             {
                 FileName = fileName,
-                FilePath = filePath
+                FilePath = webPath
             });
         }
 
@@ -538,6 +539,7 @@ namespace iTender.Compliance.Infrastructure.Services
         {
             var fileName = $"Annexure_A_{Sanitize(model.EmployerName)}_{DateTime.UtcNow:yyyyMMddHHmm}.pdf";
             var filePath = Path.Combine(_rootFolder, fileName);
+            var webPath = $"Documents/{fileName}";
 
             var document = Document.Create(container =>
             {
@@ -624,7 +626,7 @@ namespace iTender.Compliance.Infrastructure.Services
             return await Task.FromResult(new DocumentResult
             {
                 FileName = fileName,
-                FilePath = filePath
+                FilePath = webPath
             });
         }
 
