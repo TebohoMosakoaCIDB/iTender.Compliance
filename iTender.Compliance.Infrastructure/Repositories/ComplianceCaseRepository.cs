@@ -234,6 +234,62 @@ namespace iTender.Compliance.Infrastructure.Repositories
                             l.ResponseDueOn <= now) &&
                         c.ComplianceFindings.Any(f => !f.IsResolved)),
 
+                // 11. Client response received and awaiting officer attention.
+                WorkBasket.ResponseReceived =>
+    query.Where(c =>
+        c.Status != CaseStatus.Closed &&
+        c.Status != CaseStatus.ReferredForEnforcement &&
+        c.ClientResponses
+            .OrderByDescending(r => r.SubmittedOn)
+            .ThenByDescending(r => r.CreatedOn)
+            .Take(1)
+            .Any(r =>
+                r.Status == ClientResponseStatus.Received ||
+                r.Status == ClientResponseStatus.Resubmitted)),
+
+                WorkBasket.ResponseUnderReview =>
+                    query.Where(c =>
+                        c.Status != CaseStatus.Closed &&
+                        c.Status != CaseStatus.ReferredForEnforcement &&
+                        c.ClientResponses
+                            .OrderByDescending(r => r.SubmittedOn)
+                            .ThenByDescending(r => r.CreatedOn)
+                            .Take(1)
+                            .Any(r => r.Status == ClientResponseStatus.UnderReview)),
+
+                WorkBasket.AdditionalInformationRequested =>
+                    query.Where(c =>
+                        c.Status != CaseStatus.Closed &&
+                        c.Status != CaseStatus.ReferredForEnforcement &&
+                        c.ClientResponses
+                            .OrderByDescending(r => r.SubmittedOn)
+                            .ThenByDescending(r => r.CreatedOn)
+                            .Take(1)
+                            .Any(r => r.Status == ClientResponseStatus.AdditionalInformationRequested)),
+
+                WorkBasket.ResponseIncomplete =>
+                    query.Where(c =>
+                        c.Status != CaseStatus.Closed &&
+                        c.Status != CaseStatus.ReferredForEnforcement &&
+                        c.ClientResponses
+                            .OrderByDescending(r => r.SubmittedOn)
+                            .ThenByDescending(r => r.CreatedOn)
+                            .Take(1)
+                            .Any(r => r.Status == ClientResponseStatus.Incomplete)),
+
+                // 5. Instructional Letter issued and awaiting client response.
+                WorkBasket.AwaitingInstructionalResponse =>
+                    query.Where(c =>
+                        c.Status == CaseStatus.WaitingForResponse &&
+                        c.CaseLetters
+                            .OrderByDescending(l => l.LetterNumber)
+                            .ThenByDescending(l => l.SentOn)
+                            .Select(l => l)
+                            .Any(l =>
+                                l.Type == LetterType.Instruction &&
+                                l.RespondedOn == null &&
+                                l.ResponseDueOn > now)),
+
                 _ => query.Where(c => false)
             };
 
@@ -312,9 +368,12 @@ namespace iTender.Compliance.Infrastructure.Repositories
             await using var context = await CreateContextAsync();
 
             var query = context.ComplianceCases
-                .Include(x => x.Tender)
-                .Include(x => x.Agent)
+                .AsNoTracking()
+                .Include(c => c.Tender)
+                .Include(c => c.Agent)
                 .Include(c => c.ComplianceFindings)
+                .Include(c => c.CaseLetters)
+                .Include(c => c.ClientResponses)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search.SearchText))

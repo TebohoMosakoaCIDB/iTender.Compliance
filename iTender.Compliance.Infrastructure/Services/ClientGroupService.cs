@@ -212,7 +212,10 @@ namespace iTender.Compliance.Infrastructure.Services
                 var tender = tendersByCase[groupCase.ComplianceCaseId];
 
                 if (tender is null)
-                    continue;
+                {
+                    throw new InvalidOperationException(
+                        $"The tender associated with compliance case {groupCase.ComplianceCaseId} could not be found.");
+                }
 
                 annexureRows.Add(new AnnexureRow
                 {
@@ -257,34 +260,76 @@ namespace iTender.Compliance.Infrastructure.Services
             group.AnnexureFilePath = annexureDoc.FilePath;
 
             // ---------------------------------------------------------
-            // Create the CaseLetter that represents the consolidated letter
+            // Create a CaseLetter tracking record for EVERY case.
+            // All records reference the same consolidated document.
             // ---------------------------------------------------------
-            var letter = new CaseLetter
+
+            var issuedOn = DateTime.UtcNow;
+            var issuedLetters = new List<CaseLetter>();
+
+            var newCaseStatus = letterType == LetterType.Instruction
+                ? CaseStatus.WaitingForResponse
+                : CaseStatus.ContraventionNoticeIssued;
+
+            foreach (var complianceCase in cases)
             {
-                Id = Guid.NewGuid(),
-                ComplianceCaseId = group.Cases.First().ComplianceCaseId, // "anchor" case
-                ClientGroupId = group.Id,
-                Type = letterType,
-                LetterNumber = 1, // TODO: use ILetterNumberGenerator.GetNextNumberAsync(letterType)
-                RecipientName = group.ContactName ?? group.EmployerName,
-                RecipientEmail = group.ContactEmail!,
-                FileName = letterDoc.FileName,
-                FilePath = letterDoc.FilePath,
-                SentOn = DateTime.UtcNow,
-                ResponseDueOn = dueOn,
-                EmailSent = false,
-                CreatedOn = DateTime.UtcNow
-            };
+                var latestLetter = await _caseLetterRepository.GetLatestAsync(
+                    complianceCase.Id,
+                    cancellationToken);
 
-            await _caseLetterRepository.AddAsync(letter, cancellationToken);
+                var letter = new CaseLetter
+                {
+                    Id = Guid.NewGuid(),
+                    ComplianceCaseId = complianceCase.Id,
+                    ClientGroupId = group.Id,
+                    Type = letterType,
 
-            group.ConsolidatedLetterId = letter.Id;
+                    LetterNumber = latestLetter == null
+                        ? 1
+                        : latestLetter.LetterNumber + 1,
+
+                    RecipientName = group.ContactName ?? group.EmployerName,
+                    RecipientEmail = group.ContactEmail!,
+
+                    FileName = letterDoc.FileName,
+                    FilePath = letterDoc.FilePath,
+
+                    SentOn = issuedOn,
+                    ResponseDueOn = dueOn,
+                    EmailSent = false,
+
+                    CreatedOn = issuedOn,
+                    CreatedBy = issuedByUserId
+                };
+
+                await _caseLetterRepository.AddAsync(
+                    letter,
+                    cancellationToken);
+
+                complianceCase.Status = newCaseStatus;
+                complianceCase.ModifiedOn = issuedOn;
+                complianceCase.ModifiedBy = issuedByUserId;
+
+                await _complianceCaseRepository.UpdateAsync(
+                    complianceCase,
+                    cancellationToken);
+
+                issuedLetters.Add(letter);
+            }
+
+            // Retain the first letter as the group's consolidated letter reference.
+            var primaryLetter = issuedLetters.First();
+
+            group.ConsolidatedLetterId = primaryLetter.Id;
             group.Status = ClientGroupStatus.Issued;
-            group.IssuedOn = DateTime.UtcNow;
+            group.IssuedOn = issuedOn;
             group.ModifiedBy = issuedByUserId;
-            group.ModifiedOn = DateTime.UtcNow;
+            group.ModifiedOn = issuedOn;
 
-            await _clientGroupRepository.UpdateAsync(group, cancellationToken);
+            await _clientGroupRepository.UpdateIssuanceDetailsAsync(
+                group,
+                cancellationToken);
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // ---------------------------------------------------------
@@ -311,9 +356,15 @@ namespace iTender.Compliance.Infrastructure.Services
                         annexureDoc.FilePath
                     }
                 }, cancellationToken);
+                foreach(var issuedLetter in issuedLetters)
+{
+                    issuedLetter.EmailSent = true;
 
-                letter.EmailSent = true;
-                await _caseLetterRepository.UpdateAsync(letter, cancellationToken);
+                    await _caseLetterRepository.UpdateAsync(
+                        issuedLetter,
+                        cancellationToken);
+                }
+
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
             catch (Exception ex)
@@ -325,7 +376,7 @@ namespace iTender.Compliance.Infrastructure.Services
                 await _auditService.LogAsync(
                     AuditAction.Error,
                     AuditEntity.CaseLetter,
-                    letter.Id,
+                    primaryLetter.Id,
                     $"Failed to email consolidated letter to {group.ContactEmail}: {ex.Message}",
                     issuedByUserId,
                     cancellationToken);
@@ -334,22 +385,25 @@ namespace iTender.Compliance.Infrastructure.Services
             // ---------------------------------------------------------
             // Audit
             // ---------------------------------------------------------
-            await _auditService.LogAsync(
-                letterType == LetterType.Instruction
-                    ? AuditAction.InstructionLetterSent
-                    : AuditAction.ContraventionNoticeSent,
-                AuditEntity.CaseLetter,
-                letter.Id,
-                $"{letterType} #{letter.LetterNumber} issued for {group.EmployerName} " +
-                $"covering {annexureRows.Count} tender(s). Response due {dueOn:dd MMM yyyy}.",
-                issuedByUserId,
-                cancellationToken);
+            foreach (var issuedLetter in issuedLetters)
+            {
+                await _auditService.LogAsync(
+                    letterType == LetterType.Instruction
+                        ? AuditAction.InstructionLetterSent
+                        : AuditAction.ContraventionNoticeSent,
+                    AuditEntity.ComplianceCase,
+                    issuedLetter.ComplianceCaseId,
+                    $"{letterType} #{issuedLetter.LetterNumber} issued as part of " +
+                    $"client group {group.EmployerName}. Response due {dueOn:dd MMM yyyy}.",
+                    issuedByUserId,
+                    cancellationToken);
+            }
 
             _logger.LogInformation(
                 "Client group {GroupId} issued as {LetterType}. {TenderCount} tender(s) covered.",
                 group.Id, letterType, annexureRows.Count);
 
-            return letter.Id;
+            return primaryLetter.Id;
         }
 
         public async Task<Guid?> GetOwnerAsync(

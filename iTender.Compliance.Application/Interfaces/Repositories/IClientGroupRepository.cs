@@ -54,5 +54,9 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
         Task AddCaseLinkAsync(
             ClientGroupCase link,
             CancellationToken cancellationToken = default);
+
+        Task UpdateIssuanceDetailsAsync(
+    ClientGroup group,
+    CancellationToken cancellationToken = default);
     }
 }

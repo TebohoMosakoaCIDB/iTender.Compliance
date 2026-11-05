@@ -109,6 +109,9 @@ else
                                 <th>Employer</th>
                                 <th>Status</th>
                                 <th>Findings</th>
+                                <th>Latest Response</th>
+                                <th>Submitted On</th>
+                                <th>Review / Resubmission Due</th>
                                 <th>Agent</th>
                                 <th>Age</th>
                                 <th>Response Due</th>
@@ -124,6 +127,10 @@ else
                             {
                                 var openFindings = item.ComplianceFindings?.Count(f => !f.IsResolved) ?? 0;
                                 var age = (DateTime.UtcNow - item.CreatedOn).Days;
+
+                                var latestResponse = item.ClientResponses?
+                                    .OrderByDescending(r => r.SubmittedOn)
+                                    .FirstOrDefault();
 
                                 <tr>
                                     <td>
@@ -144,6 +151,63 @@ else
                                         else
                                         {
                                             <span class="badge bg-success">0</span>
+                                        }
+                                    </td>
+                                    @* Latest client response status *@
+                                    <td>
+                                        @if (latestResponse == null)
+                                        {
+                                            <span class="text-muted">No response</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge @GetResponseStatusClass(latestResponse.Status)">
+                                                @GetResponseStatusLabel(latestResponse.Status)
+                                            </span>
+
+                                            @if (!string.IsNullOrWhiteSpace(latestResponse.ReviewComments))
+                                            {
+                                                <div class="small text-muted mt-1"
+                                                     title="@latestResponse.ReviewComments">
+                                                    Review comments available
+                                                </div>
+                                            }
+                                        }
+                                    </td>
+
+                                    @* Latest response submission date *@
+                                    <td>
+                                        @if (latestResponse == null)
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@latestResponse.SubmittedOn.ToString("dd MMM yyyy")</span>
+                                            <div class="small text-muted">
+                                                @latestResponse.SubmittedOn.ToString("HH:mm")
+                                            </div>
+                                        }
+                                    </td>
+
+                                    @* Additional information / resubmission deadline *@
+                                    <td>
+                                        @if (latestResponse?.InformationRequestDueOn is DateTime responseDeadline)
+                                        {
+                                            var isOverdue = responseDeadline < DateTime.UtcNow;
+                                            var daysRemaining = (responseDeadline - DateTime.UtcNow).TotalDays;
+
+                                            <span class="badge @(isOverdue ? "bg-danger" : daysRemaining <= 2 ? "bg-warning text-dark" : "bg-secondary")">
+                                                @(isOverdue ? "Overdue" : $"{Math.Ceiling(daysRemaining)} day(s) left")
+                                            </span>
+
+                                            <div class="small text-muted">
+                                                @responseDeadline.ToString("dd MMM yyyy HH:mm")
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
                                         }
                                     </td>
                                     <td>@(item.Agent?.FullName ?? "-")</td>
@@ -248,6 +312,37 @@ else
         await RefreshAsync();
     }
 
+    private static string GetResponseStatusLabel(ClientResponseStatus status)
+    {
+        return status switch
+        {
+            ClientResponseStatus.Received => "Received",
+            ClientResponseStatus.UnderReview => "Under Review",
+            ClientResponseStatus.AdditionalInformationRequested =>
+                "Additional Information Requested",
+            ClientResponseStatus.Incomplete => "Incomplete",
+            ClientResponseStatus.Resubmitted => "Resubmitted",
+            ClientResponseStatus.Accepted => "Accepted",
+            ClientResponseStatus.Rejected => "Rejected",
+            _ => status.ToString()
+        };
+    }
+
+    private static string GetResponseStatusClass(ClientResponseStatus status)
+    {
+        return status switch
+        {
+            ClientResponseStatus.Received => "bg-primary",
+            ClientResponseStatus.Resubmitted => "bg-info text-dark",
+            ClientResponseStatus.UnderReview => "bg-warning text-dark",
+            ClientResponseStatus.AdditionalInformationRequested => "bg-warning text-dark",
+            ClientResponseStatus.Incomplete => "bg-danger",
+            ClientResponseStatus.Accepted => "bg-success",
+            ClientResponseStatus.Rejected => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
     private void RecomputeFilter()
     {
         if (_scope == "Mine")
@@ -305,6 +400,7 @@ else
             WorkBasket.Referral => "Referral",
             WorkBasket.ClearedResolved => "Cleared / Resolved",
             WorkBasket.ReferralPending => "Referral Pending",
+            WorkBasket.AwaitingInstructionalResponse => "Awaiting IL Response",
             _ => basket.ToString()
         };
 }

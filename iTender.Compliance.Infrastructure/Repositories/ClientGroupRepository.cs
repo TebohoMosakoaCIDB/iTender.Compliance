@@ -14,6 +14,33 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
+        public async Task UpdateIssuanceDetailsAsync(
+    ClientGroup group,
+    CancellationToken cancellationToken = default)
+        {
+            await using var context = await CreateContextAsync();
+
+            var existingGroup = await context.ClientGroups
+                .FirstOrDefaultAsync(
+                    g => g.Id == group.Id,
+                    cancellationToken);
+
+            if (existingGroup == null)
+                throw new InvalidOperationException("Client group not found.");
+
+            existingGroup.Status = group.Status;
+            existingGroup.ConsolidatedLetterId = group.ConsolidatedLetterId;
+            existingGroup.IssuedOn = group.IssuedOn;
+
+            existingGroup.AnnexureFileName = group.AnnexureFileName;
+            existingGroup.AnnexureFilePath = group.AnnexureFilePath;
+
+            existingGroup.ModifiedBy = group.ModifiedBy;
+            existingGroup.ModifiedOn = group.ModifiedOn;
+
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
         public async Task<ClientGroupSummaryModel?> GetSummaryByCaseIdAsync(
             Guid caseId,
             CancellationToken cancellationToken = default)

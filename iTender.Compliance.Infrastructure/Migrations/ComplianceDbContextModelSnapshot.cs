@@ -603,6 +603,124 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.ToTable("ClientGroups", (string)null);
                 });
 
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientResponse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseLetterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ClientComments")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid>("ComplianceCaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("InformationRequestDueOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("InformationRequestedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("PreviousResponseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReviewComments")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid?>("ReviewedByAgentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SubmittedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseLetterId");
+
+                    b.HasIndex("ComplianceCaseId");
+
+                    b.HasIndex("PreviousResponseId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("ClientResponses", (string)null);
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientResponseDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClientResponseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid?>("UploadedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UploadedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientResponseId");
+
+                    b.ToTable("ClientResponseDocuments", (string)null);
+                });
+
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ComplianceAction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1758,6 +1876,43 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Navigation("ConsolidatedLetter");
                 });
 
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientResponse", b =>
+                {
+                    b.HasOne("iTender.Compliance.Domain.Entities.CaseLetter", "CaseLetter")
+                        .WithMany("ClientResponses")
+                        .HasForeignKey("CaseLetterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("iTender.Compliance.Domain.Entities.ComplianceCase", "ComplianceCase")
+                        .WithMany("ClientResponses")
+                        .HasForeignKey("ComplianceCaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("iTender.Compliance.Domain.Entities.ClientResponse", "PreviousResponse")
+                        .WithMany("Resubmissions")
+                        .HasForeignKey("PreviousResponseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CaseLetter");
+
+                    b.Navigation("ComplianceCase");
+
+                    b.Navigation("PreviousResponse");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientResponseDocument", b =>
+                {
+                    b.HasOne("iTender.Compliance.Domain.Entities.ClientResponse", "ClientResponse")
+                        .WithMany("Documents")
+                        .HasForeignKey("ClientResponseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClientResponse");
+                });
+
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ComplianceAction", b =>
                 {
                     b.HasOne("iTender.Compliance.Domain.Entities.ComplianceCase", "ComplianceCase")
@@ -1887,12 +2042,21 @@ namespace iTender.Compliance.Infrastructure.Migrations
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.CaseLetter", b =>
                 {
+                    b.Navigation("ClientResponses");
+
                     b.Navigation("SigningRequest");
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientGroup", b =>
                 {
                     b.Navigation("Cases");
+                });
+
+            modelBuilder.Entity("iTender.Compliance.Domain.Entities.ClientResponse", b =>
+                {
+                    b.Navigation("Documents");
+
+                    b.Navigation("Resubmissions");
                 });
 
             modelBuilder.Entity("iTender.Compliance.Domain.Entities.ComplianceCase", b =>
@@ -1906,6 +2070,8 @@ namespace iTender.Compliance.Infrastructure.Migrations
                     b.Navigation("CaseNotes");
 
                     b.Navigation("ClientGroups");
+
+                    b.Navigation("ClientResponses");
 
                     b.Navigation("ComplianceActions");
 
