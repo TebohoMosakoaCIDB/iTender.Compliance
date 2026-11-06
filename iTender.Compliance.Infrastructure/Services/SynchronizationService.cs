@@ -677,6 +677,13 @@ namespace iTender.Compliance.Infrastructure.Services
                         userId,
                         cancellationToken);
 
+                if (!createdCaseId.HasValue)
+                {
+                    throw new InvalidOperationException(
+                        $"Compliance processing did not return a case for tender {tender.TenderNumber}. " +
+                        "The tender will not be marked as processed.");
+                }
+
                 // ---------------------------------------------------------
                 // Run automated verification for awarded tenders
                 // ---------------------------------------------------------

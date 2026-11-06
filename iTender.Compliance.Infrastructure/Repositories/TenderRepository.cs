@@ -14,26 +14,26 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
         }
 
-        public async Task<int> CountAwaitingClassificationReviewAsync(
-            Guid? agentId = null,
-            CancellationToken cancellationToken = default)
-        {
-            await using var context = await CreateContextAsync();
+        //public async Task<int> CountAwaitingClassificationReviewAsync(
+        //    Guid? agentId = null,
+        //    CancellationToken cancellationToken = default)
+        //{
+        //    await using var context = await CreateContextAsync();
 
-            var query = context.Tenders
-                .Where(t => t.IsConstruction)
-                .Where(t => t.ClassificationReviewedOn == null);
+        //    var query = context.Tenders
+        //        .Where(t => t.IsConstruction)
+        //        .Where(t => t.ClassificationReviewedOn == null);
 
-            if (agentId.HasValue)
-            {
-                // Only count tenders whose case is assigned to this officer.
-                query = query.Where(t =>
-                    t.ComplianceCase != null &&
-                    t.ComplianceCase.AgentId == agentId.Value);
-            }
+        //    if (agentId.HasValue)
+        //    {
+        //        // Only count tenders whose case is assigned to this officer.
+        //        query = query.Where(t =>
+        //            t.ComplianceCase != null &&
+        //            t.ComplianceCase.AgentId == agentId.Value);
+        //    }
 
-            return await query.CountAsync(cancellationToken);
-        }
+        //    return await query.CountAsync(cancellationToken);
+        //}
 
         public async Task<int> CountConstructionTendersAsync( CancellationToken cancellationToken = default)
         {
@@ -52,7 +52,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .CountAsync(t => t.ClassificationReviewedOn == null, cancellationToken);
         }
 
-        public async Task<int> MarkClassificationReviewedAsync(
+        public async Task<IReadOnlyList<Guid>> MarkClassificationReviewedAsync(
     IEnumerable<Guid> tenderIds,
     Guid userId,
     string? notes,
@@ -60,10 +60,12 @@ namespace iTender.Compliance.Infrastructure.Repositories
         {
             await using var context = await CreateContextAsync();
 
-            var idList = tenderIds?.Distinct().ToList() ?? new List<Guid>();
+            var idList = tenderIds?
+                .Distinct()
+                .ToList() ?? new List<Guid>();
 
             if (idList.Count == 0)
-                return 0;
+                return Array.Empty<Guid>();
 
             var tenders = await context.Tenders
                 .Where(t => idList.Contains(t.Id))
@@ -71,7 +73,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
 
             if (tenders.Count == 0)
-                return 0;
+                return Array.Empty<Guid>();
 
             var now = DateTime.UtcNow;
 
@@ -89,7 +91,9 @@ namespace iTender.Compliance.Infrastructure.Repositories
 
             await context.SaveChangesAsync(cancellationToken);
 
-            return tenders.Count;
+            return tenders
+                .Select(t => t.Id)
+                .ToList();
         }
 
         public async Task<List<Tender>> GetUnregisteredAwardedTendersAsync(
@@ -163,6 +167,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
             existing.ClassificationReviewedOn = tender.ClassificationReviewedOn;
             existing.ClassificationReviewNotes = tender.ClassificationReviewNotes;
             existing.ClassificationOverridden = tender.ClassificationOverridden;
+            existing.ClassificationStatus = tender.ClassificationStatus; // ADD THIS
 
             existing.ModifiedOn = DateTime.UtcNow;
 
@@ -379,31 +384,39 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+
         public async Task<PagedResult<Tender>> SearchForClassificationReviewAsync(
-    TenderClassificationSearchModel search,
-    CancellationToken cancellationToken = default)
+            TenderClassificationSearchModel search,
+            CancellationToken cancellationToken = default)
         {
             await using var context = await CreateContextAsync();
 
-            // Mirror the badge: only construction tenders awaiting review,
-            // scoped to the officer's assigned cases.
-            var query = context.Tenders
-                .Where(t => t.IsConstruction)
-                .Where(t => t.ClassificationReviewedOn == null);
+            var query = context.Tenders.AsQueryable();
 
+            // Search by tender number, title or employer.
             if (!string.IsNullOrWhiteSpace(search.SearchText))
             {
+                var searchText = search.SearchText.Trim();
+
                 query = query.Where(t =>
-                    t.TenderNumber.Contains(search.SearchText) ||
-                    t.Title.Contains(search.SearchText) ||
-                    t.EmployerName.Contains(search.SearchText));
+                    t.TenderNumber.Contains(searchText) ||
+                    t.Title.Contains(searchText) ||
+                    t.EmployerName.Contains(searchText));
             }
 
-            if (search.AgentId.HasValue)
+            // Filter by construction / non-construction.
+            if (search.IsConstruction.HasValue)
             {
                 query = query.Where(t =>
-                    t.ComplianceCase != null &&
-                    t.ComplianceCase.AgentId == search.AgentId.Value);
+                    t.IsConstruction == search.IsConstruction.Value);
+            }
+
+            // Filter reviewed / awaiting review.
+            if (search.ReviewedOnly.HasValue)
+            {
+                query = search.ReviewedOnly.Value
+                    ? query.Where(t => t.ClassificationReviewedOn != null)
+                    : query.Where(t => t.ClassificationReviewedOn == null);
             }
 
             var total = await query.CountAsync(cancellationToken);
@@ -422,6 +435,7 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 PageSize = search.PageSize
             };
         }
+
 
         public async Task<IReadOnlyList<Tender>> GetByIdsAsync(
             IEnumerable<Guid> ids,

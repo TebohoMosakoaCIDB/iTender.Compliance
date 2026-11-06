@@ -5,7 +5,7 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
 {
     public interface ITenderRepository
     {
-        Task<int> MarkClassificationReviewedAsync(
+        Task<IReadOnlyList<Guid>> MarkClassificationReviewedAsync(
             IEnumerable<Guid> tenderIds,
             Guid userId,
             string? notes,
@@ -86,8 +86,8 @@ namespace iTender.Compliance.Application.Interfaces.Repositories
             TenderClassificationSearchModel search,
             CancellationToken cancellationToken = default);
 
-        Task<int> CountAwaitingClassificationReviewAsync(
-    Guid? agentId = null,
-    CancellationToken cancellationToken = default);
+    //    Task<int> CountAwaitingClassificationReviewAsync(
+    //Guid? agentId = null,
+    //CancellationToken cancellationToken = default);
     }
 }

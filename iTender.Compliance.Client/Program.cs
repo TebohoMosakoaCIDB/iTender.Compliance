@@ -64,6 +64,9 @@ builder.Services.AddAuthorization(options =>
             Roles.ComplianceManager,
             Roles.ComplianceOfficer));
 
+    options.AddPolicy("ClassificationReview", policy =>
+        policy.RequireRole(Roles.ComplianceManager));
+
     // =========================================================
     // COMPLIANCE OVERSIGHT
     // =========================================================

@@ -2,7 +2,8 @@
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Application.Interfaces.Services;
 using iTender.Compliance.Domain.Enums;
-using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.Extensions.Logging;
+using Microsoft.Xrm.Sdk.PluginTelemetry;
 
 namespace iTender.Compliance.Infrastructure.Services
 {
@@ -11,15 +12,21 @@ namespace iTender.Compliance.Infrastructure.Services
         private readonly ITenderRepository _tenderRepository;
         private readonly IAuditService _auditService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISynchronizationService _synchronizationService;
+        private readonly ILogger<TenderClassificationService> _logger;
 
         public TenderClassificationService(
+            ISynchronizationService synchronizationService,
             ITenderRepository tenderRepository,
             IAuditService auditService,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            ILogger<TenderClassificationService>? logger)
         {
+            _synchronizationService = synchronizationService;
             _tenderRepository = tenderRepository;
             _auditService = auditService;
             _unitOfWork = unitOfWork;
+            _logger = logger;
         }
 
         public async Task ConfirmAsync(
@@ -50,32 +57,86 @@ namespace iTender.Compliance.Infrastructure.Services
                 $"{(tender.IsConstruction ? "construction-related" : "non-construction")} by CO.",
                 userId,
                 cancellationToken);
-        }
 
-        public async Task<int> ConfirmManyAsync(
-            IEnumerable<Guid> tenderIds,
-            Guid userId,
-            string? notes,
-            CancellationToken cancellationToken = default)
-        {
-            var confirmed = await _tenderRepository.MarkClassificationReviewedAsync(
-                tenderIds,
-                userId,
-                notes,
-                cancellationToken);
-
-            if (confirmed > 0)
+            if (tender.ClassificationStatus == ClassificationStatus.Confirmed)
             {
-                await _auditService.LogAsync(
-                    AuditAction.Updated,
-                    AuditEntity.Tender,
-                    Guid.Empty,
-                    $"Bulk classification confirmation: {confirmed} tender(s) confirmed.",
+                await _synchronizationService.ProcessClassifiedTenderAsync(
+                    tender.Id,
                     userId,
                     cancellationToken);
             }
+        }
 
-            return confirmed;
+        public async Task<int> ConfirmManyAsync(
+    IEnumerable<Guid> tenderIds,
+    Guid userId,
+    string? notes,
+    CancellationToken cancellationToken = default)
+        {
+            var ids = tenderIds?
+                .Distinct()
+                .ToList() ?? new List<Guid>();
+
+            if (ids.Count == 0)
+                return 0;
+
+            var reviewedTenderIds = await _tenderRepository
+                .MarkClassificationReviewedAsync(
+                    ids,
+                    userId,
+                    notes,
+                    cancellationToken);
+
+            var confirmedCount = reviewedTenderIds.Count;
+
+            if (confirmedCount == 0)
+                return 0;
+
+            await _auditService.LogAsync(
+                AuditAction.Updated,
+                AuditEntity.Tender,
+                Guid.Empty,
+                $"Bulk classification confirmation: {confirmedCount} tender(s) reviewed.",
+                userId,
+                cancellationToken);
+
+            foreach (var tenderId in reviewedTenderIds)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    var tender = await _tenderRepository.GetByIdAsync(
+                        tenderId,
+                        cancellationToken);
+
+                    if (tender is null ||
+                        tender.ClassificationStatus != ClassificationStatus.Confirmed)
+                    {
+                        continue;
+                    }
+
+                    await _synchronizationService.ProcessClassifiedTenderAsync(
+                        tender.Id,
+                        userId,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Compliance processing failed for tender {TenderId} during bulk classification confirmation.",
+                        tenderId);
+
+                    // Continue processing the remaining tenders.
+                }
+            }
+
+            return confirmedCount;
         }
 
         public async Task OverrideAsync(
@@ -109,6 +170,14 @@ namespace iTender.Compliance.Infrastructure.Services
                 $"{(isConstruction ? "construction" : "non-construction")}. Reason: {reason}",
                 userId,
                 cancellationToken);
+
+            if (isConstruction)
+            {
+                await _synchronizationService.ProcessClassifiedTenderAsync(
+                    tender.Id,
+                    userId,
+                    cancellationToken);
+            }
         }
     }
 }
