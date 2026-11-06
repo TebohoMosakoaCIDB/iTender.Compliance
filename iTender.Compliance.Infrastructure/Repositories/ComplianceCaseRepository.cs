@@ -155,14 +155,20 @@ namespace iTender.Compliance.Infrastructure.Repositories
                         c.Status == CaseStatus.New &&
                         c.AgentId == null),
 
-                // 2. Findings requiring manual verification.
+                // 2. Findings awaiting verification or CO review.
+                // Pending: automated/manual verification has not yet been completed.
+                // AutomatedFailed: automated verification failed and needs CO review.
                 WorkBasket.VerificationRequired =>
                     query.Where(c =>
                         c.Status != CaseStatus.Closed &&
                         c.Status != CaseStatus.ReferredForEnforcement &&
                         c.ComplianceFindings.Any(f =>
-                            f.VerificationStatus == VerificationStatus.AutomatedFailed &&
-                            !f.IsResolved)),
+                            f.Stream != ComplianceStream.Advertisement &&
+                            !f.IsResolved &&
+                            (
+                                f.VerificationStatus == VerificationStatus.Pending ||
+                                f.VerificationStatus == VerificationStatus.AutomatedFailed
+                            ))),
 
                 // 3. Advertisement findings.
                 WorkBasket.NotAdvertised =>

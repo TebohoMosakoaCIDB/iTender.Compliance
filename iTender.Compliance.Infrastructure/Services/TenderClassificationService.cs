@@ -29,12 +29,15 @@ namespace iTender.Compliance.Infrastructure.Services
             CancellationToken cancellationToken = default)
         {
             var tender = await _tenderRepository.GetByIdAsync(tenderId, cancellationToken)
-        ?? throw new InvalidOperationException($"Tender {tenderId} not found.");
+                ?? throw new InvalidOperationException($"Tender {tenderId} not found.");
 
             tender.ClassificationReviewedOn = DateTime.UtcNow;
             tender.ClassificationReviewedByUserId = userId;
             tender.ClassificationReviewNotes = notes;
             tender.ClassificationOverridden = false;
+            tender.ClassificationStatus = tender.IsConstruction
+                ? ClassificationStatus.Confirmed
+                : ClassificationStatus.Rejected;
 
             await _tenderRepository.UpdateAsync(tender, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -92,6 +95,7 @@ namespace iTender.Compliance.Infrastructure.Services
             tender.ClassificationReviewedOn = DateTime.UtcNow;
             tender.ClassificationReviewNotes = reason;
             tender.ClassificationOverridden = true;
+            tender.ClassificationStatus = ClassificationStatus.Overridden;
 
             await _tenderRepository.UpdateAsync(tender, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

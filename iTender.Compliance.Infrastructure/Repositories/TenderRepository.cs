@@ -1,6 +1,7 @@
 ﻿using iTender.Compliance.Application.DTOs;
 using iTender.Compliance.Application.Interfaces.Repositories;
 using iTender.Compliance.Domain.Entities;
+using iTender.Compliance.Domain.Enums;
 using iTender.Compliance.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,8 +15,8 @@ namespace iTender.Compliance.Infrastructure.Repositories
         }
 
         public async Task<int> CountAwaitingClassificationReviewAsync(
-    Guid? agentId = null,
-    CancellationToken cancellationToken = default)
+            Guid? agentId = null,
+            CancellationToken cancellationToken = default)
         {
             await using var context = await CreateContextAsync();
 
@@ -80,6 +81,10 @@ namespace iTender.Compliance.Infrastructure.Repositories
                 tender.ClassificationReviewedOn = now;
                 tender.ClassificationReviewNotes = notes;
                 tender.ClassificationOverridden = false;
+
+                tender.ClassificationStatus = tender.IsConstruction
+                    ? ClassificationStatus.Confirmed
+                    : ClassificationStatus.Rejected;
             }
 
             await context.SaveChangesAsync(cancellationToken);
