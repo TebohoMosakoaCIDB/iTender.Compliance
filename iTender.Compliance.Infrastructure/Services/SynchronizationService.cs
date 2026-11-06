@@ -588,6 +588,157 @@ namespace iTender.Compliance.Infrastructure.Services
             }
         }
 
+        public async Task ProcessClassifiedTenderAsync(
+            Guid tenderId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var tender = await _tenderRepository.GetByIdAsync(
+                tenderId,
+                cancellationToken);
+
+            if (tender is null)
+                throw new InvalidOperationException(
+                    $"Tender {tenderId} was not found.");
+
+            // Prevent the same tender from being processed repeatedly.
+            if (tender.ClassificationStatus == ClassificationStatus.Processed)
+                return;
+
+            // Only CO-confirmed or overridden construction tenders may be processed.
+            if (!tender.IsConstruction ||
+                (tender.ClassificationStatus != ClassificationStatus.Confirmed &&
+                 tender.ClassificationStatus != ClassificationStatus.Overridden))
+            {
+                return;
+            }            
+
+            var syncId = tender.TenderSyncId;
+
+            await LogAsync(
+                syncId,
+                SyncLogType.Information,
+                SyncLogLevel.Information,
+                "Classification Confirmed",
+                "Tender classification was confirmed. Compliance processing is starting.",
+                tender.TenderNumber,
+                cancellationToken);
+
+            try
+            {
+                // ---------------------------------------------------------
+                // Retrieve advertised tenders from CRM
+                // ---------------------------------------------------------
+                var crmTenders = await _dataverseService
+                    .GetAdvertisedTendersAsync(cancellationToken);
+
+                var crmTenderNumbers = crmTenders
+                    .Where(x => !string.IsNullOrWhiteSpace(x.TenderNumber))
+                    .Select(x => x.TenderNumber.Trim())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var crmTendersByScope = crmTenders
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.TenderNumber) &&
+                        !string.IsNullOrWhiteSpace(x.EmployerName) &&
+                        !string.IsNullOrWhiteSpace(x.Title))
+                    .GroupBy(x => TenderMatchKeyBuilder.Build(
+                        x.EmployerName,
+                        x.Title))
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.First(),
+                        StringComparer.OrdinalIgnoreCase);
+
+                // ---------------------------------------------------------
+                // Retrieve awarded contracts for Stream 3
+                // ---------------------------------------------------------
+                List<ContractModel> crmContracts = [];
+
+                if (tender.AwardedDate.HasValue &&
+                    tender.AwardValue.HasValue)
+                {
+                    crmContracts = await _dataverseService
+                        .GetAwardedContractsAsync(
+                            tender.AwardedDate.Value,
+                            cancellationToken);
+                }
+
+                // ---------------------------------------------------------
+                // Run compliance processing
+                // ---------------------------------------------------------
+                var createdCaseId = await _complianceProcessingService
+                    .ProcessTenderAsync(
+                        tender,
+                        crmTenderNumbers,
+                        crmTendersByScope,
+                        crmContracts,
+                        syncId,
+                        userId,
+                        cancellationToken);
+
+                // ---------------------------------------------------------
+                // Run automated verification for awarded tenders
+                // ---------------------------------------------------------
+                if (createdCaseId.HasValue &&
+                    tender.AwardedDate.HasValue &&
+                    tender.AwardValue.HasValue)
+                {
+                    var complianceCase = await _complianceCaseRepository
+                        .GetByIdAsync(
+                            createdCaseId.Value,
+                            cancellationToken);
+
+                    if (complianceCase is not null)
+                    {
+                        await _verificationService
+                            .RunAutomatedVerificationAsync(
+                                complianceCase,
+                                cancellationToken);
+                    }
+                }
+
+                // ---------------------------------------------------------
+                // Mark classification as processed
+                // ---------------------------------------------------------
+                tender.ClassificationStatus = ClassificationStatus.Processed;
+
+                await _tenderRepository.UpdateAsync(
+                    tender,
+                    cancellationToken);
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                await LogAsync(
+                    syncId,
+                    SyncLogType.Information,
+                    SyncLogLevel.Information,
+                    "Compliance Processing Completed",
+                    createdCaseId.HasValue
+                        ? $"Compliance processing completed successfully. Case ID: {createdCaseId.Value}."
+                        : "Compliance processing completed. No compliance case was created.",
+                    tender.TenderNumber,
+                    cancellationToken);
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await LogAsync(
+                    syncId,
+                    SyncLogType.Error,
+                    SyncLogLevel.Error,
+                    "Tender Compliance Processing Failed",
+                    $"The tender was classified but compliance processing failed. Error: {ex.Message}",
+                    tender.TenderNumber,
+                    cancellationToken);
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                throw;
+            }
+        }
+
         private async Task LogAsync(
             Guid syncId,
             SyncLogType type,

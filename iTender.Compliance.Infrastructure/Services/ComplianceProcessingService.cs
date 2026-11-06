@@ -86,6 +86,19 @@ namespace iTender.Compliance.Infrastructure.Services
                 return null;
             }
 
+            // 2. Only process tenders whose construction classification
+            // has been confirmed or overridden by a Compliance Officer.
+            if (tender.ClassificationStatus != ClassificationStatus.Confirmed &&
+                tender.ClassificationStatus != ClassificationStatus.Overridden)
+            {
+                _logger.LogInformation(
+                    "Skipping tender {TenderNumber}. Classification status is {ClassificationStatus}.",
+                    tender.TenderNumber,
+                    tender.ClassificationStatus);
+
+                return null;
+            }
+
             // 2. Determine tender status (Open / Closed)
             var tenderStatus = tender.ClosingDate > DateTime.UtcNow
                 ? TenderStatus.Open
