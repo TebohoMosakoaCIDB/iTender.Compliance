@@ -133,6 +133,7 @@ namespace iTender.Compliance.Infrastructure.Extensions
             services.AddScoped<ISystemSettingService, SystemSettingService>();
             services.AddScoped<ICaseAuthorizationService, CaseAuthorizationService>();
             services.AddScoped<IVerificationService, VerificationService>();
+            services.AddScoped<IClassOfWorkReviewService, ClassOfWorkReviewService>();
             services.AddHostedService<TenderSyncBackgroundService>();
             services.AddHostedService<AutoAssignmentBackgroundService>();
             services.AddHostedService<RoPComplianceBackgroundService>();

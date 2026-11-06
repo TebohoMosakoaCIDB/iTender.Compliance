@@ -8,6 +8,7 @@
 @using iTender.Compliance.Client.Helpers
 @using iTender.Compliance.Domain.Entities
 @using iTender.Compliance.Domain.Enums
+@using iTender.Compliance.Application.Common
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ICorrespondenceService CorrespondenceService
@@ -22,6 +23,9 @@
 @inject IAgsaReferralRepository AgsaReferralRepository
 @inject ICurrentUserService CurrentUserService
 @inject IVerificationService VerificationService
+@inject IClassOfWorkReviewService ClassOfWorkReviewService
+@inject IClassOfWorkTypeRepository ClassOfWorkTypeRepository
+@inject ICaseAuthorizationService CaseAuthorizationService
 
 @inject IAuthorizationService AuthorizationService
 
@@ -272,27 +276,40 @@ else
                                                 </div>
 
                                                 @if (isAwaitingCoReview && CanManageCorrespondence)
-                                                {
-                                                    <div class="d-flex flex-wrap gap-2 mt-3">
-                                                        <button class="btn btn-sm btn-cidb-submit"
-                                                                @onclick="() => ConfirmVerification(finding.Id)">
-                                                            <i class="bi bi-check2-circle me-1"></i>
-                                                            Confirm Failure
-                                                        </button>
+{
+    <div class="d-flex flex-wrap gap-2 mt-3">
+        <button class="btn btn-sm btn-cidb-submit"
+                @onclick="() => ConfirmVerification(finding.Id)">
+            <i class="bi bi-check2-circle me-1"></i>
+            Confirm Failure
+        </button>
 
-                                                        <button class="btn btn-sm btn-cidb-submit-outline"
-                                                                @onclick="() => OpenOverrideVerification(finding.Id)">
-                                                            <i class="bi bi-arrow-counterclockwise me-1"></i>
-                                                            Override
-                                                        </button>
+        <button class="btn btn-sm btn-cidb-submit-outline"
+                @onclick="() => OpenOverrideVerification(finding.Id)">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>
+            Override
+        </button>
 
-                                                        <button class="btn btn-sm btn-cidb-submit-outline"
-                                                                @onclick="() => OpenManualVerification(finding.Id)">
-                                                            <i class="bi bi-pencil-square me-1"></i>
-                                                            Manual Verify
-                                                        </button>
-                                                    </div>
-                                                }
+        <button class="btn btn-sm btn-cidb-submit-outline"
+                @onclick="() => OpenManualVerification(finding.Id)">
+            <i class="bi bi-pencil-square me-1"></i>
+            Manual Verify
+        </button>
+    </div>
+}
+
+@if (finding.Stream == ComplianceStream.ClassOfWorks
+    && !finding.IsResolved
+    && CanReviewClassOfWorks)
+{
+    <div class="d-flex flex-wrap gap-2 mt-3">
+        <button class="btn btn-sm btn-cidb-submit"
+                @onclick="() => OpenClassOfWorkReview(finding.Id)">
+            <i class="bi bi-tools me-1"></i>
+            Review Class of Works
+        </button>
+    </div>
+}
                                             </div>
 
                                             <div class="ms-3">
@@ -774,6 +791,89 @@ else
         </div>
     </div>
 
+    @if (ShowClassOfWorkReviewModal)
+{
+    <div class="modal fade show d-block"
+         tabindex="-1"
+         style="background-color:rgba(0,0,0,.5)">
+
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        Review Class of Works
+                    </h5>
+
+                    <button class="btn-close"
+                            @onclick="CloseClassOfWorkReview">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <p class="text-muted">
+                        Review the tender advert and select the
+                        appropriate CIDB class of works.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Class of Works
+                            <span class="text-danger">*</span>
+                        </label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="SelectedClassOfWorks">
+
+                            <option value="">
+                                -- Select Class of Works --
+                            </option>
+
+                            @foreach (var item in AvailableClassOfWorks)
+                            {
+                                <option value="@item.Name">
+                                    @item.Name
+                                </option>
+                            }
+
+                        </InputSelect>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Review Notes
+                        </label>
+
+                        <InputTextArea class="form-control"
+                                       rows="4"
+                                       @bind-Value="ClassOfWorkReviewNotes"
+                                       placeholder="Explain why this class was selected..." />
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button class="btn btn-sm btn-secondary"
+                            @onclick="CloseClassOfWorkReview">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-sm btn-cidb-submit"
+                            disabled="@string.IsNullOrWhiteSpace(SelectedClassOfWorks)"
+                            @onclick="SaveClassOfWorkReview">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Save Review
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
     <!-- ========================================================== -->
     <!-- ASSIGN AGENT MODAL -->
     <!-- ========================================================== -->
@@ -1011,6 +1111,13 @@ else
 }
 
 @code {
+    private List<ClassOfWorkTypeModel> AvailableClassOfWorks = [];
+    private bool CanReviewClassOfWorks;
+    private Guid ClassOfWorkFindingId;
+    private string SelectedClassOfWorks = string.Empty;
+    private string ClassOfWorkReviewNotes = string.Empty;
+    private bool ShowClassOfWorkReviewModal;
+
     private bool CanAssignAgent;
     private bool CanManageCorrespondence;
     private CaptureResponseModel Response = new();
@@ -1056,29 +1163,42 @@ else
     private bool ManualVerificationIsCompliant = true;
 
     protected override async Task OnInitializedAsync()
+{
+    await RefreshCase();
+
+    var authenticationState =
+        await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+    var user = authenticationState.User;
+
+    CanReviewClassOfWorks =
+        Model != null &&
+        Model.Case.Status != "Closed" &&
+        user.IsInRole(Roles.ComplianceOfficer) &&
+        await CaseAuthorizationService.CanEditAsync(Id);
+
+    if (CanReviewClassOfWorks)
     {
-        var authenticationState =
-            await AuthenticationStateProvider.GetAuthenticationStateAsync();
-
-        var user = authenticationState.User;
-
-        CanAssignAgent =
-            (await AuthorizationService.AuthorizeAsync(user, "CaseAssignment")).Succeeded;
-
-        CanManageCorrespondence =
-            (await AuthorizationService.AuthorizeAsync(user, "Correspondence")).Succeeded;
-
-        await RefreshCase();
-        await LoadWorkflowExtrasAsync();
-
-        if (CurrentUserService.UserId.HasValue)
-        {
-            var currentAgent = await AgentRepository
-                .GetByUserIdAsync(CurrentUserService.UserId.Value);
-
-            CurrentAgentIsManager = currentAgent?.IsManager ?? false;
-        }
+        AvailableClassOfWorks = (await ClassOfWorkTypeRepository
+            .GetAllAsync()).ToList();
     }
+
+    CanAssignAgent =
+        (await AuthorizationService.AuthorizeAsync(user, "CaseAssignment")).Succeeded;
+
+    CanManageCorrespondence =
+        (await AuthorizationService.AuthorizeAsync(user, "Correspondence")).Succeeded;
+
+    await LoadWorkflowExtrasAsync();
+
+    if (CurrentUserService.UserId.HasValue)
+    {
+        var currentAgent = await AgentRepository
+            .GetByUserIdAsync(CurrentUserService.UserId.Value);
+
+        CurrentAgentIsManager = currentAgent?.IsManager ?? false;
+    }
+}
 
     private async Task LoadWorkflowExtrasAsync()
     {
@@ -1100,6 +1220,43 @@ else
         AssignmentComments = Model.Case.Comments ?? string.Empty;
         ShowAssignAgentModal = true;
     }
+
+    private void OpenClassOfWorkReview(Guid findingId)
+{
+    ClassOfWorkFindingId = findingId;
+    SelectedClassOfWorks = string.Empty;
+    ClassOfWorkReviewNotes = string.Empty;
+
+    ShowClassOfWorkReviewModal = true;
+}
+
+private void CloseClassOfWorkReview()
+{
+    ShowClassOfWorkReviewModal = false;
+    ClassOfWorkFindingId = Guid.Empty;
+    SelectedClassOfWorks = string.Empty;
+    ClassOfWorkReviewNotes = string.Empty;
+}
+
+private async Task SaveClassOfWorkReview()
+{
+    if (ClassOfWorkFindingId == Guid.Empty ||
+        string.IsNullOrWhiteSpace(SelectedClassOfWorks) ||
+        !CurrentUserService.UserId.HasValue)
+    {
+        return;
+    }
+
+    await ClassOfWorkReviewService.ResolveAsync(
+        ClassOfWorkFindingId,
+        SelectedClassOfWorks,
+        ClassOfWorkReviewNotes,
+        CurrentUserService.UserId.Value);
+
+    CloseClassOfWorkReview();
+
+    await RefreshCase();
+}
 
     private void CloseAssignAgent()
     {
